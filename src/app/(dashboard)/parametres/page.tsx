@@ -1,0 +1,1529 @@
+/* eslint-disable @next/next/no-img-element */
+
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  Building2,
+  CheckCircle2,
+  ImagePlus,
+  RefreshCcw,
+  Save,
+  Settings,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
+
+import {
+  canEditPharmacySettings,
+  canManageUsers,
+} from "@/lib/permissions";
+import {
+  createPharmacyMember,
+  getCurrentPharmacy,
+  getPharmacyMembers,
+  getPharmacySettings,
+  resetPharmacyMemberPassword,
+  updatePharmacy,
+  updatePharmacyMember,
+  updatePharmacySettings,
+  uploadPharmacyLogo,
+} from "@/services/pharmacies.service";
+
+import type { PharmacyWithRole } from "@/types/pharmacy";
+import type { PharmacyMember, PharmacySettings } from "@/types/settings";
+
+type PharmacyFormState = {
+  name: string;
+  address: string;
+  city: string;
+  province: string;
+  phone: string;
+  email: string;
+  pharmacistName: string;
+  exchangeRate: string;
+  invoiceFooter: string;
+  logoUrl: string;
+};
+
+type SettingsFormState = {
+  allowNegativeStock: boolean;
+  blockExpiredSales: boolean;
+  expirationAlertDays: string;
+  lowStockAlertEnabled: boolean;
+  invoicePrefix: string;
+  receiptFormat: string;
+};
+
+type PharmacyUserRole =
+  | "manager"
+  | "pharmacist"
+  | "cashier"
+  | "stock_manager"
+  | "accountant";
+
+type UserFormState = {
+  fullName: string;
+  email: string;
+  phone: string;
+  password: string;
+  role: PharmacyUserRole;
+};
+
+type EditMemberFormState = {
+  fullName: string;
+  phone: string;
+  role: PharmacyUserRole;
+  isActive: boolean;
+};
+
+const initialUserForm: UserFormState = {
+  fullName: "",
+  email: "",
+  phone: "",
+  password: "ChangeMe@2026!",
+  role: "cashier",
+};
+
+export default function SettingsPage() {
+  const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
+  const [settings, setSettings] = useState<PharmacySettings | null>(null);
+  const [members, setMembers] = useState<PharmacyMember[]>([]);
+const [memberToEdit, setMemberToEdit] = useState<PharmacyMember | null>(null);
+const [editMemberForm, setEditMemberForm] = useState<EditMemberFormState>({
+  fullName: "",
+  phone: "",
+  role: "cashier",
+  isActive: true,
+});
+const [isSavingMember, setIsSavingMember] = useState(false);
+  const [pharmacyForm, setPharmacyForm] = useState<PharmacyFormState>({
+    name: "",
+    address: "",
+    city: "",
+    province: "",
+    phone: "",
+    email: "",
+    pharmacistName: "",
+    exchangeRate: "2800",
+    invoiceFooter: "",
+    logoUrl: "",
+  });
+
+  const [settingsForm, setSettingsForm] = useState<SettingsFormState>({
+    allowNegativeStock: false,
+    blockExpiredSales: true,
+    expirationAlertDays: "90",
+    lowStockAlertEnabled: true,
+    invoicePrefix: "FAC",
+    receiptFormat: "A4",
+  });
+
+  const [userForm, setUserForm] = useState<UserFormState>(initialUserForm);
+
+  const [memberToReset, setMemberToReset] =
+    useState<PharmacyMember | null>(null);
+  const [temporaryPassword, setTemporaryPassword] =
+    useState("ChangeMe@2026!");
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSavingPharmacy, setIsSavingPharmacy] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
+  const [isSavingUser, setIsSavingUser] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+const [memberStatusChangingId, setMemberStatusChangingId] = useState<
+  string | null
+>(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+  async function loadData() {
+    setIsLoading(true);
+    setErrorMessage("");
+
+    try {
+      const currentPharmacy = await getCurrentPharmacy();
+
+      if (!currentPharmacy) {
+        setPharmacy(null);
+        setSettings(null);
+        setMembers([]);
+        return;
+      }
+
+      setPharmacy(currentPharmacy);
+
+      setPharmacyForm({
+        name: currentPharmacy.name || "",
+        address: currentPharmacy.address || "",
+        city: currentPharmacy.city || "",
+        province: currentPharmacy.province || "",
+        phone: currentPharmacy.phone || "",
+        email: currentPharmacy.email || "",
+        pharmacistName: currentPharmacy.pharmacist_name || "",
+        exchangeRate: String(currentPharmacy.exchange_rate || 2800),
+        invoiceFooter: currentPharmacy.invoice_footer || "",
+        logoUrl: currentPharmacy.logo_url || "",
+      });
+
+      const [settingsData, membersData] = await Promise.all([
+        getPharmacySettings(currentPharmacy.id),
+        getPharmacyMembers(currentPharmacy.id),
+      ]);
+
+      setSettings(settingsData);
+      setMembers(membersData);
+
+      setSettingsForm({
+        allowNegativeStock: settingsData.allow_negative_stock,
+        blockExpiredSales: settingsData.block_expired_sales,
+        expirationAlertDays: String(settingsData.expiration_alert_days),
+        lowStockAlertEnabled: settingsData.low_stock_alert_enabled,
+        invoicePrefix: settingsData.invoice_prefix,
+        receiptFormat: settingsData.receipt_format,
+      });
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible de charger les paramètres."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  function updatePharmacyField<K extends keyof PharmacyFormState>(
+    field: K,
+    value: PharmacyFormState[K]
+  ) {
+    setPharmacyForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function updateSettingsField<K extends keyof SettingsFormState>(
+    field: K,
+    value: SettingsFormState[K]
+  ) {
+    setSettingsForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function updateUserField<K extends keyof UserFormState>(
+    field: K,
+    value: UserFormState[K]
+  ) {
+    setUserForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  async function handleLogoUpload(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    if (!pharmacy) return;
+
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    setIsUploadingLogo(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const logoUrl = await uploadPharmacyLogo(pharmacy.id, file);
+
+      setPharmacyForm((current) => ({
+        ...current,
+        logoUrl,
+      }));
+
+      setSuccessMessage("Logo chargé. Cliquez sur Enregistrer pour l’appliquer.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Impossible de charger le logo."
+      );
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  }
+
+  async function handleSavePharmacy(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!pharmacy) return;
+
+    setIsSavingPharmacy(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const exchangeRate = Number(pharmacyForm.exchangeRate || 0);
+
+      if (!pharmacyForm.name.trim()) {
+        throw new Error("Le nom de la pharmacie est obligatoire.");
+      }
+
+      if (exchangeRate <= 0) {
+        throw new Error("Le taux de change doit être supérieur à zéro.");
+      }
+
+      await updatePharmacy({
+        pharmacyId: pharmacy.id,
+        name: pharmacyForm.name,
+        address: pharmacyForm.address,
+        city: pharmacyForm.city,
+        province: pharmacyForm.province,
+        phone: pharmacyForm.phone,
+        email: pharmacyForm.email,
+        pharmacistName: pharmacyForm.pharmacistName,
+        exchangeRate,
+        invoiceFooter: pharmacyForm.invoiceFooter,
+        logoUrl: pharmacyForm.logoUrl || null,
+      });
+
+      setSuccessMessage("Informations pharmacie enregistrées.");
+      await loadData();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’enregistrer la pharmacie."
+      );
+    } finally {
+      setIsSavingPharmacy(false);
+    }
+  }
+
+  async function handleSaveSettings(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!pharmacy) return;
+
+    setIsSavingSettings(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const expirationAlertDays = Number(settingsForm.expirationAlertDays || 0);
+
+      if (expirationAlertDays <= 0) {
+        throw new Error("Le nombre de jours d’alerte doit être supérieur à zéro.");
+      }
+
+      await updatePharmacySettings({
+        pharmacyId: pharmacy.id,
+        allowNegativeStock: settingsForm.allowNegativeStock,
+        blockExpiredSales: settingsForm.blockExpiredSales,
+        expirationAlertDays,
+        lowStockAlertEnabled: settingsForm.lowStockAlertEnabled,
+        invoicePrefix: settingsForm.invoicePrefix,
+        receiptFormat: settingsForm.receiptFormat,
+      });
+
+      setSuccessMessage("Paramètres enregistrés.");
+      await loadData();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’enregistrer les paramètres."
+      );
+    } finally {
+      setIsSavingSettings(false);
+    }
+  }
+
+  async function handleCreateUser(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!pharmacy) {
+      setErrorMessage("Aucune pharmacie active trouvée.");
+      return;
+    }
+
+    setIsSavingUser(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      if (!userForm.fullName.trim()) {
+        throw new Error("Le nom complet est obligatoire.");
+      }
+
+      if (!userForm.email.trim()) {
+        throw new Error("L’email est obligatoire.");
+      }
+
+      if (userForm.password.length < 8) {
+        throw new Error("Le mot de passe doit contenir au moins 8 caractères.");
+      }
+
+      await createPharmacyMember({
+        pharmacyId: pharmacy.id,
+        fullName: userForm.fullName,
+        email: userForm.email,
+        phone: userForm.phone,
+        password: userForm.password,
+        role: userForm.role,
+      });
+
+      setUserForm(initialUserForm);
+      setIsUserDialogOpen(false);
+      setSuccessMessage("Utilisateur ajouté avec succès.");
+
+      await loadData();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’ajouter l’utilisateur."
+      );
+    } finally {
+      setIsSavingUser(false);
+    }
+  }
+
+  function openResetPasswordDialog(member: PharmacyMember) {
+    setMemberToReset(member);
+    setTemporaryPassword("ChangeMe@2026!");
+    setErrorMessage("");
+    setSuccessMessage("");
+  }
+
+  async function handleResetPassword(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!pharmacy || !memberToReset) return;
+
+    setIsResettingPassword(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      if (temporaryPassword.length < 8) {
+        throw new Error("Le mot de passe doit contenir au moins 8 caractères.");
+      }
+
+      await resetPharmacyMemberPassword({
+        pharmacyId: pharmacy.id,
+        memberId: memberToReset.id,
+        temporaryPassword,
+      });
+
+      setMemberToReset(null);
+      setTemporaryPassword("ChangeMe@2026!");
+
+      setSuccessMessage(
+        "Mot de passe réinitialisé. L’utilisateur devra le changer à la prochaine connexion."
+      );
+
+      await loadData();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible de réinitialiser le mot de passe."
+      );
+    } finally {
+      setIsResettingPassword(false);
+    }
+  }
+
+  function openEditMemberDialog(member: PharmacyMember) {
+  if (
+    member.role !== "manager" &&
+    member.role !== "pharmacist" &&
+    member.role !== "cashier" &&
+    member.role !== "stock_manager" &&
+    member.role !== "accountant"
+  ) {
+    setErrorMessage("Ce rôle ne peut pas être modifié depuis cette interface.");
+    return;
+  }
+
+  const editableRole = member.role as PharmacyUserRole;
+
+  setMemberToEdit(member);
+  setEditMemberForm({
+    fullName: member.profile?.full_name || "",
+    phone: member.profile?.phone || "",
+    role: editableRole,
+    isActive: member.is_active,
+  });
+  setErrorMessage("");
+  setSuccessMessage("");
+}
+function updateEditMemberField<K extends keyof EditMemberFormState>(
+  field: K,
+  value: EditMemberFormState[K]
+) {
+  setEditMemberForm((current) => ({
+    ...current,
+    [field]: value,
+  }));
+}
+
+async function handleSaveMember(event: React.FormEvent<HTMLFormElement>) {
+  event.preventDefault();
+
+  if (!pharmacy || !memberToEdit) {
+    alert("Pharmacie ou utilisateur introuvable.");
+    return;
+  }
+
+  setIsSavingMember(true);
+  setErrorMessage("");
+  setSuccessMessage("");
+
+  try {
+    if (!editMemberForm.fullName.trim()) {
+      throw new Error("Le nom complet est obligatoire.");
+    }
+
+    console.log("Modification utilisateur", {
+      pharmacyId: pharmacy.id,
+      memberId: memberToEdit.id,
+      editMemberForm,
+    });
+
+    await updatePharmacyMember({
+      pharmacyId: pharmacy.id,
+      memberId: memberToEdit.id,
+      fullName: editMemberForm.fullName,
+      phone: editMemberForm.phone,
+      role: editMemberForm.role,
+      isActive: editMemberForm.isActive,
+    });
+
+    setMemberToEdit(null);
+    setSuccessMessage("Utilisateur modifié avec succès.");
+
+    await loadData();
+  } catch (error) {
+    console.error("Erreur modification utilisateur:", error);
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Impossible de modifier l’utilisateur.";
+
+    setErrorMessage(message);
+    alert(message);
+  } finally {
+    setIsSavingMember(false);
+  }
+}
+async function handleToggleMemberStatus(member: PharmacyMember) {
+  if (!pharmacy) return;
+
+  if (
+    member.role !== "manager" &&
+    member.role !== "pharmacist" &&
+    member.role !== "cashier" &&
+    member.role !== "stock_manager" &&
+    member.role !== "accountant"
+  ) {
+    setErrorMessage("Ce rôle ne peut pas être modifié depuis cette interface.");
+    return;
+  }
+
+  const nextStatus = !member.is_active;
+
+  const confirmed = window.confirm(
+    nextStatus
+      ? "Voulez-vous réactiver cet utilisateur ?"
+      : "Voulez-vous désactiver cet utilisateur ? Il ne pourra plus accéder à cette pharmacie."
+  );
+
+  if (!confirmed) return;
+
+  setMemberStatusChangingId(member.id);
+  setErrorMessage("");
+  setSuccessMessage("");
+
+  try {
+    console.log("Changement statut utilisateur", {
+      pharmacyId: pharmacy.id,
+      memberId: member.id,
+      nextStatus,
+    });
+
+    await updatePharmacyMember({
+      pharmacyId: pharmacy.id,
+      memberId: member.id,
+      fullName: member.profile?.full_name || "Utilisateur",
+      phone: member.profile?.phone || "",
+      role: member.role,
+      isActive: nextStatus,
+    });
+
+    setSuccessMessage(
+      nextStatus
+        ? "Utilisateur réactivé avec succès."
+        : "Utilisateur désactivé avec succès."
+    );
+
+    await loadData();
+  } catch (error) {
+    console.error("Erreur changement statut utilisateur:", error);
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Impossible de modifier le statut de l’utilisateur.";
+
+    setErrorMessage(message);
+    alert(message);
+  } finally {
+    setMemberStatusChangingId(null);
+  }
+}
+
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-slate-50 p-6">
+        <div className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+          <p className="font-semibold text-slate-500">
+            Chargement des paramètres...
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!pharmacy || !settings) {
+    return (
+      <main className="min-h-screen bg-slate-50 p-6">
+        <div className="mx-auto max-w-7xl rounded-[2rem] border border-amber-100 bg-amber-50 p-8">
+          <h1 className="text-2xl font-black text-amber-800">
+            Aucune pharmacie trouvée
+          </h1>
+          <p className="mt-2 text-sm font-medium text-amber-700">
+            Créez une pharmacie avant d’accéder aux paramètres.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  const canEdit = canEditPharmacySettings(pharmacy.role);
+  const canManageUsersAccess = canManageUsers(pharmacy.role);
+
+  return (
+    <main className="min-h-screen bg-slate-50 p-6">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <header className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
+            <div>
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-blue-700">
+                Mpangi_Pharma
+              </p>
+
+              <h1 className="mt-2 text-3xl font-black text-slate-950">
+                Paramètres
+              </h1>
+
+              <p className="mt-2 text-sm text-slate-500">
+                Identité pharmacie, règles de gestion, factures et utilisateurs.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={loadData}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
+            >
+              <RefreshCcw className="h-5 w-5" />
+              Actualiser
+            </button>
+          </div>
+        </header>
+
+        {errorMessage && (
+          <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
+            {errorMessage}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-sm font-bold text-emerald-700">
+            <CheckCircle2 className="mt-0.5 h-5 w-5" />
+            {successMessage}
+          </div>
+        )}
+
+        {!canEdit && (
+          <div className="rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4 text-sm font-bold text-amber-700">
+            Votre rôle permet la consultation, mais pas la modification des
+            paramètres.
+          </div>
+        )}
+
+        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_420px]">
+          <form
+            onSubmit={handleSavePharmacy}
+            className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"
+          >
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                <Building2 className="h-6 w-6" />
+              </div>
+
+              <div>
+                <h2 className="text-xl font-black text-slate-950">
+                  Identité de la pharmacie
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Ces données apparaissent dans les factures.
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-5 md:flex-row md:items-center">
+              <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl border border-slate-200 bg-white">
+                {pharmacyForm.logoUrl ? (
+                  <img
+                    src={pharmacyForm.logoUrl}
+                    alt={pharmacyForm.name || "Logo pharmacie"}
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <ImagePlus className="h-10 w-10 text-slate-400" />
+                )}
+              </div>
+
+              <div className="flex-1">
+                <p className="font-black text-slate-950">Logo pharmacie</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Format recommandé : PNG, JPG ou WEBP. Taille maximale : 2 Mo.
+                </p>
+
+                <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">
+                  <ImagePlus className="h-5 w-5" />
+                  {isUploadingLogo ? "Chargement..." : "Choisir un logo"}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={handleLogoUpload}
+                    disabled={!canEdit || isUploadingLogo}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FormField label="Nom pharmacie">
+                <input
+                  value={pharmacyForm.name}
+                  onChange={(event) =>
+                    updatePharmacyField("name", event.target.value)
+                  }
+                  className="form-input"
+                  disabled={!canEdit}
+                  required
+                />
+              </FormField>
+
+              <FormField label="Pharmacien responsable">
+                <input
+                  value={pharmacyForm.pharmacistName}
+                  onChange={(event) =>
+                    updatePharmacyField("pharmacistName", event.target.value)
+                  }
+                  className="form-input"
+                  disabled={!canEdit}
+                  placeholder="Nom du pharmacien"
+                />
+              </FormField>
+
+              <FormField label="Adresse">
+                <input
+                  value={pharmacyForm.address}
+                  onChange={(event) =>
+                    updatePharmacyField("address", event.target.value)
+                  }
+                  className="form-input"
+                  disabled={!canEdit}
+                />
+              </FormField>
+
+              <FormField label="Ville">
+                <input
+                  value={pharmacyForm.city}
+                  onChange={(event) =>
+                    updatePharmacyField("city", event.target.value)
+                  }
+                  className="form-input"
+                  disabled={!canEdit}
+                />
+              </FormField>
+
+              <FormField label="Province">
+                <input
+                  value={pharmacyForm.province}
+                  onChange={(event) =>
+                    updatePharmacyField("province", event.target.value)
+                  }
+                  className="form-input"
+                  disabled={!canEdit}
+                />
+              </FormField>
+
+              <FormField label="Téléphone">
+                <input
+                  value={pharmacyForm.phone}
+                  onChange={(event) =>
+                    updatePharmacyField("phone", event.target.value)
+                  }
+                  className="form-input"
+                  disabled={!canEdit}
+                />
+              </FormField>
+
+              <FormField label="Email">
+                <input
+                  type="email"
+                  value={pharmacyForm.email}
+                  onChange={(event) =>
+                    updatePharmacyField("email", event.target.value)
+                  }
+                  className="form-input"
+                  disabled={!canEdit}
+                />
+              </FormField>
+
+              <FormField label="Taux USD → CDF">
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  value={pharmacyForm.exchangeRate}
+                  onChange={(event) =>
+                    updatePharmacyField("exchangeRate", event.target.value)
+                  }
+                  className="form-input"
+                  disabled={!canEdit}
+                />
+              </FormField>
+            </div>
+
+            <div className="mt-4">
+              <FormField label="Pied de facture">
+                <textarea
+                  value={pharmacyForm.invoiceFooter}
+                  onChange={(event) =>
+                    updatePharmacyField("invoiceFooter", event.target.value)
+                  }
+                  className="form-input min-h-24 resize-none"
+                  disabled={!canEdit}
+                  placeholder="Merci pour votre confiance."
+                />
+              </FormField>
+            </div>
+
+            <div className="mt-6 flex justify-end border-t border-slate-100 pt-5">
+              <button
+                type="submit"
+                disabled={!canEdit || isSavingPharmacy}
+                className="inline-flex items-center gap-2 rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Save className="h-5 w-5" />
+                {isSavingPharmacy ? "Enregistrement..." : "Enregistrer"}
+              </button>
+            </div>
+          </form>
+
+          <aside className="space-y-6">
+            <form
+              onSubmit={handleSaveSettings}
+              className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"
+            >
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                  <Settings className="h-6 w-6" />
+                </div>
+
+                <div>
+                  <h2 className="text-xl font-black text-slate-950">
+                    Règles de gestion
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Stock, expiration et facture.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <ToggleField
+                  label="Bloquer les ventes expirées"
+                  description="Empêche la vente des lots déjà expirés."
+                  checked={settingsForm.blockExpiredSales}
+                  disabled={!canEdit}
+                  onChange={(value) =>
+                    updateSettingsField("blockExpiredSales", value)
+                  }
+                />
+
+                <ToggleField
+                  label="Autoriser stock négatif"
+                  description="À éviter en pharmacie. Recommandé : désactivé."
+                  checked={settingsForm.allowNegativeStock}
+                  disabled={!canEdit}
+                  onChange={(value) =>
+                    updateSettingsField("allowNegativeStock", value)
+                  }
+                />
+
+                <ToggleField
+                  label="Alerte stock faible"
+                  description="Affiche les produits sous le seuil minimum."
+                  checked={settingsForm.lowStockAlertEnabled}
+                  disabled={!canEdit}
+                  onChange={(value) =>
+                    updateSettingsField("lowStockAlertEnabled", value)
+                  }
+                />
+
+                <FormField label="Jours d’alerte expiration">
+                  <input
+                    type="number"
+                    min="1"
+                    value={settingsForm.expirationAlertDays}
+                    onChange={(event) =>
+                      updateSettingsField(
+                        "expirationAlertDays",
+                        event.target.value
+                      )
+                    }
+                    className="form-input"
+                    disabled={!canEdit}
+                  />
+                </FormField>
+
+                <FormField label="Préfixe facture">
+                  <input
+                    value={settingsForm.invoicePrefix}
+                    onChange={(event) =>
+                      updateSettingsField("invoicePrefix", event.target.value)
+                    }
+                    className="form-input"
+                    disabled={!canEdit}
+                  />
+                </FormField>
+
+                <FormField label="Format reçu">
+                  <select
+                    value={settingsForm.receiptFormat}
+                    onChange={(event) =>
+                      updateSettingsField("receiptFormat", event.target.value)
+                    }
+                    className="form-input"
+                    disabled={!canEdit}
+                  >
+                    <option value="A4">A4</option>
+                    <option value="THERMAL_80">Thermique 80mm</option>
+                    <option value="THERMAL_58">Thermique 58mm</option>
+                  </select>
+                </FormField>
+              </div>
+
+              <div className="mt-6 flex justify-end border-t border-slate-100 pt-5">
+                <button
+                  type="submit"
+                  disabled={!canEdit || isSavingSettings}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <ShieldCheck className="h-5 w-5" />
+                  {isSavingSettings ? "Enregistrement..." : "Sauvegarder"}
+                </button>
+              </div>
+            </form>
+
+            <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="mb-6 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 text-purple-700">
+                    <Users className="h-6 w-6" />
+                  </div>
+
+                  <div>
+                    <h2 className="text-xl font-black text-slate-950">
+                      Utilisateurs
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                      Membres liés à cette pharmacie.
+                    </p>
+                  </div>
+                </div>
+
+                {canManageUsersAccess && (
+                  <button
+                    type="button"
+                    onClick={() => setIsUserDialogOpen(true)}
+                    className="rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white hover:bg-blue-800"
+                  >
+                    Ajouter
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                {members.length === 0 ? (
+                  <p className="text-sm font-semibold text-slate-500">
+                    Aucun membre trouvé.
+                  </p>
+                ) : (
+                  members.map((member) => (
+  <div
+    key={member.id}
+    className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
+  >
+    <div className="flex items-start justify-between gap-3">
+      <div>
+<p className="font-black text-slate-950">
+  {member.profile?.full_name || "Utilisateur"}
+</p>
+
+<p className="mt-1 text-sm text-slate-500">
+  {formatRole(member.role)}
+</p>
+
+<p className="mt-1 text-xs text-slate-400">
+  Email : {member.profile?.email || "Non renseigné"}
+</p>
+
+<p className="mt-1 text-xs text-slate-400">
+  Téléphone : {member.profile?.phone || "Non renseigné"}
+</p>
+
+<p className="mt-1 text-xs text-slate-400">
+  Statut : {member.is_active ? "Actif" : "Inactif"}
+</p>
+      </div>
+
+      <span
+        className={`rounded-full px-3 py-1 text-xs font-black ${
+          member.is_active
+            ? "bg-emerald-50 text-emerald-700"
+            : "bg-slate-200 text-slate-600"
+        }`}
+      >
+        {member.is_active ? "Actif" : "Inactif"}
+      </span>
+    </div>
+
+    {canManageUsersAccess && member.role !== "owner" && (
+      <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-3 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          onClick={() => openEditMemberDialog(member)}
+          className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+        >
+          Modifier
+        </button>
+
+        <button
+          type="button"
+          onClick={() => openResetPasswordDialog(member)}
+          disabled={!member.is_active}
+          className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Réinitialiser mot de passe
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleToggleMemberStatus(member)}
+          disabled={memberStatusChangingId === member.id}
+          className={`rounded-2xl px-4 py-2 text-xs font-black disabled:cursor-not-allowed disabled:opacity-50 ${
+            member.is_active
+              ? "bg-red-50 text-red-700 hover:bg-red-100"
+              : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+          }`}
+        >
+          {memberStatusChangingId === member.id
+            ? "Traitement..."
+            : member.is_active
+              ? "Désactiver"
+              : "Réactiver"}
+        </button>
+      </div>
+    )}
+  </div>
+))
+                )}
+              </div>
+
+              {!canManageUsersAccess && (
+                <div className="mt-5 rounded-3xl border border-amber-100 bg-amber-50 p-4">
+                  <p className="text-sm font-bold text-amber-800">
+                    Gestion utilisateurs limitée
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-amber-700">
+                    Seuls le propriétaire et le gérant peuvent ajouter des
+                    utilisateurs.
+                  </p>
+                </div>
+              )}
+            </section>
+          </aside>
+        </section>
+
+        {isUserDialogOpen && (
+          <UserDialog
+            userForm={userForm}
+            isSavingUser={isSavingUser}
+            onClose={() => setIsUserDialogOpen(false)}
+            onSubmit={handleCreateUser}
+            onUpdateField={updateUserField}
+          />
+        )}
+
+        {memberToReset && (
+          <ResetPasswordDialog
+            member={memberToReset}
+            temporaryPassword={temporaryPassword}
+            isResettingPassword={isResettingPassword}
+            onClose={() => setMemberToReset(null)}
+            onSubmit={handleResetPassword}
+            onChangeTemporaryPassword={setTemporaryPassword}
+          />
+        )}
+        {memberToEdit && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8 backdrop-blur-sm">
+    <div className="w-full max-w-2xl rounded-[2rem] bg-white p-6 shadow-2xl">
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-black text-slate-950">
+            Modifier l’utilisateur
+          </h2>
+
+          <p className="mt-1 text-sm text-slate-500">
+            Modifiez les informations, le rôle et le statut de l’utilisateur.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setMemberToEdit(null)}
+          className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-600 hover:bg-slate-50"
+        >
+          Fermer
+        </button>
+      </div>
+
+      <form onSubmit={handleSaveMember} className="space-y-5">
+        <FormField label="Email">
+  <input
+    value={memberToEdit.profile?.email || "Email non renseigné"}
+    className="form-input bg-slate-50"
+    disabled
+  />
+</FormField>
+        <FormField label="Nom complet">
+          <input
+            value={editMemberForm.fullName}
+            onChange={(event) =>
+              updateEditMemberField("fullName", event.target.value)
+            }
+            className="form-input"
+            required
+          />
+        </FormField>
+
+        <FormField label="Téléphone">
+          <input
+            value={editMemberForm.phone}
+            onChange={(event) =>
+              updateEditMemberField("phone", event.target.value)
+            }
+            className="form-input"
+            placeholder="+243 ..."
+          />
+        </FormField>
+
+        <FormField label="Rôle">
+          <select
+            value={editMemberForm.role}
+            onChange={(event) =>
+              updateEditMemberField(
+                "role",
+                event.target.value as PharmacyUserRole
+              )
+            }
+            className="form-input"
+          >
+            <option value="manager">Gérant</option>
+            <option value="pharmacist">Pharmacien</option>
+            <option value="cashier">Caissier</option>
+            <option value="stock_manager">Gestionnaire stock</option>
+            <option value="accountant">Comptable</option>
+          </select>
+        </FormField>
+
+        <label className="flex cursor-pointer items-start justify-between gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+          <span>
+            <span className="block font-black text-slate-950">
+              Compte actif
+            </span>
+            <span className="mt-1 block text-sm leading-5 text-slate-500">
+              Si désactivé, l’utilisateur ne pourra plus accéder à cette
+              pharmacie.
+            </span>
+          </span>
+
+          <input
+            type="checkbox"
+            checked={editMemberForm.isActive}
+            onChange={(event) =>
+              updateEditMemberField("isActive", event.target.checked)
+            }
+            className="mt-1 h-5 w-5 rounded border-slate-300"
+          />
+        </label>
+
+        <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
+          <button
+            type="button"
+            onClick={() => setMemberToEdit(null)}
+            className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-600 hover:bg-slate-50"
+          >
+            Annuler
+          </button>
+
+          <button
+            type="submit"
+            disabled={isSavingMember}
+            className="rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSavingMember ? "Enregistrement..." : "Enregistrer"}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+      </div>
+    </main>
+  );
+}
+
+function UserDialog({
+  userForm,
+  isSavingUser,
+  onClose,
+  onSubmit,
+  onUpdateField,
+}: {
+  userForm: UserFormState;
+  isSavingUser: boolean;
+  onClose: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onUpdateField: <K extends keyof UserFormState>(
+    field: K,
+    value: UserFormState[K]
+  ) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-2xl">
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-black text-slate-950">
+              Ajouter un utilisateur
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              L’utilisateur pourra se connecter avec son email et son mot de
+              passe.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-600 hover:bg-slate-50"
+          >
+            Fermer
+          </button>
+        </div>
+
+        <form onSubmit={onSubmit} className="space-y-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <FormField label="Nom complet">
+              <input
+                value={userForm.fullName}
+                onChange={(event) =>
+                  onUpdateField("fullName", event.target.value)
+                }
+                className="form-input"
+                placeholder="Ex : Jean MBUYI"
+                required
+              />
+            </FormField>
+
+            <FormField label="Email">
+              <input
+                type="email"
+                value={userForm.email}
+                onChange={(event) =>
+                  onUpdateField("email", event.target.value)
+                }
+                className="form-input"
+                placeholder="utilisateur@pharmacie.cd"
+                required
+              />
+            </FormField>
+
+            <FormField label="Téléphone">
+              <input
+                value={userForm.phone}
+                onChange={(event) =>
+                  onUpdateField("phone", event.target.value)
+                }
+                className="form-input"
+                placeholder="+243 ..."
+              />
+            </FormField>
+
+            <FormField label="Mot de passe initial">
+              <input
+                value={userForm.password}
+                onChange={(event) =>
+                  onUpdateField("password", event.target.value)
+                }
+                className="form-input"
+                required
+              />
+            </FormField>
+
+            <FormField label="Rôle">
+              <select
+                value={userForm.role}
+                onChange={(event) =>
+                  onUpdateField("role", event.target.value as PharmacyUserRole)
+                }
+                className="form-input"
+              >
+                <option value="manager">Gérant</option>
+                <option value="pharmacist">Pharmacien</option>
+                <option value="cashier">Caissier</option>
+                <option value="stock_manager">Gestionnaire stock</option>
+                <option value="accountant">Comptable</option>
+              </select>
+            </FormField>
+          </div>
+
+          <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
+            <p className="text-sm font-bold text-blue-800">
+              Conseil sécurité
+            </p>
+            <p className="mt-1 text-xs leading-5 text-blue-700">
+              Donnez un mot de passe temporaire, puis demandez à l’utilisateur
+              de le changer après sa première connexion.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-600 hover:bg-slate-50"
+            >
+              Annuler
+            </button>
+
+            <button
+              type="submit"
+              disabled={isSavingUser}
+              className="rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSavingUser ? "Création..." : "Créer l’utilisateur"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ResetPasswordDialog({
+  member,
+  temporaryPassword,
+  isResettingPassword,
+  onClose,
+  onSubmit,
+  onChangeTemporaryPassword,
+}: {
+  member: PharmacyMember;
+  temporaryPassword: string;
+  isResettingPassword: boolean;
+  onClose: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onChangeTemporaryPassword: (value: string) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-[2rem] bg-white p-6 shadow-2xl">
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-black text-slate-950">
+              Réinitialiser le mot de passe
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              L’utilisateur devra changer ce mot de passe à sa prochaine
+              connexion.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-600 hover:bg-slate-50"
+          >
+            Fermer
+          </button>
+        </div>
+
+        <div className="mb-5 rounded-3xl border border-amber-100 bg-amber-50 p-4">
+          <p className="text-sm font-black text-amber-800">
+            Utilisateur concerné
+          </p>
+          <p className="mt-1 text-sm font-semibold text-amber-700">
+            {member.profile?.full_name || "Utilisateur"} ·{" "}
+            {formatRole(member.role)}
+          </p>
+        </div>
+
+        <form onSubmit={onSubmit} className="space-y-5">
+          <FormField label="Nouveau mot de passe temporaire">
+            <input
+              value={temporaryPassword}
+              onChange={(event) =>
+                onChangeTemporaryPassword(event.target.value)
+              }
+              className="form-input"
+              minLength={8}
+              required
+            />
+          </FormField>
+
+          <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
+            <p className="text-sm font-bold text-blue-800">
+              À communiquer à l’utilisateur
+            </p>
+            <p className="mt-1 text-xs leading-5 text-blue-700">
+              Après connexion avec ce mot de passe temporaire, l’utilisateur
+              sera automatiquement redirigé vers la page Mon compte pour définir
+              son mot de passe personnel.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-600 hover:bg-slate-50"
+            >
+              Annuler
+            </button>
+
+            <button
+              type="submit"
+              disabled={isResettingPassword}
+              className="rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isResettingPassword ? "Réinitialisation..." : "Réinitialiser"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function FormField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-bold text-slate-700">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function ToggleField({
+  label,
+  description,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+      <span>
+        <span className="block font-black text-slate-950">{label}</span>
+        <span className="mt-1 block text-sm leading-5 text-slate-500">
+          {description}
+        </span>
+      </span>
+
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+        className="mt-1 h-5 w-5 rounded border-slate-300"
+      />
+    </label>
+  );
+}
+
+function formatRole(role: string) {
+  const labels: Record<string, string> = {
+    owner: "Propriétaire",
+    manager: "Gérant",
+    pharmacist: "Pharmacien",
+    cashier: "Caissier",
+    stock_manager: "Gestionnaire stock",
+    accountant: "Comptable",
+  };
+
+  return labels[role] ?? role;
+}
