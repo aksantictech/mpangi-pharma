@@ -29,6 +29,7 @@ import type { ExpirationAlert, ProductStockSummary } from "@/types/product";
 
 const MOBILE_PAGE_SIZE = 5;
 
+
 export default function ProductsPage() {
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [products, setProducts] = useState<ProductStockSummary[]>([]);
@@ -96,6 +97,7 @@ export default function ProductsPage() {
         product.dosage,
         product.form,
         product.unit,
+        productRequiresPrescription(product) ? "ordonnance prescription" : "",
       ]
         .filter(Boolean)
         .join(" ")
@@ -135,6 +137,8 @@ export default function ProductsPage() {
     (sum, product) => sum + Number(product.total_quantity || 0),
     0
   );
+
+  const prescriptionCount = products.filter(productRequiresPrescription).length;
 
   if (isLoading) {
     return (
@@ -234,6 +238,26 @@ export default function ProductsPage() {
         </section>
 
         <ProductSetupPanel pharmacyId={pharmacy.id} onChanged={loadData} />
+
+        {prescriptionCount > 0 && (
+          <section className="rounded-[1.5rem] border border-red-100 bg-red-50 p-4 md:rounded-[2rem] md:p-5">
+            <div className="flex items-start gap-3">
+              <div className="rounded-2xl bg-white p-3 text-red-600 shadow-sm">
+                <AlertTriangle className="h-5 w-5 md:h-6 md:w-6" />
+              </div>
+
+              <div>
+                <h2 className="font-black text-red-900">
+                  Médicaments sous ordonnance
+                </h2>
+
+                <p className="mt-1 text-sm font-medium text-red-700">
+                  {prescriptionCount} produit(s) nécessitent une ordonnance avant la vente.
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
 
         {expirationAlerts.length > 0 && (
           <section className="rounded-[1.5rem] border border-orange-100 bg-orange-50 p-4 md:rounded-[2rem] md:p-5">
@@ -354,9 +378,15 @@ export default function ProductsPage() {
                             {product.name}
                           </p>
 
-                          <p className="mt-1 text-xs text-slate-500">
-                            Unité : {product.unit || "-"}
-                          </p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <p className="text-xs text-slate-500">
+                              Unité : {product.unit || "-"}
+                            </p>
+
+                            {productRequiresPrescription(product) && (
+                              <PrescriptionBadge />
+                            )}
+                          </div>
                         </td>
 
                         <td className="px-5 py-4 text-sm text-slate-600">
@@ -380,7 +410,12 @@ export default function ProductsPage() {
                         </td>
 
                         <td className="px-5 py-4">
+                          <div className="flex flex-col gap-2">
                           <StockStatusBadge status={product.stock_status} />
+                          {productRequiresPrescription(product) && (
+                            <PrescriptionBadge />
+                          )}
+                        </div>
                         </td>
 
                         <td className="px-5 py-4">
@@ -441,6 +476,12 @@ function MobileProductCard({
           <p className="mt-0.5 line-clamp-1 text-xs font-semibold text-slate-500">
             {product.generic_name || "DCI non renseignée"}
           </p>
+
+          {productRequiresPrescription(product) && (
+            <div className="mt-2">
+              <PrescriptionBadge />
+            </div>
+          )}
         </div>
 
         <StockStatusBadge status={product.stock_status} />
@@ -600,5 +641,22 @@ function TableHead({ children }: { children: ReactNode }) {
     <th className="px-5 py-4 text-xs font-black uppercase tracking-wider text-slate-500">
       {children}
     </th>
+  );
+}
+
+function PrescriptionBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full border border-red-100 bg-red-50 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-red-700 md:px-3 md:text-xs">
+      Ordonnance
+    </span>
+  );
+}
+
+function productRequiresPrescription(product: unknown) {
+  const value = product as Record<string, unknown>;
+
+  return (
+    value.requires_prescription === true ||
+    value.requiresPrescription === true
   );
 }

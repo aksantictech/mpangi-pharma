@@ -39,6 +39,10 @@ import type {
 
 const MOBILE_PAGE_SIZE = 5;
 
+type SaleCartItem = CartItem & {
+  requiresPrescription?: boolean;
+};
+
 const paymentMethods: { value: PaymentMethod; label: string }[] = [
   { value: "cash_cdf", label: "Cash CDF" },
   { value: "cash_usd", label: "Cash USD" },
@@ -66,7 +70,7 @@ export default function SalesPage() {
     PendingOfflineSaleForDisplay[]
   >([]);
 
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<SaleCartItem[]>([]);
 
   const [search, setSearch] = useState("");
   const [mobilePage, setMobilePage] = useState(1);
@@ -304,6 +308,7 @@ export default function SalesPage() {
           quantity: 1,
           unitPrice,
           availableQuantity,
+          requiresPrescription: productRequiresPrescription(product),
         },
       ];
     });
@@ -360,6 +365,25 @@ export default function SalesPage() {
     try {
       if (cart.length === 0) {
         throw new Error("Le panier est vide.");
+      }
+
+      const prescriptionItems = cart.filter((item) => item.requiresPrescription);
+
+      if (prescriptionItems.length > 0) {
+        const confirmedPrescription = window.confirm(
+          [
+            "Cette vente contient un ou plusieurs médicaments qui nécessitent une ordonnance.",
+            "",
+            ...prescriptionItems.map((item) => `- ${item.name}`),
+            "",
+            "Confirmez-vous que l’ordonnance a été vérifiée avant la vente ?",
+          ].join("\n")
+        );
+
+        if (!confirmedPrescription) {
+          setIsSelling(false);
+          return;
+        }
       }
 
       if (!isOnline || productsSource === "offline") {
@@ -739,6 +763,12 @@ export default function SalesPage() {
               )}
             </div>
 
+            {cart.some((item) => item.requiresPrescription) && (
+              <div className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-bold leading-5 text-red-700">
+                Ce panier contient un médicament sous ordonnance. Vérifiez l’ordonnance avant de valider la vente.
+              </div>
+            )}
+
             <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
               <div className="grid grid-cols-2 gap-2">
                 <FormField label="Devise">
@@ -1003,6 +1033,12 @@ function ProductSaleCard({
               DCI : {product.generic_name}
             </p>
           )}
+
+          {productRequiresPrescription(product) && (
+            <div className="mt-2">
+              <PrescriptionBadge />
+            </div>
+          )}
         </div>
 
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-blue-700 text-white md:h-11 md:w-11">
@@ -1037,7 +1073,7 @@ function CartItemCard({
   onChangeQuantity,
   onRemove,
 }: {
-  item: CartItem;
+  item: SaleCartItem;
   currency: string;
   onDecrease: () => void;
   onIncrease: () => void;
@@ -1059,6 +1095,12 @@ function CartItemCard({
           <p className="mt-1 text-[11px] font-semibold text-slate-400">
             Stock dispo : {item.availableQuantity}
           </p>
+
+          {item.requiresPrescription && (
+            <div className="mt-2">
+              <PrescriptionBadge />
+            </div>
+          )}
         </div>
 
         <button
@@ -1236,4 +1278,21 @@ function formatShortDate(value: string) {
   if (!value) return "-";
 
   return new Intl.DateTimeFormat("fr-FR").format(new Date(value));
+}
+
+function PrescriptionBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full border border-red-100 bg-red-50 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-red-700 md:px-3 md:text-xs">
+      Ordonnance
+    </span>
+  );
+}
+
+function productRequiresPrescription(product: unknown) {
+  const value = product as Record<string, unknown>;
+
+  return (
+    value.requires_prescription === true ||
+    value.requiresPrescription === true
+  );
 }

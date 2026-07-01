@@ -55,6 +55,7 @@ export type ProductStockSummary = {
   form: string | null;
   unit: string;
   min_stock: number;
+  requires_prescription: boolean;
   status: ProductStatus;
   total_quantity: number;
   nearest_expiry_date: string | null;
