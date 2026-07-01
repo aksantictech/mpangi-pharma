@@ -12,6 +12,7 @@ import {
   Search,
   ShoppingCart,
   Trash2,
+  WifiOff,
 } from "lucide-react";
 
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
@@ -20,6 +21,12 @@ import {
   getRecentSales,
   getSellableProducts,
 } from "@/services/sales.service";
+import { getOfflineSellableProducts } from "@/services/offline-cache.service";
+import {
+  createOfflineSale,
+  getPendingOfflineSales,
+} from "@/services/offline-sales.service";
+
 import type { PharmacyWithRole } from "@/types/pharmacy";
 import type {
   CartItem,
@@ -37,10 +44,24 @@ const paymentMethods: { value: PaymentMethod; label: string }[] = [
   { value: "mixed", label: "Paiement mixte" },
 ];
 
+type PendingOfflineSaleForDisplay = {
+  id: string;
+  local_invoice_number: string;
+  customer_name: string | null;
+  total: number;
+  currency: string;
+  status: string;
+  created_at: string;
+};
+
 export default function SalesPage() {
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [products, setProducts] = useState<SellableProduct[]>([]);
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
+  const [pendingOfflineSales, setPendingOfflineSales] = useState<
+    PendingOfflineSaleForDisplay[]
+  >([]);
+
   const [cart, setCart] = useState<CartItem[]>([]);
 
   const [search, setSearch] = useState("");
@@ -49,6 +70,11 @@ export default function SalesPage() {
   const [discount, setDiscount] = useState("0");
   const [customerName, setCustomerName] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [isOnline, setIsOnline] = useState(true);
+  const [productsSource, setProductsSource] = useState<"online" | "offline">(
+    "online"
+  );
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSelling, setIsSelling] = useState(false);
@@ -66,18 +92,55 @@ export default function SalesPage() {
         setPharmacy(null);
         setProducts([]);
         setRecentSales([]);
+        setPendingOfflineSales([]);
         return;
       }
 
       setPharmacy(currentPharmacy);
 
-      const [productsData, salesData] = await Promise.all([
-        getSellableProducts(currentPharmacy.id),
-        getRecentSales(currentPharmacy.id),
-      ]);
+      const onlineNow =
+        typeof navigator === "undefined" ? true : navigator.onLine;
 
-      setProducts(productsData);
-      setRecentSales(salesData);
+      setIsOnline(onlineNow);
+
+      const pendingSales = await getPendingOfflineSales(currentPharmacy.id);
+      setPendingOfflineSales(pendingSales as PendingOfflineSaleForDisplay[]);
+
+      if (onlineNow) {
+        try {
+          const [productsData, salesData] = await Promise.all([
+            getSellableProducts(currentPharmacy.id),
+            getRecentSales(currentPharmacy.id),
+          ]);
+
+          setProducts(productsData);
+          setRecentSales(salesData);
+          setProductsSource("online");
+          return;
+        } catch {
+          const offlineProducts = await getOfflineSellableProducts(
+            currentPharmacy.id
+          );
+
+          setProducts(offlineProducts as unknown as SellableProduct[]);
+          setRecentSales([]);
+          setProductsSource("offline");
+
+          setErrorMessage(
+            "Connexion Supabase instable. La caisse utilise les produits offline disponibles sur ce terminal."
+          );
+
+          return;
+        }
+      }
+
+      const offlineProducts = await getOfflineSellableProducts(
+        currentPharmacy.id
+      );
+
+      setProducts(offlineProducts as unknown as SellableProduct[]);
+      setRecentSales([]);
+      setProductsSource("offline");
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -90,8 +153,31 @@ export default function SalesPage() {
   }
 
   useEffect(() => {
+    function updateNetworkStatus() {
+      setIsOnline(navigator.onLine);
+    }
+
+    updateNetworkStatus();
+
+    window.addEventListener("online", updateNetworkStatus);
+    window.addEventListener("offline", updateNetworkStatus);
+
+    return () => {
+      window.removeEventListener("online", updateNetworkStatus);
+      window.removeEventListener("offline", updateNetworkStatus);
+    };
+  }, []);
+
+  useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!pharmacy) return;
+
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline]);
 
   const filteredProducts = useMemo(() => {
     const normalized = search.trim().toLowerCase();
@@ -200,7 +286,10 @@ export default function SalesPage() {
 
         const safeQuantity = Math.max(
           1,
-          Math.min(Number.isFinite(quantity) ? quantity : 1, item.availableQuantity)
+          Math.min(
+            Number.isFinite(quantity) ? quantity : 1,
+            item.availableQuantity
+          )
         );
 
         return {
@@ -234,6 +323,32 @@ export default function SalesPage() {
     try {
       if (cart.length === 0) {
         throw new Error("Le panier est vide.");
+      }
+
+      if (!isOnline || productsSource === "offline") {
+        const result = await createOfflineSale({
+          pharmacyId: pharmacy.id,
+          items: cart,
+          paymentMethod,
+          currency,
+          discount: discountValue,
+          customerName,
+          notes,
+        });
+
+        setSuccessMessage(
+          `Vente hors-ligne enregistrée. Ticket provisoire ${result.localInvoiceNumber} · Total ${Number(
+            result.totalAmount
+          ).toLocaleString("fr-CD")} ${result.currency}. Synchronisation nécessaire dès retour d’internet.`
+        );
+
+        setCart([]);
+        setDiscount("0");
+        setCustomerName("");
+        setNotes("");
+
+        await loadData();
+        return;
       }
 
       const result = await createSale({
@@ -296,6 +411,8 @@ export default function SalesPage() {
     );
   }
 
+  const isOfflineMode = !isOnline || productsSource === "offline";
+
   return (
     <main className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -311,8 +428,7 @@ export default function SalesPage() {
               </h1>
 
               <p className="mt-2 text-sm text-slate-500">
-                Interface caisse adaptée au terminal Android : recherche,
-                panier, paiement et facture.
+                Interface caisse adaptée au terminal Android.
               </p>
             </div>
 
@@ -326,6 +442,14 @@ export default function SalesPage() {
             </button>
           </div>
         </header>
+
+        {isOfflineMode && (
+          <div className="flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4 text-sm font-bold text-amber-800">
+            <WifiOff className="mt-0.5 h-5 w-5 shrink-0" />
+            Mode hors-ligne actif : les ventes seront enregistrées localement et
+            synchronisées plus tard.
+          </div>
+        )}
 
         {errorMessage && (
           <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
@@ -341,14 +465,58 @@ export default function SalesPage() {
               <p>{successMessage}</p>
             </div>
 
-            <Link
-              href="/factures"
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-4 py-3 text-sm font-black text-white hover:bg-emerald-800 sm:w-auto"
-            >
-              <Receipt className="h-4 w-4" />
-              Voir / imprimer la facture
-            </Link>
+            {!isOfflineMode && (
+              <Link
+                href="/factures"
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-4 py-3 text-sm font-black text-white hover:bg-emerald-800 sm:w-auto"
+              >
+                <Receipt className="h-4 w-4" />
+                Voir / imprimer la facture
+              </Link>
+            )}
           </div>
+        )}
+
+        {pendingOfflineSales.length > 0 && (
+          <section className="rounded-[2rem] border border-amber-100 bg-white p-5 shadow-sm">
+            <h2 className="text-xl font-black text-slate-950">
+              Ventes hors-ligne en attente
+            </h2>
+
+            <div className="mt-4 space-y-3">
+              {pendingOfflineSales.map((sale) => (
+                <article
+                  key={sale.id}
+                  className="rounded-3xl border border-amber-100 bg-amber-50 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.15em] text-amber-700">
+                        Ticket provisoire
+                      </p>
+
+                      <h3 className="mt-1 font-black text-slate-950">
+                        {sale.local_invoice_number}
+                      </h3>
+
+                      <p className="mt-1 text-xs font-semibold text-slate-500">
+                        {new Date(sale.created_at).toLocaleString("fr-CD")}
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-amber-700">
+                      {sale.status}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex justify-between text-sm font-black text-slate-800">
+                    <span>{sale.customer_name || "Client comptoir"}</span>
+                    <span>{formatMoney(sale.total, sale.currency)}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
         )}
 
         <section className="rounded-[2rem] border border-blue-100 bg-blue-50 p-4 xl:hidden">
@@ -388,7 +556,10 @@ export default function SalesPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Touchez un produit pour l’ajouter au panier.
+                  Source :{" "}
+                  <span className="font-black">
+                    {productsSource === "online" ? "Supabase" : "Cache offline"}
+                  </span>
                 </p>
               </div>
 
@@ -407,7 +578,8 @@ export default function SalesPage() {
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {filteredProducts.length === 0 ? (
                 <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 text-sm font-semibold text-slate-500 md:col-span-2">
-                  Aucun produit disponible.
+                  Aucun produit disponible. Synchronisez d’abord les produits en
+                  ligne si vous voulez vendre hors-ligne.
                 </div>
               ) : (
                 filteredProducts.map((product) => (
@@ -559,10 +731,18 @@ export default function SalesPage() {
                 type="button"
                 disabled={isSelling || cart.length === 0}
                 onClick={handleValidateSale}
-                className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-700 px-5 py-4 text-sm font-black text-white shadow-lg shadow-blue-100 hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className={`inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 text-sm font-black text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-60 ${
+                  isOfflineMode
+                    ? "bg-amber-700 shadow-amber-100 hover:bg-amber-800"
+                    : "bg-blue-700 shadow-blue-100 hover:bg-blue-800"
+                }`}
               >
                 <Receipt className="h-5 w-5" />
-                {isSelling ? "Validation..." : "Valider la vente"}
+                {isSelling
+                  ? "Validation..."
+                  : isOfflineMode
+                    ? "Enregistrer vente hors-ligne"
+                    : "Valider la vente"}
               </button>
             </div>
           </aside>
@@ -570,13 +750,13 @@ export default function SalesPage() {
 
         <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-xl font-black text-slate-950">
-            Dernières ventes
+            Dernières ventes en ligne
           </h2>
 
           <div className="mt-5 space-y-3 xl:hidden">
             {recentSales.length === 0 ? (
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 text-sm font-semibold text-slate-500">
-                Aucune vente enregistrée.
+                Aucune vente en ligne chargée.
               </div>
             ) : (
               recentSales.map((sale) => (
@@ -608,7 +788,10 @@ export default function SalesPage() {
                     <MobileInfo label="Client" value={sale.customer_name || "-"} />
                     <MobileInfo
                       label="Total"
-                      value={formatMoney(Number(sale.total_amount || 0), sale.currency)}
+                      value={formatMoney(
+                        Number(sale.total_amount || 0),
+                        sale.currency
+                      )}
                       strong
                     />
                   </div>
@@ -646,7 +829,7 @@ export default function SalesPage() {
                         colSpan={6}
                         className="px-5 py-8 text-center text-sm font-semibold text-slate-500"
                       >
-                        Aucune vente enregistrée.
+                        Aucune vente en ligne chargée.
                       </td>
                     </tr>
                   ) : (
@@ -714,9 +897,7 @@ function ProductSaleCard({
           </h3>
 
           <p className="mt-1 text-sm font-semibold text-slate-500">
-            {[product.dosage, product.form]
-              .filter(Boolean)
-              .join(" / ") ||
+            {[product.dosage, product.form].filter(Boolean).join(" / ") ||
               product.generic_name ||
               "Produit"}
           </p>

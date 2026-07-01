@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Bell,
   Boxes,
@@ -14,6 +14,7 @@ import {
   LineChart,
   LogOut,
   Menu,
+  UploadCloud,
   MoreHorizontal,
   Package,
   ScrollText,
@@ -26,6 +27,7 @@ import {
 } from "lucide-react";
 
 import AppLogo from "@/components/branding/AppLogo";
+import OfflineStatusBar from "@/components/offline/OfflineStatusBar";
 import {
   canAccessModule,
   canAccessPath,
@@ -88,6 +90,12 @@ const navigationItems: NavigationItem[] = [
     icon: FileText,
   },
   {
+  label: "Synchronisation",
+  href: "/synchronisation",
+  module: "synchronisation",
+  icon: UploadCloud,
+},
+  {
     label: "Expirations",
     href: "/expirations",
     module: "expirations",
@@ -142,11 +150,22 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export default function DashboardShell({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error ?? "");
+}
+
+function isNetworkError(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return (
+    message.includes("failed to fetch") ||
+    message.includes("network") ||
+    message.includes("fetch") ||
+    message.includes("timeout")
+  );
+}
+
+export default function DashboardShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createSupabaseClient();
@@ -190,131 +209,135 @@ export default function DashboardShell({
     };
   }, []);
 
-  
-useEffect(() => {
-  let isMounted = true;
+  useEffect(() => {
+    let isMounted = true;
 
-  async function verifyAccess() {
-    const results = await Promise.allSettled([
-      getMyPharmacies(),
-      getCurrentPharmacy(),
-      isCurrentUserPlatformAdmin(),
-    ]);
+    async function verifyAccess() {
+      try {
+        const [pharmaciesResult, currentPharmacyResult, platformAdminResult] =
+          await Promise.allSettled([
+            getMyPharmacies(),
+            getCurrentPharmacy(),
+            isCurrentUserPlatformAdmin(),
+          ]);
 
-    if (!isMounted) return;
+        if (!isMounted) return;
 
-    const pharmaciesResult = results[0];
-    const currentPharmacyResult = results[1];
-    const platformAdminResult = results[2];
+        const hasNetworkError =
+          (pharmaciesResult.status === "rejected" &&
+            isNetworkError(pharmaciesResult.reason)) ||
+          (currentPharmacyResult.status === "rejected" &&
+            isNetworkError(currentPharmacyResult.reason)) ||
+          (platformAdminResult.status === "rejected" &&
+            isNetworkError(platformAdminResult.reason));
 
-    const hasNetworkError = results.some((result) => {
-      if (result.status !== "rejected") return false;
+        if (hasNetworkError) {
+          setAccessWarning(
+            "Connexion instable avec le serveur. Vérifiez Internet puis actualisez."
+          );
+          return;
+        }
 
-      const message =
-        result.reason instanceof Error
-          ? result.reason.message
-          : String(result.reason ?? "");
+        if (pharmaciesResult.status === "rejected") {
+          setAccessWarning(
+            getErrorMessage(pharmaciesResult.reason) ||
+              "Impossible de vérifier vos pharmacies."
+          );
+          return;
+        }
 
-      return (
-        message.toLowerCase().includes("failed to fetch") ||
-        message.toLowerCase().includes("network") ||
-        message.toLowerCase().includes("fetch")
-      );
-    });
+        const myPharmacies = pharmaciesResult.value;
 
-    if (hasNetworkError) {
-      setAccessWarning(
-        "Connexion instable avec le serveur. Vérifiez Internet puis actualisez."
-      );
+        const platformAdminStatus =
+          platformAdminResult.status === "fulfilled"
+            ? platformAdminResult.value
+            : false;
 
-      return;
-    }
+        const currentPharmacy =
+          currentPharmacyResult.status === "fulfilled"
+            ? currentPharmacyResult.value
+            : myPharmacies[0] ?? null;
 
-    const myPharmacies =
-      pharmaciesResult.status === "fulfilled" ? pharmaciesResult.value : [];
+        setPharmacies(myPharmacies);
+        setPharmacy(currentPharmacy);
+        setIsPlatformAdmin(platformAdminStatus);
 
-    const currentPharmacy =
-      currentPharmacyResult.status === "fulfilled"
-        ? currentPharmacyResult.value
-        : myPharmacies[0] ?? null;
+        if (!platformAdminStatus && myPharmacies.length === 0) {
+          clearStoredActivePharmacyId();
 
-    const platformAdminStatus =
-      platformAdminResult.status === "fulfilled"
-        ? platformAdminResult.value
-        : false;
+          setAccessWarning(
+            "Aucune pharmacie active n’est liée à votre compte. Contactez le propriétaire ou le gérant."
+          );
 
-    setPharmacies(myPharmacies);
-    setPharmacy(currentPharmacy);
-    setIsPlatformAdmin(platformAdminStatus);
+          if (!canStayWithoutActivePharmacy(pathname)) {
+            router.replace("/dashboard");
+          }
 
-    if (!platformAdminStatus && myPharmacies.length === 0) {
-      clearStoredActivePharmacyId();
+          return;
+        }
 
-      setAccessWarning(
-        "Votre accès à cette pharmacie a été désactivé ou aucune pharmacie active n’est liée à votre compte."
-      );
+        setAccessWarning("");
 
-      if (!canStayWithoutActivePharmacy(pathname)) {
-        router.replace("/dashboard?access=disabled");
+        if (currentPharmacy) {
+          const isAllowed = canAccessPath(
+            currentPharmacy.role,
+            pathname,
+            platformAdminStatus
+          );
+
+          if (!isAllowed) {
+            router.replace("/dashboard");
+          }
+        }
+      } catch {
+        if (!isMounted) return;
+
+        setAccessWarning(
+          "Connexion instable avec le serveur. Vérifiez Internet puis actualisez."
+        );
       }
-
-      return;
     }
 
-    setAccessWarning("");
-
-    if (currentPharmacy) {
-      const isAllowed = canAccessPath(
-        currentPharmacy.role,
-        pathname,
-        platformAdminStatus
-      );
-
-      if (!isAllowed) {
-        router.replace("/dashboard");
-      }
-    }
-  }
-
-  verifyAccess();
-
-  const intervalId = window.setInterval(() => {
     verifyAccess();
-  }, 30000);
 
-  return () => {
-    isMounted = false;
-    window.clearInterval(intervalId);
-  };
-}, [pathname, router]);
+    const intervalId = window.setInterval(() => {
+      verifyAccess();
+    }, 30000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [pathname, router]);
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
   useEffect(() => {
-  let isMounted = true;
+    let isMounted = true;
 
-  async function enforcePasswordChange() {
-    try {
-      if (pathname === "/compte") return;
+    async function enforcePasswordChange() {
+      try {
+        if (pathname === "/compte") return;
 
-      const mustChangePassword = await mustCurrentUserChangePassword();
+        const mustChangePassword = await mustCurrentUserChangePassword();
 
-      if (isMounted && mustChangePassword) {
-        router.replace("/compte?motDePasseTemporaire=1");
+        if (isMounted && mustChangePassword) {
+          router.replace("/compte?motDePasseTemporaire=1");
+        }
+      } catch {
+        // Si Supabase est momentanément inaccessible, on ne bloque pas l’interface.
       }
-    } catch {
-      // Si Supabase est momentanément inaccessible, on ne bloque pas l’interface.
     }
-  }
 
-  enforcePasswordChange();
+    enforcePasswordChange();
 
-  return () => {
-    isMounted = false;
-  };
-}, [pathname, router]);
+    return () => {
+      isMounted = false;
+    };
+  }, [pathname, router]);
+
   async function handlePharmacyChange(pharmacyId: string) {
     try {
       await setActivePharmacy(pharmacyId);
@@ -646,6 +669,7 @@ useEffect(() => {
                   }`}
                 >
                   <Icon className="h-5 w-5" />
+
                   <span className="max-w-full truncate">
                     {shortMobileLabel(item.label)}
                   </span>
@@ -669,7 +693,10 @@ useEffect(() => {
         </nav>
       )}
 
-      <div className={isCompactMode ? "pb-28" : "pl-72"}>{children}</div>
+      <div className={isCompactMode ? "pb-28" : "pl-72"}>
+        <OfflineStatusBar pharmacyId={pharmacy?.id ?? null} />
+        {children}
+      </div>
     </div>
   );
 }

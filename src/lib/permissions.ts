@@ -18,6 +18,7 @@ export type AppModule =
   | "parametres"
   | "audit"
   | "sauvegardes"
+  | "synchronisation"
   | "compte";
 
 const allRoles: PharmacyRole[] = [
@@ -41,6 +42,7 @@ const modulePermissions: Record<AppModule, PharmacyRole[]> = {
   ventes: ["owner", "manager", "pharmacist", "cashier"],
 
   factures: ["owner", "manager", "pharmacist", "cashier", "accountant"],
+  synchronisation: ["owner", "manager", "pharmacist", "cashier", "stock_manager"],
 
   expirations: ["owner", "manager", "pharmacist", "stock_manager"],
 
@@ -92,6 +94,7 @@ export function getModuleFromPath(pathname: string): AppModule | null {
   if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
     return "dashboard";
   }
+  if (pathname.startsWith("/synchronisation")) return "synchronisation";
 
   if (pathname === "/pharmacies" || pathname.startsWith("/pharmacies/")) {
     return "pharmacies";
