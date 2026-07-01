@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Eye,
   FileText,
+  Printer,
   RefreshCcw,
   Search,
   WalletCards,
@@ -67,6 +68,7 @@ export default function InvoicesPage() {
         invoice.customer_name,
         invoice.payment_method,
         invoice.currency,
+        invoice.status,
       ]
         .filter(Boolean)
         .join(" ")
@@ -88,7 +90,7 @@ export default function InvoicesPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-50 p-6">
+      <main className="min-h-screen bg-slate-50 p-4 md:p-6">
         <div className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
           <p className="font-semibold text-slate-500">
             Chargement des factures...
@@ -100,11 +102,12 @@ export default function InvoicesPage() {
 
   if (!pharmacy) {
     return (
-      <main className="min-h-screen bg-slate-50 p-6">
+      <main className="min-h-screen bg-slate-50 p-4 md:p-6">
         <div className="mx-auto max-w-7xl rounded-[2rem] border border-amber-100 bg-amber-50 p-8">
           <h1 className="text-2xl font-black text-amber-800">
             Aucune pharmacie trouvée
           </h1>
+
           <p className="mt-2 text-sm font-medium text-amber-700">
             Créez une pharmacie avant de consulter les factures.
           </p>
@@ -114,10 +117,10 @@ export default function InvoicesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
+    <main className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-6">
-        <header className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+        <header className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+          <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
             <div>
               <p className="text-sm font-black uppercase tracking-[0.2em] text-blue-700">
                 {pharmacy.name}
@@ -128,14 +131,15 @@ export default function InvoicesPage() {
               </h1>
 
               <p className="mt-2 text-sm text-slate-500">
-                Liste des factures générées après les ventes.
+                Liste des factures générées après les ventes. Ouvrez une facture
+                pour l’imprimer sur terminal Android.
               </p>
             </div>
 
             <button
               type="button"
               onClick={loadData}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
             >
               <RefreshCcw className="h-5 w-5" />
               Actualiser
@@ -149,7 +153,7 @@ export default function InvoicesPage() {
           </div>
         )}
 
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <MetricCard
             title="Factures"
             value={invoices.length.toString()}
@@ -170,18 +174,20 @@ export default function InvoicesPage() {
         </section>
 
         <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="mb-5 flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
             <div>
               <h2 className="text-xl font-black text-slate-950">
                 Historique des factures
               </h2>
+
               <p className="mt-1 text-sm text-slate-500">
                 Rechercher par numéro de facture, client ou mode de paiement.
               </p>
             </div>
 
-            <div className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 md:w-96">
+            <div className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 xl:w-96">
               <Search className="h-5 w-5 text-slate-400" />
+
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -191,9 +197,80 @@ export default function InvoicesPage() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-3xl border border-slate-200">
+          <div className="space-y-3 xl:hidden">
+            {filteredInvoices.length === 0 ? (
+              <div className="rounded-3xl border border-slate-200 bg-white px-5 py-10 text-center text-sm font-semibold text-slate-500">
+                Aucune facture trouvée.
+              </div>
+            ) : (
+              filteredInvoices.map((invoice) => (
+                <article
+                  key={invoice.id}
+                  className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.15em] text-blue-700">
+                        Facture
+                      </p>
+
+                      <h3 className="mt-1 text-lg font-black text-slate-950">
+                        {invoice.invoice_number}
+                      </h3>
+
+                      <p className="mt-1 text-xs font-semibold text-slate-500">
+                        {new Date(invoice.created_at).toLocaleString("fr-CD")}
+                      </p>
+                    </div>
+
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                      {invoice.status}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <MobileInfo
+                      label="Client"
+                      value={invoice.customer_name || "-"}
+                    />
+
+                    <MobileInfo
+                      label="Paiement"
+                      value={formatPaymentMethod(invoice.payment_method)}
+                    />
+
+                    <MobileInfo
+                      label="Total"
+                      value={`${Number(invoice.total_amount).toLocaleString(
+                        "fr-CD"
+                      )} ${invoice.currency}`}
+                      strong
+                    />
+
+                    <MobileInfo
+                      label="Marge"
+                      value={`${Number(invoice.gross_margin).toLocaleString(
+                        "fr-CD"
+                      )} ${invoice.currency}`}
+                      strong
+                    />
+                  </div>
+
+                  <Link
+                    href={`/factures/${invoice.id}`}
+                    className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white hover:bg-blue-800"
+                  >
+                    <Printer className="h-4 w-4" />
+                    Voir / Imprimer
+                  </Link>
+                </article>
+              ))
+            )}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-3xl border border-slate-200 xl:block">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left">
+              <table className="w-full min-w-[950px] text-left">
                 <thead className="bg-slate-50">
                   <tr>
                     <TableHead>Facture</TableHead>
@@ -223,6 +300,7 @@ export default function InvoicesPage() {
                           <p className="font-black text-slate-950">
                             {invoice.invoice_number}
                           </p>
+
                           <p className="mt-1 text-xs text-slate-500">
                             {invoice.status}
                           </p>
@@ -237,16 +315,12 @@ export default function InvoicesPage() {
                         </td>
 
                         <td className="px-5 py-4 font-black text-slate-950">
-                          {Number(invoice.total_amount).toLocaleString(
-                            "fr-CD"
-                          )}{" "}
+                          {Number(invoice.total_amount).toLocaleString("fr-CD")}{" "}
                           {invoice.currency}
                         </td>
 
                         <td className="px-5 py-4 font-semibold text-emerald-700">
-                          {Number(invoice.gross_margin).toLocaleString(
-                            "fr-CD"
-                          )}{" "}
+                          {Number(invoice.gross_margin).toLocaleString("fr-CD")}{" "}
                           {invoice.currency}
                         </td>
 
@@ -259,8 +333,8 @@ export default function InvoicesPage() {
                             href={`/factures/${invoice.id}`}
                             className="inline-flex items-center gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-black text-blue-700 hover:bg-blue-100"
                           >
-                            <Eye className="h-4 w-4" />
-                            Voir
+                            <Printer className="h-4 w-4" />
+                            Voir / Imprimer
                           </Link>
                         </td>
                       </tr>
@@ -293,6 +367,29 @@ function MetricCard({
 
       <p className="text-sm font-bold text-slate-500">{title}</p>
       <p className="mt-2 text-2xl font-black text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function MobileInfo({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-3">
+      <p className="text-xs font-bold text-slate-500">{label}</p>
+      <p
+        className={`mt-1 text-sm ${
+          strong ? "font-black text-slate-950" : "font-semibold text-slate-700"
+        }`}
+      >
+        {value}
+      </p>
     </div>
   );
 }

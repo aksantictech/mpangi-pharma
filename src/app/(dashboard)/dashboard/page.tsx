@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   Boxes,
@@ -22,6 +21,7 @@ import {
   getExpirationAlerts,
   getProductStock,
 } from "@/services/products.service";
+
 import type { PharmacyWithRole } from "@/types/pharmacy";
 import type { ExpirationAlert, ProductStockSummary } from "@/types/product";
 
@@ -34,16 +34,20 @@ type DashboardModule = {
 };
 
 export default function DashboardPage() {
-  const searchParams = useSearchParams();
-const accessDisabled = searchParams.get("access") === "disabled";
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [products, setProducts] = useState<ProductStockSummary[]>([]);
   const [expirationAlerts, setExpirationAlerts] = useState<ExpirationAlert[]>(
     []
   );
 
+  const [accessDisabled, setAccessDisabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setAccessDisabled(params.get("access") === "disabled");
+  }, []);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -115,7 +119,14 @@ const accessDisabled = searchParams.get("access") === "disabled";
   if (!pharmacy) {
     return (
       <main className="min-h-screen bg-slate-50 p-6">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-7xl space-y-5">
+          {accessDisabled && (
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
+              Votre accès à cette pharmacie a été désactivé. Contactez le
+              propriétaire ou le gérant pour réactiver votre compte.
+            </div>
+          )}
+
           <section className="rounded-[2rem] border border-blue-100 bg-blue-50 p-8">
             <div className="flex flex-col items-start gap-5 md:flex-row md:items-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-blue-700 shadow-sm">
@@ -128,9 +139,9 @@ const accessDisabled = searchParams.get("access") === "disabled";
                 </h1>
 
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-700">
-                  Votre compte est connecté, mais aucune pharmacie n’est encore
-                  rattachée. Contactez l’administrateur Aksantic pour activer
-                  votre accès.
+                  Votre compte est connecté, mais aucune pharmacie active n’est
+                  rattachée à votre compte. Contactez l’administrateur Aksantic
+                  ou le propriétaire de la pharmacie.
                 </p>
               </div>
             </div>
@@ -224,7 +235,9 @@ const accessDisabled = searchParams.get("access") === "disabled";
 
               <p className="mt-2 text-sm text-slate-500">
                 {pharmacy.name} · {pharmacy.city || "Ville non renseignée"} · 1
-                USD = {Number(pharmacy.exchange_rate).toLocaleString("fr-CD")}{" "}
+                USD = {Number(pharmacy.exchange_rate || 0).toLocaleString(
+                  "fr-CD"
+                )}{" "}
                 CDF
               </p>
             </div>
@@ -256,12 +269,13 @@ const accessDisabled = searchParams.get("access") === "disabled";
             {errorMessage}
           </div>
         )}
+
         {accessDisabled && (
-  <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
-    Votre accès à cette pharmacie a été désactivé. Contactez le propriétaire ou
-    le gérant pour réactiver votre compte.
-  </div>
-)}
+          <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
+            Votre accès à cette pharmacie a été désactivé. Contactez le
+            propriétaire ou le gérant pour réactiver votre compte.
+          </div>
+        )}
 
         {(canViewProducts || canViewStock || canViewExpirations) && (
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -368,6 +382,7 @@ const accessDisabled = searchParams.get("access") === "disabled";
                         <p className="font-black text-orange-900">
                           {alert.product_name}
                         </p>
+
                         <p className="mt-1 text-sm text-orange-700">
                           Expire le {alert.expiry_date} · Stock :{" "}
                           {Number(alert.quantity_available || 0)}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   Boxes,
@@ -9,8 +9,10 @@ import {
   Search,
 } from "lucide-react";
 
+import AddBatchDialog from "@/components/products/AddBatchDialog";
 import AddProductDialog from "@/components/products/AddProductDialog";
 import ExpirationBadge from "@/components/products/ExpirationBadge";
+import ProductBatchesDialog from "@/components/products/ProductBatchesDialog";
 import ProductExcelActions from "@/components/products/ProductExcelActions";
 import ProductSetupPanel from "@/components/products/ProductSetupPanel";
 import StockStatusBadge from "@/components/products/StockStatusBadge";
@@ -83,6 +85,7 @@ export default function ProductsPage() {
         product.generic_name,
         product.dosage,
         product.form,
+        product.unit,
       ]
         .filter(Boolean)
         .join(" ")
@@ -107,7 +110,7 @@ export default function ProductsPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-50 p-6">
+      <main className="min-h-screen bg-slate-50 p-4 md:p-6">
         <div className="mx-auto max-w-7xl">
           <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
             <p className="font-semibold text-slate-500">
@@ -121,7 +124,7 @@ export default function ProductsPage() {
 
   if (!pharmacy) {
     return (
-      <main className="min-h-screen bg-slate-50 p-6">
+      <main className="min-h-screen bg-slate-50 p-4 md:p-6">
         <div className="mx-auto max-w-7xl">
           <div className="rounded-[2rem] border border-amber-100 bg-amber-50 p-8">
             <h1 className="text-2xl font-black text-amber-800">
@@ -139,9 +142,9 @@ export default function ProductsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
+    <main className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-6">
-        <header className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <header className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm md:p-6">
           <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-center">
             <div>
               <p className="text-sm font-black uppercase tracking-[0.2em] text-blue-700">
@@ -153,23 +156,17 @@ export default function ProductsPage() {
               </h1>
 
               <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                Gestion des médicaments, intrants, lots, quantités et dates
-                d’expiration.
+                Gestion des médicaments, lots, quantités et dates d’expiration.
               </p>
             </div>
 
-            <div className="flex flex-col items-stretch gap-3 xl:items-end">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:flex xl:items-center xl:justify-end">
               <ProductExcelActions
                 pharmacyId={pharmacy.id}
                 onCompleted={loadData}
               />
 
-              <div className="flex justify-start xl:justify-end">
-                <AddProductDialog
-                  pharmacyId={pharmacy.id}
-                  onCreated={loadData}
-                />
-              </div>
+              <AddProductDialog pharmacyId={pharmacy.id} onCreated={loadData} />
             </div>
           </div>
         </header>
@@ -180,7 +177,7 @@ export default function ProductsPage() {
           </div>
         )}
 
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             title="Produits actifs"
             value={products.length.toString()}
@@ -231,18 +228,18 @@ export default function ProductsPage() {
         )}
 
         <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="mb-5 flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
             <div>
               <h2 className="text-xl font-black text-slate-950">
                 Liste des produits
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Recherche rapide par nom, DCI, dosage ou forme.
+                Recherche rapide par nom, DCI, dosage, forme ou unité.
               </p>
             </div>
 
-            <div className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 md:w-96">
+            <div className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 xl:w-96">
               <Search className="h-5 w-5 text-slate-400" />
 
               <input
@@ -254,9 +251,26 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-3xl border border-slate-200">
+          <div className="space-y-3 xl:hidden">
+            {filteredProducts.length === 0 ? (
+              <div className="rounded-3xl border border-slate-200 bg-white px-5 py-10 text-center text-sm font-semibold text-slate-500">
+                Aucun produit trouvé.
+              </div>
+            ) : (
+              filteredProducts.map((product) => (
+                <MobileProductCard
+                  key={product.product_id}
+                  pharmacyId={pharmacy.id}
+                  product={product}
+                  onChanged={loadData}
+                />
+              ))
+            )}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-3xl border border-slate-200 xl:block">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] border-collapse text-left">
+              <table className="w-full min-w-[1100px] border-collapse text-left">
                 <thead className="bg-slate-50">
                   <tr>
                     <TableHead>Produit</TableHead>
@@ -265,6 +279,7 @@ export default function ProductsPage() {
                     <TableHead>Stock</TableHead>
                     <TableHead>Statut</TableHead>
                     <TableHead>Expiration proche</TableHead>
+                    <TableHead>Actions</TableHead>
                   </tr>
                 </thead>
 
@@ -272,7 +287,7 @@ export default function ProductsPage() {
                   {filteredProducts.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={7}
                         className="px-5 py-10 text-center text-sm font-semibold text-slate-500"
                       >
                         Aucun produit trouvé.
@@ -291,7 +306,7 @@ export default function ProductsPage() {
                             </p>
 
                             <p className="mt-1 text-xs text-slate-500">
-                              Unité : {product.unit}
+                              Unité : {product.unit || "-"}
                             </p>
                           </div>
                         </td>
@@ -325,6 +340,22 @@ export default function ProductsPage() {
                             expiryDate={product.nearest_expiry_date}
                           />
                         </td>
+
+                        <td className="px-5 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            <ProductBatchesDialog
+                              pharmacyId={pharmacy.id}
+                              product={product}
+                              onChanged={loadData}
+                            />
+
+                            <AddBatchDialog
+                              pharmacyId={pharmacy.id}
+                              product={product}
+                              onCreated={loadData}
+                            />
+                          </div>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -338,6 +369,101 @@ export default function ProductsPage() {
   );
 }
 
+function MobileProductCard({
+  pharmacyId,
+  product,
+  onChanged,
+}: {
+  pharmacyId: string;
+  product: ProductStockSummary;
+  onChanged: () => void;
+}) {
+  return (
+    <article className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.15em] text-blue-700">
+            Produit
+          </p>
+
+          <h3 className="mt-1 text-lg font-black text-slate-950">
+            {product.name}
+          </h3>
+
+          <p className="mt-1 text-sm font-semibold text-slate-500">
+            {product.generic_name || "DCI non renseignée"}
+          </p>
+        </div>
+
+        <StockStatusBadge status={product.stock_status} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <MobileInfo
+          label="Stock"
+          value={Number(product.total_quantity || 0).toString()}
+          strong
+        />
+
+        <MobileInfo
+          label="Seuil"
+          value={Number(product.min_stock || 0).toString()}
+        />
+
+        <MobileInfo label="Dosage" value={product.dosage || "-"} />
+
+        <MobileInfo label="Forme" value={product.form || "-"} />
+
+        <MobileInfo label="Unité" value={product.unit || "-"} />
+
+        <div className="rounded-2xl bg-slate-50 p-3">
+          <p className="text-xs font-bold text-slate-500">Expiration</p>
+          <div className="mt-2">
+            <ExpirationBadge expiryDate={product.nearest_expiry_date} />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <ProductBatchesDialog
+          pharmacyId={pharmacyId}
+          product={product}
+          onChanged={onChanged}
+        />
+
+        <AddBatchDialog
+          pharmacyId={pharmacyId}
+          product={product}
+          onCreated={onChanged}
+        />
+      </div>
+    </article>
+  );
+}
+
+function MobileInfo({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-3">
+      <p className="text-xs font-bold text-slate-500">{label}</p>
+      <p
+        className={`mt-1 text-sm ${
+          strong ? "font-black text-slate-950" : "font-semibold text-slate-700"
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
 function MetricCard({
   title,
   value,
@@ -346,7 +472,7 @@ function MetricCard({
 }: {
   title: string;
   value: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   tone?: "default" | "warning" | "danger";
 }) {
   const toneClass = {
@@ -369,7 +495,7 @@ function MetricCard({
   );
 }
 
-function TableHead({ children }: { children: React.ReactNode }) {
+function TableHead({ children }: { children: ReactNode }) {
   return (
     <th className="px-5 py-4 text-xs font-black uppercase tracking-wider text-slate-500">
       {children}

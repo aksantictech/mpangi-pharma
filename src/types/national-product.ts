@@ -1,0 +1,56 @@
+export type NationalProduct = {
+  id: string;
+  name: string;
+  generic_name: string | null;
+  form: string | null;
+  dosage: string | null;
+  unit: string | null;
+  category_name: string | null;
+  target: string | null;
+  type_name: string | null;
+  registration_number: string | null;
+  manufacturer: string | null;
+  country: string | null;
+  source: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+
+  source_row_number: number | null;
+  therapeutic_class: string | null;
+  pharmaceutical_form: string | null;
+  packaging: string | null;
+  amm_applicant: string | null;
+  amm_holder: string | null;
+  distributor: string | null;
+  amm_number: string | null;
+  registration_date: string | null;
+  valid_until: string | null;
+  registration_date_source: string | null;
+  valid_until_source: string | null;
+  amm_status: string | null;
+  source_year: number | null;
+};
+
+export type NationalProductImportRow = {
+  rowNumber: number;
+  sourceRowNumber: number;
+  ammApplicant: string;
+  therapeuticClass: string;
+  genericName: string;
+  name: string;
+  dosage: string;
+  pharmaceuticalForm: string;
+  packaging: string;
+  manufacturer: string;
+  ammHolder: string;
+  distributor: string;
+  country: string;
+  ammNumber: string;
+  registrationDateSource: string;
+  validUntilSource: string;
+  registrationDate: string;
+  validUntil: string;
+  ammStatus: string;
+  target: string;
+};
