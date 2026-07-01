@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import {
   Building2,
   CheckCircle2,
@@ -12,12 +12,10 @@ import {
   Settings,
   ShieldCheck,
   Users,
+  X,
 } from "lucide-react";
 
-import {
-  canEditPharmacySettings,
-  canManageUsers,
-} from "@/lib/permissions";
+import { canEditPharmacySettings, canManageUsers } from "@/lib/permissions";
 import {
   createPharmacyMember,
   getCurrentPharmacy,
@@ -85,18 +83,27 @@ const initialUserForm: UserFormState = {
   role: "cashier",
 };
 
+const editableRoles: PharmacyUserRole[] = [
+  "manager",
+  "pharmacist",
+  "cashier",
+  "stock_manager",
+  "accountant",
+];
+
 export default function SettingsPage() {
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [settings, setSettings] = useState<PharmacySettings | null>(null);
   const [members, setMembers] = useState<PharmacyMember[]>([]);
-const [memberToEdit, setMemberToEdit] = useState<PharmacyMember | null>(null);
-const [editMemberForm, setEditMemberForm] = useState<EditMemberFormState>({
-  fullName: "",
-  phone: "",
-  role: "cashier",
-  isActive: true,
-});
-const [isSavingMember, setIsSavingMember] = useState(false);
+
+  const [memberToEdit, setMemberToEdit] = useState<PharmacyMember | null>(null);
+  const [editMemberForm, setEditMemberForm] = useState<EditMemberFormState>({
+    fullName: "",
+    phone: "",
+    role: "cashier",
+    isActive: true,
+  });
+
   const [pharmacyForm, setPharmacyForm] = useState<PharmacyFormState>({
     name: "",
     address: "",
@@ -120,11 +127,10 @@ const [isSavingMember, setIsSavingMember] = useState(false);
   });
 
   const [userForm, setUserForm] = useState<UserFormState>(initialUserForm);
-
-  const [memberToReset, setMemberToReset] =
-    useState<PharmacyMember | null>(null);
-  const [temporaryPassword, setTemporaryPassword] =
-    useState("ChangeMe@2026!");
+  const [memberToReset, setMemberToReset] = useState<PharmacyMember | null>(
+    null
+  );
+  const [temporaryPassword, setTemporaryPassword] = useState("ChangeMe@2026!");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingPharmacy, setIsSavingPharmacy] = useState(false);
@@ -133,9 +139,11 @@ const [isSavingMember, setIsSavingMember] = useState(false);
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
-const [memberStatusChangingId, setMemberStatusChangingId] = useState<
-  string | null
->(null);
+  const [isSavingMember, setIsSavingMember] = useState(false);
+  const [memberStatusChangingId, setMemberStatusChangingId] = useState<
+    string | null
+  >(null);
+
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -229,9 +237,17 @@ const [memberStatusChangingId, setMemberStatusChangingId] = useState<
     }));
   }
 
-  async function handleLogoUpload(
-    event: React.ChangeEvent<HTMLInputElement>
+  function updateEditMemberField<K extends keyof EditMemberFormState>(
+    field: K,
+    value: EditMemberFormState[K]
   ) {
+    setEditMemberForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  async function handleLogoUpload(event: ChangeEvent<HTMLInputElement>) {
     if (!pharmacy) return;
 
     const file = event.target.files?.[0];
@@ -257,12 +273,11 @@ const [memberStatusChangingId, setMemberStatusChangingId] = useState<
       );
     } finally {
       setIsUploadingLogo(false);
+      event.target.value = "";
     }
   }
 
-  async function handleSavePharmacy(
-    event: React.FormEvent<HTMLFormElement>
-  ) {
+  async function handleSavePharmacy(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!pharmacy) return;
@@ -309,9 +324,7 @@ const [memberStatusChangingId, setMemberStatusChangingId] = useState<
     }
   }
 
-  async function handleSaveSettings(
-    event: React.FormEvent<HTMLFormElement>
-  ) {
+  async function handleSaveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!pharmacy) return;
@@ -350,9 +363,7 @@ const [memberStatusChangingId, setMemberStatusChangingId] = useState<
     }
   }
 
-  async function handleCreateUser(
-    event: React.FormEvent<HTMLFormElement>
-  ) {
+  async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!pharmacy) {
@@ -409,9 +420,7 @@ const [memberStatusChangingId, setMemberStatusChangingId] = useState<
     setSuccessMessage("");
   }
 
-  async function handleResetPassword(
-    event: React.FormEvent<HTMLFormElement>
-  ) {
+  async function handleResetPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!pharmacy || !memberToReset) return;
@@ -451,159 +460,119 @@ const [memberStatusChangingId, setMemberStatusChangingId] = useState<
   }
 
   function openEditMemberDialog(member: PharmacyMember) {
-  if (
-    member.role !== "manager" &&
-    member.role !== "pharmacist" &&
-    member.role !== "cashier" &&
-    member.role !== "stock_manager" &&
-    member.role !== "accountant"
-  ) {
-    setErrorMessage("Ce rôle ne peut pas être modifié depuis cette interface.");
-    return;
-  }
-
-  const editableRole = member.role as PharmacyUserRole;
-
-  setMemberToEdit(member);
-  setEditMemberForm({
-    fullName: member.profile?.full_name || "",
-    phone: member.profile?.phone || "",
-    role: editableRole,
-    isActive: member.is_active,
-  });
-  setErrorMessage("");
-  setSuccessMessage("");
-}
-function updateEditMemberField<K extends keyof EditMemberFormState>(
-  field: K,
-  value: EditMemberFormState[K]
-) {
-  setEditMemberForm((current) => ({
-    ...current,
-    [field]: value,
-  }));
-}
-
-async function handleSaveMember(event: React.FormEvent<HTMLFormElement>) {
-  event.preventDefault();
-
-  if (!pharmacy || !memberToEdit) {
-    alert("Pharmacie ou utilisateur introuvable.");
-    return;
-  }
-
-  setIsSavingMember(true);
-  setErrorMessage("");
-  setSuccessMessage("");
-
-  try {
-    if (!editMemberForm.fullName.trim()) {
-      throw new Error("Le nom complet est obligatoire.");
+    if (!isEditableUserRole(member.role)) {
+      setErrorMessage("Ce rôle ne peut pas être modifié depuis cette interface.");
+      return;
     }
 
-    console.log("Modification utilisateur", {
-      pharmacyId: pharmacy.id,
-      memberId: memberToEdit.id,
-      editMemberForm,
-    });
-
-    await updatePharmacyMember({
-      pharmacyId: pharmacy.id,
-      memberId: memberToEdit.id,
-      fullName: editMemberForm.fullName,
-      phone: editMemberForm.phone,
-      role: editMemberForm.role,
-      isActive: editMemberForm.isActive,
-    });
-
-    setMemberToEdit(null);
-    setSuccessMessage("Utilisateur modifié avec succès.");
-
-    await loadData();
-  } catch (error) {
-    console.error("Erreur modification utilisateur:", error);
-
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de modifier l’utilisateur.";
-
-    setErrorMessage(message);
-    alert(message);
-  } finally {
-    setIsSavingMember(false);
-  }
-}
-async function handleToggleMemberStatus(member: PharmacyMember) {
-  if (!pharmacy) return;
-
-  if (
-    member.role !== "manager" &&
-    member.role !== "pharmacist" &&
-    member.role !== "cashier" &&
-    member.role !== "stock_manager" &&
-    member.role !== "accountant"
-  ) {
-    setErrorMessage("Ce rôle ne peut pas être modifié depuis cette interface.");
-    return;
-  }
-
-  const nextStatus = !member.is_active;
-
-  const confirmed = window.confirm(
-    nextStatus
-      ? "Voulez-vous réactiver cet utilisateur ?"
-      : "Voulez-vous désactiver cet utilisateur ? Il ne pourra plus accéder à cette pharmacie."
-  );
-
-  if (!confirmed) return;
-
-  setMemberStatusChangingId(member.id);
-  setErrorMessage("");
-  setSuccessMessage("");
-
-  try {
-    console.log("Changement statut utilisateur", {
-      pharmacyId: pharmacy.id,
-      memberId: member.id,
-      nextStatus,
-    });
-
-    await updatePharmacyMember({
-      pharmacyId: pharmacy.id,
-      memberId: member.id,
-      fullName: member.profile?.full_name || "Utilisateur",
+    setMemberToEdit(member);
+    setEditMemberForm({
+      fullName: member.profile?.full_name || "",
       phone: member.profile?.phone || "",
       role: member.role,
-      isActive: nextStatus,
+      isActive: member.is_active,
     });
+    setErrorMessage("");
+    setSuccessMessage("");
+  }
 
-    setSuccessMessage(
+  async function handleSaveMember(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!pharmacy || !memberToEdit) {
+      setErrorMessage("Pharmacie ou utilisateur introuvable.");
+      return;
+    }
+
+    setIsSavingMember(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      if (!editMemberForm.fullName.trim()) {
+        throw new Error("Le nom complet est obligatoire.");
+      }
+
+      await updatePharmacyMember({
+        pharmacyId: pharmacy.id,
+        memberId: memberToEdit.id,
+        fullName: editMemberForm.fullName,
+        phone: editMemberForm.phone,
+        role: editMemberForm.role,
+        isActive: editMemberForm.isActive,
+      });
+
+      setMemberToEdit(null);
+      setSuccessMessage("Utilisateur modifié avec succès.");
+
+      await loadData();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Impossible de modifier l’utilisateur.";
+
+      setErrorMessage(message);
+    } finally {
+      setIsSavingMember(false);
+    }
+  }
+
+  async function handleToggleMemberStatus(member: PharmacyMember) {
+    if (!pharmacy) return;
+
+    if (!isEditableUserRole(member.role)) {
+      setErrorMessage("Ce rôle ne peut pas être modifié depuis cette interface.");
+      return;
+    }
+
+    const nextStatus = !member.is_active;
+
+    const confirmed = window.confirm(
       nextStatus
-        ? "Utilisateur réactivé avec succès."
-        : "Utilisateur désactivé avec succès."
+        ? "Voulez-vous réactiver cet utilisateur ?"
+        : "Voulez-vous désactiver cet utilisateur ? Il ne pourra plus accéder à cette pharmacie."
     );
 
-    await loadData();
-  } catch (error) {
-    console.error("Erreur changement statut utilisateur:", error);
+    if (!confirmed) return;
 
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de modifier le statut de l’utilisateur.";
+    setMemberStatusChangingId(member.id);
+    setErrorMessage("");
+    setSuccessMessage("");
 
-    setErrorMessage(message);
-    alert(message);
-  } finally {
-    setMemberStatusChangingId(null);
+    try {
+      await updatePharmacyMember({
+        pharmacyId: pharmacy.id,
+        memberId: member.id,
+        fullName: member.profile?.full_name || "Utilisateur",
+        phone: member.profile?.phone || "",
+        role: member.role,
+        isActive: nextStatus,
+      });
+
+      setSuccessMessage(
+        nextStatus
+          ? "Utilisateur réactivé avec succès."
+          : "Utilisateur désactivé avec succès."
+      );
+
+      await loadData();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Impossible de modifier le statut de l’utilisateur.";
+
+      setErrorMessage(message);
+    } finally {
+      setMemberStatusChangingId(null);
+    }
   }
-}
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-50 p-6">
-        <div className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+      <main className="min-h-screen bg-slate-50 p-3 md:p-6">
+        <div className="mx-auto max-w-7xl rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm md:rounded-[2rem] md:p-8">
           <p className="font-semibold text-slate-500">
             Chargement des paramètres...
           </p>
@@ -614,11 +583,12 @@ async function handleToggleMemberStatus(member: PharmacyMember) {
 
   if (!pharmacy || !settings) {
     return (
-      <main className="min-h-screen bg-slate-50 p-6">
-        <div className="mx-auto max-w-7xl rounded-[2rem] border border-amber-100 bg-amber-50 p-8">
-          <h1 className="text-2xl font-black text-amber-800">
+      <main className="min-h-screen bg-slate-50 p-3 md:p-6">
+        <div className="mx-auto max-w-7xl rounded-[1.5rem] border border-amber-100 bg-amber-50 p-5 md:rounded-[2rem] md:p-8">
+          <h1 className="text-xl font-black text-amber-800 md:text-2xl">
             Aucune pharmacie trouvée
           </h1>
+
           <p className="mt-2 text-sm font-medium text-amber-700">
             Créez une pharmacie avant d’accéder aux paramètres.
           </p>
@@ -631,28 +601,28 @@ async function handleToggleMemberStatus(member: PharmacyMember) {
   const canManageUsersAccess = canManageUsers(pharmacy.role);
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <header className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+    <main className="min-h-screen bg-slate-50 p-3 md:p-6">
+      <div className="mx-auto max-w-7xl space-y-4 md:space-y-6">
+        <header className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-6">
           <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
             <div>
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-blue-700">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700 md:text-sm md:tracking-[0.2em]">
                 Mpangi_Pharma
               </p>
 
-              <h1 className="mt-2 text-3xl font-black text-slate-950">
+              <h1 className="mt-1 text-2xl font-black text-slate-950 md:mt-2 md:text-3xl">
                 Paramètres
               </h1>
 
-              <p className="mt-2 text-sm text-slate-500">
-                Identité pharmacie, règles de gestion, factures et utilisateurs.
+              <p className="mt-1 text-xs text-slate-500 md:mt-2 md:text-sm">
+                Identité pharmacie, règles, factures et utilisateurs.
               </p>
             </div>
 
             <button
               type="button"
               onClick={loadData}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
             >
               <RefreshCcw className="h-5 w-5" />
               Actualiser
@@ -661,47 +631,39 @@ async function handleToggleMemberStatus(member: PharmacyMember) {
         </header>
 
         {errorMessage && (
-          <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
+          <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
             {errorMessage}
           </div>
         )}
 
         {successMessage && (
-          <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-sm font-bold text-emerald-700">
-            <CheckCircle2 className="mt-0.5 h-5 w-5" />
+          <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
             {successMessage}
           </div>
         )}
 
         {!canEdit && (
-          <div className="rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4 text-sm font-bold text-amber-700">
+          <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
             Votre rôle permet la consultation, mais pas la modification des
             paramètres.
           </div>
         )}
 
-        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_420px]">
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_420px] xl:gap-6">
           <form
             onSubmit={handleSavePharmacy}
-            className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"
+            className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-6"
           >
-            <div className="mb-6 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
-                <Building2 className="h-6 w-6" />
-              </div>
+            <SectionTitle
+              icon={<Building2 className="h-5 w-5 md:h-6 md:w-6" />}
+              tone="blue"
+              title="Identité de la pharmacie"
+              description="Ces données apparaissent dans les factures."
+            />
 
-              <div>
-                <h2 className="text-xl font-black text-slate-950">
-                  Identité de la pharmacie
-                </h2>
-                <p className="text-sm text-slate-500">
-                  Ces données apparaissent dans les factures.
-                </p>
-              </div>
-            </div>
-
-            <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-5 md:flex-row md:items-center">
-              <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl border border-slate-200 bg-white">
+            <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:mb-6 md:flex-row md:items-center md:rounded-3xl md:p-5">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white md:h-24 md:w-24 md:rounded-3xl">
                 {pharmacyForm.logoUrl ? (
                   <img
                     src={pharmacyForm.logoUrl}
@@ -709,17 +671,18 @@ async function handleToggleMemberStatus(member: PharmacyMember) {
                     className="h-full w-full object-contain"
                   />
                 ) : (
-                  <ImagePlus className="h-10 w-10 text-slate-400" />
+                  <ImagePlus className="h-9 w-9 text-slate-400 md:h-10 md:w-10" />
                 )}
               </div>
 
               <div className="flex-1">
                 <p className="font-black text-slate-950">Logo pharmacie</p>
-                <p className="mt-1 text-sm text-slate-500">
-                  Format recommandé : PNG, JPG ou WEBP. Taille maximale : 2 Mo.
+
+                <p className="mt-1 text-xs text-slate-500 md:text-sm">
+                  PNG, JPG ou WEBP. Taille maximale : 2 Mo.
                 </p>
 
-                <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">
+                <label className="mt-3 inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 md:w-auto">
                   <ImagePlus className="h-5 w-5" />
                   {isUploadingLogo ? "Chargement..." : "Choisir un logo"}
                   <input
@@ -733,7 +696,7 @@ async function handleToggleMemberStatus(member: PharmacyMember) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
               <FormField label="Nom pharmacie">
                 <input
                   value={pharmacyForm.name}
@@ -829,25 +792,25 @@ async function handleToggleMemberStatus(member: PharmacyMember) {
               </FormField>
             </div>
 
-            <div className="mt-4">
+            <div className="mt-3 md:mt-4">
               <FormField label="Pied de facture">
                 <textarea
                   value={pharmacyForm.invoiceFooter}
                   onChange={(event) =>
                     updatePharmacyField("invoiceFooter", event.target.value)
                   }
-                  className="form-input min-h-24 resize-none"
+                  className="form-input min-h-20 resize-none md:min-h-24"
                   disabled={!canEdit}
                   placeholder="Merci pour votre confiance."
                 />
               </FormField>
             </div>
 
-            <div className="mt-6 flex justify-end border-t border-slate-100 pt-5">
+            <div className="mt-5 border-t border-slate-100 pt-4 md:mt-6 md:pt-5">
               <button
                 type="submit"
                 disabled={!canEdit || isSavingPharmacy}
-                className="inline-flex items-center gap-2 rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
               >
                 <Save className="h-5 w-5" />
                 {isSavingPharmacy ? "Enregistrement..." : "Enregistrer"}
@@ -855,29 +818,21 @@ async function handleToggleMemberStatus(member: PharmacyMember) {
             </div>
           </form>
 
-          <aside className="space-y-6">
+          <aside className="space-y-4 md:space-y-6">
             <form
               onSubmit={handleSaveSettings}
-              className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"
+              className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-6"
             >
-              <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-                  <Settings className="h-6 w-6" />
-                </div>
+              <SectionTitle
+                icon={<Settings className="h-5 w-5 md:h-6 md:w-6" />}
+                tone="emerald"
+                title="Règles de gestion"
+                description="Stock, expiration et facture."
+              />
 
-                <div>
-                  <h2 className="text-xl font-black text-slate-950">
-                    Règles de gestion
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Stock, expiration et facture.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
+              <div className="space-y-3 md:space-y-4">
                 <ToggleField
-                  label="Bloquer les ventes expirées"
+                  label="Bloquer ventes expirées"
                   description="Empêche la vente des lots déjà expirés."
                   checked={settingsForm.blockExpiredSales}
                   disabled={!canEdit}
@@ -888,7 +843,7 @@ async function handleToggleMemberStatus(member: PharmacyMember) {
 
                 <ToggleField
                   label="Autoriser stock négatif"
-                  description="À éviter en pharmacie. Recommandé : désactivé."
+                  description="À éviter en pharmacie."
                   checked={settingsForm.allowNegativeStock}
                   disabled={!canEdit}
                   onChange={(value) =>
@@ -906,7 +861,7 @@ async function handleToggleMemberStatus(member: PharmacyMember) {
                   }
                 />
 
-                <FormField label="Jours d’alerte expiration">
+                <FormField label="Jours alerte expiration">
                   <input
                     type="number"
                     min="1"
@@ -949,11 +904,11 @@ async function handleToggleMemberStatus(member: PharmacyMember) {
                 </FormField>
               </div>
 
-              <div className="mt-6 flex justify-end border-t border-slate-100 pt-5">
+              <div className="mt-5 border-t border-slate-100 pt-4 md:mt-6 md:pt-5">
                 <button
                   type="submit"
                   disabled={!canEdit || isSavingSettings}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <ShieldCheck className="h-5 w-5" />
                   {isSavingSettings ? "Enregistrement..." : "Sauvegarder"}
@@ -961,126 +916,53 @@ async function handleToggleMemberStatus(member: PharmacyMember) {
               </div>
             </form>
 
-            <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="mb-6 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 text-purple-700">
-                    <Users className="h-6 w-6" />
-                  </div>
-
-                  <div>
-                    <h2 className="text-xl font-black text-slate-950">
-                      Utilisateurs
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                      Membres liés à cette pharmacie.
-                    </p>
-                  </div>
-                </div>
+            <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-6">
+              <div className="mb-5 flex items-start justify-between gap-3 md:mb-6">
+                <SectionTitle
+                  icon={<Users className="h-5 w-5 md:h-6 md:w-6" />}
+                  tone="purple"
+                  title="Utilisateurs"
+                  description="Membres liés à cette pharmacie."
+                  compact
+                />
 
                 {canManageUsersAccess && (
                   <button
                     type="button"
                     onClick={() => setIsUserDialogOpen(true)}
-                    className="rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white hover:bg-blue-800"
+                    className="shrink-0 rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white hover:bg-blue-800"
                   >
                     Ajouter
                   </button>
                 )}
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2 md:space-y-3">
                 {members.length === 0 ? (
                   <p className="text-sm font-semibold text-slate-500">
                     Aucun membre trouvé.
                   </p>
                 ) : (
                   members.map((member) => (
-  <div
-    key={member.id}
-    className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
-  >
-    <div className="flex items-start justify-between gap-3">
-      <div>
-<p className="font-black text-slate-950">
-  {member.profile?.full_name || "Utilisateur"}
-</p>
-
-<p className="mt-1 text-sm text-slate-500">
-  {formatRole(member.role)}
-</p>
-
-<p className="mt-1 text-xs text-slate-400">
-  Email : {member.profile?.email || "Non renseigné"}
-</p>
-
-<p className="mt-1 text-xs text-slate-400">
-  Téléphone : {member.profile?.phone || "Non renseigné"}
-</p>
-
-<p className="mt-1 text-xs text-slate-400">
-  Statut : {member.is_active ? "Actif" : "Inactif"}
-</p>
-      </div>
-
-      <span
-        className={`rounded-full px-3 py-1 text-xs font-black ${
-          member.is_active
-            ? "bg-emerald-50 text-emerald-700"
-            : "bg-slate-200 text-slate-600"
-        }`}
-      >
-        {member.is_active ? "Actif" : "Inactif"}
-      </span>
-    </div>
-
-    {canManageUsersAccess && member.role !== "owner" && (
-      <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-3 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          onClick={() => openEditMemberDialog(member)}
-          className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
-        >
-          Modifier
-        </button>
-
-        <button
-          type="button"
-          onClick={() => openResetPasswordDialog(member)}
-          disabled={!member.is_active}
-          className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Réinitialiser mot de passe
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleToggleMemberStatus(member)}
-          disabled={memberStatusChangingId === member.id}
-          className={`rounded-2xl px-4 py-2 text-xs font-black disabled:cursor-not-allowed disabled:opacity-50 ${
-            member.is_active
-              ? "bg-red-50 text-red-700 hover:bg-red-100"
-              : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-          }`}
-        >
-          {memberStatusChangingId === member.id
-            ? "Traitement..."
-            : member.is_active
-              ? "Désactiver"
-              : "Réactiver"}
-        </button>
-      </div>
-    )}
-  </div>
-))
+                    <MemberCard
+                      key={member.id}
+                      member={member}
+                      canManage={canManageUsersAccess}
+                      isChangingStatus={memberStatusChangingId === member.id}
+                      onEdit={() => openEditMemberDialog(member)}
+                      onResetPassword={() => openResetPasswordDialog(member)}
+                      onToggleStatus={() => handleToggleMemberStatus(member)}
+                    />
+                  ))
                 )}
               </div>
 
               {!canManageUsersAccess && (
-                <div className="mt-5 rounded-3xl border border-amber-100 bg-amber-50 p-4">
+                <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50 p-4 md:rounded-3xl">
                   <p className="text-sm font-bold text-amber-800">
                     Gestion utilisateurs limitée
                   </p>
+
                   <p className="mt-1 text-xs leading-5 text-amber-700">
                     Seuls le propriétaire et le gérant peuvent ajouter des
                     utilisateurs.
@@ -1111,122 +993,109 @@ async function handleToggleMemberStatus(member: PharmacyMember) {
             onChangeTemporaryPassword={setTemporaryPassword}
           />
         )}
-        {memberToEdit && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8 backdrop-blur-sm">
-    <div className="w-full max-w-2xl rounded-[2rem] bg-white p-6 shadow-2xl">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-black text-slate-950">
-            Modifier l’utilisateur
-          </h2>
 
-          <p className="mt-1 text-sm text-slate-500">
-            Modifiez les informations, le rôle et le statut de l’utilisateur.
+        {memberToEdit && (
+          <EditMemberDialog
+            member={memberToEdit}
+            form={editMemberForm}
+            isSaving={isSavingMember}
+            onClose={() => setMemberToEdit(null)}
+            onSubmit={handleSaveMember}
+            onUpdateField={updateEditMemberField}
+          />
+        )}
+      </div>
+    </main>
+  );
+}
+
+function MemberCard({
+  member,
+  canManage,
+  isChangingStatus,
+  onEdit,
+  onResetPassword,
+  onToggleStatus,
+}: {
+  member: PharmacyMember;
+  canManage: boolean;
+  isChangingStatus: boolean;
+  onEdit: () => void;
+  onResetPassword: () => void;
+  onToggleStatus: () => void;
+}) {
+  const canEditMember = canManage && member.role !== "owner";
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 md:rounded-3xl md:p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="line-clamp-1 text-sm font-black text-slate-950 md:text-base">
+            {member.profile?.full_name || "Utilisateur"}
+          </p>
+
+          <p className="mt-1 text-xs font-semibold text-slate-500">
+            {formatRole(member.role)}
+          </p>
+
+          <p className="mt-1 line-clamp-1 text-[11px] text-slate-400 md:text-xs">
+            {member.profile?.email || "Email non renseigné"}
+          </p>
+
+          <p className="mt-1 line-clamp-1 text-[11px] text-slate-400 md:text-xs">
+            {member.profile?.phone || "Téléphone non renseigné"}
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setMemberToEdit(null)}
-          className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-600 hover:bg-slate-50"
+        <span
+          className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black md:px-3 md:text-xs ${
+            member.is_active
+              ? "bg-emerald-50 text-emerald-700"
+              : "bg-slate-200 text-slate-600"
+          }`}
         >
-          Fermer
-        </button>
+          {member.is_active ? "Actif" : "Inactif"}
+        </span>
       </div>
 
-      <form onSubmit={handleSaveMember} className="space-y-5">
-        <FormField label="Email">
-  <input
-    value={memberToEdit.profile?.email || "Email non renseigné"}
-    className="form-input bg-slate-50"
-    disabled
-  />
-</FormField>
-        <FormField label="Nom complet">
-          <input
-            value={editMemberForm.fullName}
-            onChange={(event) =>
-              updateEditMemberField("fullName", event.target.value)
-            }
-            className="form-input"
-            required
-          />
-        </FormField>
-
-        <FormField label="Téléphone">
-          <input
-            value={editMemberForm.phone}
-            onChange={(event) =>
-              updateEditMemberField("phone", event.target.value)
-            }
-            className="form-input"
-            placeholder="+243 ..."
-          />
-        </FormField>
-
-        <FormField label="Rôle">
-          <select
-            value={editMemberForm.role}
-            onChange={(event) =>
-              updateEditMemberField(
-                "role",
-                event.target.value as PharmacyUserRole
-              )
-            }
-            className="form-input"
-          >
-            <option value="manager">Gérant</option>
-            <option value="pharmacist">Pharmacien</option>
-            <option value="cashier">Caissier</option>
-            <option value="stock_manager">Gestionnaire stock</option>
-            <option value="accountant">Comptable</option>
-          </select>
-        </FormField>
-
-        <label className="flex cursor-pointer items-start justify-between gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-          <span>
-            <span className="block font-black text-slate-950">
-              Compte actif
-            </span>
-            <span className="mt-1 block text-sm leading-5 text-slate-500">
-              Si désactivé, l’utilisateur ne pourra plus accéder à cette
-              pharmacie.
-            </span>
-          </span>
-
-          <input
-            type="checkbox"
-            checked={editMemberForm.isActive}
-            onChange={(event) =>
-              updateEditMemberField("isActive", event.target.checked)
-            }
-            className="mt-1 h-5 w-5 rounded border-slate-300"
-          />
-        </label>
-
-        <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
+      {canEditMember && (
+        <div className="mt-3 grid grid-cols-1 gap-2 border-t border-slate-200 pt-3 sm:grid-cols-3">
           <button
             type="button"
-            onClick={() => setMemberToEdit(null)}
-            className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-600 hover:bg-slate-50"
+            onClick={onEdit}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
           >
-            Annuler
+            Modifier
           </button>
 
           <button
-            type="submit"
-            disabled={isSavingMember}
-            className="rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+            type="button"
+            onClick={onResetPassword}
+            disabled={!member.is_active}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSavingMember ? "Enregistrement..." : "Enregistrer"}
+            Réinitialiser
+          </button>
+
+          <button
+            type="button"
+            onClick={onToggleStatus}
+            disabled={isChangingStatus}
+            className={`rounded-xl px-3 py-2 text-xs font-black disabled:cursor-not-allowed disabled:opacity-50 ${
+              member.is_active
+                ? "bg-red-50 text-red-700 hover:bg-red-100"
+                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+            }`}
+          >
+            {isChangingStatus
+              ? "Traitement..."
+              : member.is_active
+                ? "Désactiver"
+                : "Réactiver"}
           </button>
         </div>
-      </form>
+      )}
     </div>
-  </div>
-)}
-      </div>
-    </main>
   );
 }
 
@@ -1240,132 +1109,90 @@ function UserDialog({
   userForm: UserFormState;
   isSavingUser: boolean;
   onClose: () => void;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onUpdateField: <K extends keyof UserFormState>(
     field: K,
     value: UserFormState[K]
   ) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-2xl">
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-black text-slate-950">
-              Ajouter un utilisateur
-            </h2>
+    <Modal title="Ajouter un utilisateur" onClose={onClose}>
+      <p className="-mt-2 mb-5 text-xs text-slate-500 md:text-sm">
+        L’utilisateur pourra se connecter avec son email et son mot de passe.
+      </p>
 
-            <p className="mt-1 text-sm text-slate-500">
-              L’utilisateur pourra se connecter avec son email et son mot de
-              passe.
-            </p>
-          </div>
+      <form onSubmit={onSubmit} className="space-y-5">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
+          <FormField label="Nom complet">
+            <input
+              value={userForm.fullName}
+              onChange={(event) => onUpdateField("fullName", event.target.value)}
+              className="form-input"
+              placeholder="Ex : Jean MBUYI"
+              required
+            />
+          </FormField>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-600 hover:bg-slate-50"
-          >
-            Fermer
-          </button>
+          <FormField label="Email">
+            <input
+              type="email"
+              value={userForm.email}
+              onChange={(event) => onUpdateField("email", event.target.value)}
+              className="form-input"
+              placeholder="utilisateur@pharmacie.cd"
+              required
+            />
+          </FormField>
+
+          <FormField label="Téléphone">
+            <input
+              value={userForm.phone}
+              onChange={(event) => onUpdateField("phone", event.target.value)}
+              className="form-input"
+              placeholder="+243 ..."
+            />
+          </FormField>
+
+          <FormField label="Mot de passe initial">
+            <input
+              value={userForm.password}
+              onChange={(event) =>
+                onUpdateField("password", event.target.value)
+              }
+              className="form-input"
+              required
+            />
+          </FormField>
+
+          <FormField label="Rôle">
+            <select
+              value={userForm.role}
+              onChange={(event) =>
+                onUpdateField("role", event.target.value as PharmacyUserRole)
+              }
+              className="form-input"
+            >
+              <RoleOptions />
+            </select>
+          </FormField>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-5">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <FormField label="Nom complet">
-              <input
-                value={userForm.fullName}
-                onChange={(event) =>
-                  onUpdateField("fullName", event.target.value)
-                }
-                className="form-input"
-                placeholder="Ex : Jean MBUYI"
-                required
-              />
-            </FormField>
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 md:rounded-3xl">
+          <p className="text-sm font-bold text-blue-800">Conseil sécurité</p>
+          <p className="mt-1 text-xs leading-5 text-blue-700">
+            Donnez un mot de passe temporaire, puis demandez à l’utilisateur de
+            le changer après sa première connexion.
+          </p>
+        </div>
 
-            <FormField label="Email">
-              <input
-                type="email"
-                value={userForm.email}
-                onChange={(event) =>
-                  onUpdateField("email", event.target.value)
-                }
-                className="form-input"
-                placeholder="utilisateur@pharmacie.cd"
-                required
-              />
-            </FormField>
-
-            <FormField label="Téléphone">
-              <input
-                value={userForm.phone}
-                onChange={(event) =>
-                  onUpdateField("phone", event.target.value)
-                }
-                className="form-input"
-                placeholder="+243 ..."
-              />
-            </FormField>
-
-            <FormField label="Mot de passe initial">
-              <input
-                value={userForm.password}
-                onChange={(event) =>
-                  onUpdateField("password", event.target.value)
-                }
-                className="form-input"
-                required
-              />
-            </FormField>
-
-            <FormField label="Rôle">
-              <select
-                value={userForm.role}
-                onChange={(event) =>
-                  onUpdateField("role", event.target.value as PharmacyUserRole)
-                }
-                className="form-input"
-              >
-                <option value="manager">Gérant</option>
-                <option value="pharmacist">Pharmacien</option>
-                <option value="cashier">Caissier</option>
-                <option value="stock_manager">Gestionnaire stock</option>
-                <option value="accountant">Comptable</option>
-              </select>
-            </FormField>
-          </div>
-
-          <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
-            <p className="text-sm font-bold text-blue-800">
-              Conseil sécurité
-            </p>
-            <p className="mt-1 text-xs leading-5 text-blue-700">
-              Donnez un mot de passe temporaire, puis demandez à l’utilisateur
-              de le changer après sa première connexion.
-            </p>
-          </div>
-
-          <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-600 hover:bg-slate-50"
-            >
-              Annuler
-            </button>
-
-            <button
-              type="submit"
-              disabled={isSavingUser}
-              className="rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSavingUser ? "Création..." : "Créer l’utilisateur"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <ModalActions
+          cancelLabel="Annuler"
+          submitLabel={isSavingUser ? "Création..." : "Créer l’utilisateur"}
+          isSaving={isSavingUser}
+          onCancel={onClose}
+        />
+      </form>
+    </Modal>
   );
 }
 
@@ -1381,102 +1208,251 @@ function ResetPasswordDialog({
   temporaryPassword: string;
   isResettingPassword: boolean;
   onClose: () => void;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onChangeTemporaryPassword: (value: string) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-[2rem] bg-white p-6 shadow-2xl">
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-black text-slate-950">
-              Réinitialiser le mot de passe
-            </h2>
+    <Modal title="Réinitialiser le mot de passe" onClose={onClose}>
+      <div className="mb-5 rounded-2xl border border-amber-100 bg-amber-50 p-4 md:rounded-3xl">
+        <p className="text-sm font-black text-amber-800">
+          Utilisateur concerné
+        </p>
+        <p className="mt-1 text-sm font-semibold text-amber-700">
+          {member.profile?.full_name || "Utilisateur"} · {formatRole(member.role)}
+        </p>
+      </div>
 
-            <p className="mt-1 text-sm text-slate-500">
-              L’utilisateur devra changer ce mot de passe à sa prochaine
-              connexion.
-            </p>
-          </div>
+      <form onSubmit={onSubmit} className="space-y-5">
+        <FormField label="Nouveau mot de passe temporaire">
+          <input
+            value={temporaryPassword}
+            onChange={(event) => onChangeTemporaryPassword(event.target.value)}
+            className="form-input"
+            minLength={8}
+            required
+          />
+        </FormField>
+
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 md:rounded-3xl">
+          <p className="text-sm font-bold text-blue-800">
+            À communiquer à l’utilisateur
+          </p>
+          <p className="mt-1 text-xs leading-5 text-blue-700">
+            Après connexion avec ce mot de passe temporaire, l’utilisateur sera
+            redirigé vers la page Mon compte pour définir son mot de passe
+            personnel.
+          </p>
+        </div>
+
+        <ModalActions
+          cancelLabel="Annuler"
+          submitLabel={isResettingPassword ? "Réinitialisation..." : "Réinitialiser"}
+          isSaving={isResettingPassword}
+          onCancel={onClose}
+        />
+      </form>
+    </Modal>
+  );
+}
+
+function EditMemberDialog({
+  member,
+  form,
+  isSaving,
+  onClose,
+  onSubmit,
+  onUpdateField,
+}: {
+  member: PharmacyMember;
+  form: EditMemberFormState;
+  isSaving: boolean;
+  onClose: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onUpdateField: <K extends keyof EditMemberFormState>(
+    field: K,
+    value: EditMemberFormState[K]
+  ) => void;
+}) {
+  return (
+    <Modal title="Modifier l’utilisateur" onClose={onClose}>
+      <p className="-mt-2 mb-5 text-xs text-slate-500 md:text-sm">
+        Modifiez les informations, le rôle et le statut de l’utilisateur.
+      </p>
+
+      <form onSubmit={onSubmit} className="space-y-5">
+        <FormField label="Email">
+          <input
+            value={member.profile?.email || "Email non renseigné"}
+            className="form-input bg-slate-50"
+            disabled
+          />
+        </FormField>
+
+        <FormField label="Nom complet">
+          <input
+            value={form.fullName}
+            onChange={(event) => onUpdateField("fullName", event.target.value)}
+            className="form-input"
+            required
+          />
+        </FormField>
+
+        <FormField label="Téléphone">
+          <input
+            value={form.phone}
+            onChange={(event) => onUpdateField("phone", event.target.value)}
+            className="form-input"
+            placeholder="+243 ..."
+          />
+        </FormField>
+
+        <FormField label="Rôle">
+          <select
+            value={form.role}
+            onChange={(event) =>
+              onUpdateField("role", event.target.value as PharmacyUserRole)
+            }
+            className="form-input"
+          >
+            <RoleOptions />
+          </select>
+        </FormField>
+
+        <label className="flex cursor-pointer items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:rounded-3xl">
+          <span>
+            <span className="block font-black text-slate-950">Compte actif</span>
+            <span className="mt-1 block text-sm leading-5 text-slate-500">
+              Si désactivé, l’utilisateur ne pourra plus accéder à cette
+              pharmacie.
+            </span>
+          </span>
+
+          <input
+            type="checkbox"
+            checked={form.isActive}
+            onChange={(event) => onUpdateField("isActive", event.target.checked)}
+            className="mt-1 h-5 w-5 rounded border-slate-300"
+          />
+        </label>
+
+        <ModalActions
+          cancelLabel="Annuler"
+          submitLabel={isSaving ? "Enregistrement..." : "Enregistrer"}
+          isSaving={isSaving}
+          onCancel={onClose}
+        />
+      </form>
+    </Modal>
+  );
+}
+
+function Modal({
+  title,
+  children,
+  onClose,
+}: {
+  title: string;
+  children: ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/50 px-3 py-3 backdrop-blur-sm md:items-center md:px-4 md:py-8">
+      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[1.5rem] bg-white p-4 shadow-2xl md:rounded-[2rem] md:p-6">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <h2 className="text-xl font-black text-slate-950 md:text-2xl">
+            {title}
+          </h2>
 
           <button
             type="button"
             onClick={onClose}
-            className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-600 hover:bg-slate-50"
+            className="rounded-2xl border border-slate-200 p-3 text-slate-500 hover:bg-slate-50"
           >
-            Fermer
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="mb-5 rounded-3xl border border-amber-100 bg-amber-50 p-4">
-          <p className="text-sm font-black text-amber-800">
-            Utilisateur concerné
-          </p>
-          <p className="mt-1 text-sm font-semibold text-amber-700">
-            {member.profile?.full_name || "Utilisateur"} ·{" "}
-            {formatRole(member.role)}
-          </p>
-        </div>
-
-        <form onSubmit={onSubmit} className="space-y-5">
-          <FormField label="Nouveau mot de passe temporaire">
-            <input
-              value={temporaryPassword}
-              onChange={(event) =>
-                onChangeTemporaryPassword(event.target.value)
-              }
-              className="form-input"
-              minLength={8}
-              required
-            />
-          </FormField>
-
-          <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
-            <p className="text-sm font-bold text-blue-800">
-              À communiquer à l’utilisateur
-            </p>
-            <p className="mt-1 text-xs leading-5 text-blue-700">
-              Après connexion avec ce mot de passe temporaire, l’utilisateur
-              sera automatiquement redirigé vers la page Mon compte pour définir
-              son mot de passe personnel.
-            </p>
-          </div>
-
-          <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-600 hover:bg-slate-50"
-            >
-              Annuler
-            </button>
-
-            <button
-              type="submit"
-              disabled={isResettingPassword}
-              className="rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isResettingPassword ? "Réinitialisation..." : "Réinitialiser"}
-            </button>
-          </div>
-        </form>
+        {children}
       </div>
     </div>
   );
 }
 
-function FormField({
-  label,
-  children,
+function ModalActions({
+  cancelLabel,
+  submitLabel,
+  isSaving,
+  onCancel,
 }: {
-  label: string;
-  children: React.ReactNode;
+  cancelLabel: string;
+  submitLabel: string;
+  isSaving: boolean;
+  onCancel: () => void;
 }) {
   return (
+    <div className="grid grid-cols-1 gap-2 border-t border-slate-100 pt-4 sm:grid-cols-2 md:flex md:justify-end md:gap-3 md:pt-5">
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={isSaving}
+        className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {cancelLabel}
+      </button>
+
+      <button
+        type="submit"
+        disabled={isSaving}
+        className="rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {submitLabel}
+      </button>
+    </div>
+  );
+}
+
+function SectionTitle({
+  icon,
+  tone,
+  title,
+  description,
+  compact = false,
+}: {
+  icon: ReactNode;
+  tone: "blue" | "emerald" | "purple";
+  title: string;
+  description: string;
+  compact?: boolean;
+}) {
+  const toneClass = {
+    blue: "bg-blue-50 text-blue-700",
+    emerald: "bg-emerald-50 text-emerald-700",
+    purple: "bg-purple-50 text-purple-700",
+  }[tone];
+
+  return (
+    <div className={`flex items-center gap-3 ${compact ? "" : "mb-5 md:mb-6"}`}>
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl md:h-12 md:w-12 ${toneClass}`}
+      >
+        {icon}
+      </div>
+
+      <div>
+        <h2 className="text-lg font-black text-slate-950 md:text-xl">{title}</h2>
+        <p className="text-xs text-slate-500 md:text-sm">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function FormField({ label, children }: { label: string; children: ReactNode }) {
+  return (
     <label className="block">
-      <span className="mb-2 block text-sm font-bold text-slate-700">
+      <span className="mb-2 block text-xs font-bold text-slate-700 md:text-sm">
         {label}
       </span>
+
       {children}
     </label>
   );
@@ -1496,10 +1472,12 @@ function ToggleField({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+    <label className="flex cursor-pointer items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:rounded-3xl md:p-4">
       <span>
-        <span className="block font-black text-slate-950">{label}</span>
-        <span className="mt-1 block text-sm leading-5 text-slate-500">
+        <span className="block text-sm font-black text-slate-950 md:text-base">
+          {label}
+        </span>
+        <span className="mt-1 block text-xs leading-5 text-slate-500 md:text-sm">
           {description}
         </span>
       </span>
@@ -1513,6 +1491,22 @@ function ToggleField({
       />
     </label>
   );
+}
+
+function RoleOptions() {
+  return (
+    <>
+      <option value="manager">Gérant</option>
+      <option value="pharmacist">Pharmacien</option>
+      <option value="cashier">Caissier</option>
+      <option value="stock_manager">Gestionnaire stock</option>
+      <option value="accountant">Comptable</option>
+    </>
+  );
+}
+
+function isEditableUserRole(role: string): role is PharmacyUserRole {
+  return editableRoles.includes(role as PharmacyUserRole);
 }
 
 function formatRole(role: string) {

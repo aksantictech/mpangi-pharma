@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
+  ArrowRight,
   Boxes,
   Building2,
   CalendarClock,
@@ -12,6 +13,7 @@ import {
   Package,
   ShoppingCart,
   Store,
+  UploadCloud,
   Users,
 } from "lucide-react";
 
@@ -31,6 +33,7 @@ type DashboardModule = {
   icon: ReactNode;
   title: string;
   description: string;
+  priority?: boolean;
 };
 
 export default function DashboardPage() {
@@ -104,9 +107,9 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-50 p-6">
+      <main className="min-h-screen bg-slate-50 p-3 md:p-6">
         <div className="mx-auto max-w-7xl">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm md:rounded-[2rem] md:p-8">
             <p className="font-semibold text-slate-500">
               Chargement du tableau de bord...
             </p>
@@ -118,23 +121,23 @@ export default function DashboardPage() {
 
   if (!pharmacy) {
     return (
-      <main className="min-h-screen bg-slate-50 p-6">
-        <div className="mx-auto max-w-7xl space-y-5">
+      <main className="min-h-screen bg-slate-50 p-3 md:p-6">
+        <div className="mx-auto max-w-7xl space-y-4 md:space-y-5">
           {accessDisabled && (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
               Votre accès à cette pharmacie a été désactivé. Contactez le
               propriétaire ou le gérant pour réactiver votre compte.
             </div>
           )}
 
-          <section className="rounded-[2rem] border border-blue-100 bg-blue-50 p-8">
-            <div className="flex flex-col items-start gap-5 md:flex-row md:items-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-blue-700 shadow-sm">
-                <Store className="h-8 w-8" />
+          <section className="rounded-[1.5rem] border border-blue-100 bg-blue-50 p-5 md:rounded-[2rem] md:p-8">
+            <div className="flex flex-col items-start gap-4 md:flex-row md:items-center md:gap-5">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm md:h-16 md:w-16 md:rounded-3xl">
+                <Store className="h-6 w-6 md:h-8 md:w-8" />
               </div>
 
               <div className="flex-1">
-                <h1 className="text-2xl font-black text-blue-950">
+                <h1 className="text-xl font-black text-blue-950 md:text-2xl">
                   Bienvenue sur Mpangi_Pharma
                 </h1>
 
@@ -153,58 +156,69 @@ export default function DashboardPage() {
 
   const dashboardModules: DashboardModule[] = [
     {
-      href: "/pharmacies",
-      module: "pharmacies",
-      icon: <Building2 className="h-6 w-6" />,
-      title: "Pharmacies",
-      description: "Paramètres, identité et multi-pharmacie.",
+      href: "/ventes",
+      module: "ventes",
+      icon: <ShoppingCart className="h-5 w-5 md:h-6 md:w-6" />,
+      title: "Ventes",
+      description: "Caisse, panier, paiement et sortie stock.",
+      priority: true,
     },
     {
       href: "/produits",
       module: "produits",
-      icon: <Package className="h-6 w-6" />,
-      title: "Produits & stock",
+      icon: <Package className="h-5 w-5 md:h-6 md:w-6" />,
+      title: "Produits",
       description: "Médicaments, lots, expirations et seuils.",
+      priority: true,
     },
     {
       href: "/stock",
       module: "stock",
-      icon: <Boxes className="h-6 w-6" />,
+      icon: <Boxes className="h-5 w-5 md:h-6 md:w-6" />,
       title: "Stock",
       description: "Lots, mouvements, entrées et inventaires.",
-    },
-    {
-      href: "/ventes",
-      module: "ventes",
-      icon: <ShoppingCart className="h-6 w-6" />,
-      title: "Ventes",
-      description: "Caisse, panier, paiement et sortie stock.",
+      priority: true,
     },
     {
       href: "/factures",
       module: "factures",
-      icon: <FileText className="h-6 w-6" />,
+      icon: <FileText className="h-5 w-5 md:h-6 md:w-6" />,
       title: "Factures",
       description: "Factures simples avec logo pharmacie.",
+      priority: true,
     },
     {
-      href: "/finances",
-      module: "finances",
-      icon: <LineChart className="h-6 w-6" />,
-      title: "Finances",
-      description: "Recettes, dépenses, marges et rapports.",
+      href: "/synchronisation",
+      module: "synchronisation",
+      icon: <UploadCloud className="h-5 w-5 md:h-6 md:w-6" />,
+      title: "Sync",
+      description: "Ventes offline et synchronisation du terminal.",
     },
     {
       href: "/expirations",
       module: "expirations",
-      icon: <CalendarClock className="h-6 w-6" />,
+      icon: <CalendarClock className="h-5 w-5 md:h-6 md:w-6" />,
       title: "Expirations",
       description: "Lots proches de l’expiration.",
     },
     {
+      href: "/pharmacies",
+      module: "pharmacies",
+      icon: <Building2 className="h-5 w-5 md:h-6 md:w-6" />,
+      title: "Pharmacies",
+      description: "Paramètres, identité et multi-pharmacie.",
+    },
+    {
+      href: "/finances",
+      module: "finances",
+      icon: <LineChart className="h-5 w-5 md:h-6 md:w-6" />,
+      title: "Finances",
+      description: "Recettes, dépenses, marges et rapports.",
+    },
+    {
       href: "/parametres",
       module: "parametres",
-      icon: <Users className="h-6 w-6" />,
+      icon: <Users className="h-5 w-5 md:h-6 md:w-6" />,
       title: "Paramètres",
       description: "Rôles, accès et sécurité.",
     },
@@ -214,39 +228,44 @@ export default function DashboardPage() {
     canAccessModule(pharmacy.role, item.module)
   );
 
+  const priorityModules = visibleDashboardModules.filter((item) => item.priority);
+  const otherModules = visibleDashboardModules.filter((item) => !item.priority);
+
   const canViewProducts = canAccessModule(pharmacy.role, "produits");
   const canViewStock = canAccessModule(pharmacy.role, "stock");
   const canViewSales = canAccessModule(pharmacy.role, "ventes");
   const canViewExpirations = canAccessModule(pharmacy.role, "expirations");
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <header className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+    <main className="min-h-screen bg-slate-50 p-3 md:p-6">
+      <div className="mx-auto max-w-7xl space-y-4 md:space-y-6">
+        <header className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-6">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <div>
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-blue-700">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700 md:text-sm md:tracking-[0.2em]">
                 Mpangi_Pharma
               </p>
 
-              <h1 className="mt-2 text-3xl font-black text-slate-950">
+              <h1 className="mt-1 text-2xl font-black text-slate-950 md:mt-2 md:text-3xl">
                 Tableau de bord
               </h1>
 
-              <p className="mt-2 text-sm text-slate-500">
-                {pharmacy.name} · {pharmacy.city || "Ville non renseignée"} · 1
-                USD = {Number(pharmacy.exchange_rate || 0).toLocaleString(
-                  "fr-CD"
-                )}{" "}
+              <p className="mt-1 text-xs font-semibold text-slate-500 md:mt-2 md:text-sm">
+                {pharmacy.name} · {pharmacy.city || "Ville non renseignée"}
+              </p>
+
+              <p className="mt-1 text-[11px] font-bold text-slate-400 md:text-xs">
+                1 USD ={" "}
+                {Number(pharmacy.exchange_rate || 0).toLocaleString("fr-CD")}{" "}
                 CDF
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row">
               {canViewProducts && (
                 <Link
                   href="/produits"
-                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
+                  className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
                 >
                   Produits
                 </Link>
@@ -255,7 +274,7 @@ export default function DashboardPage() {
               {canViewSales && (
                 <Link
                   href="/ventes"
-                  className="rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-100 hover:bg-blue-800"
+                  className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-100 hover:bg-blue-800"
                 >
                   Nouvelle vente
                 </Link>
@@ -265,34 +284,34 @@ export default function DashboardPage() {
         </header>
 
         {errorMessage && (
-          <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
+          <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
             {errorMessage}
           </div>
         )}
 
         {accessDisabled && (
-          <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
+          <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
             Votre accès à cette pharmacie a été désactivé. Contactez le
             propriétaire ou le gérant pour réactiver votre compte.
           </div>
         )}
 
         {(canViewProducts || canViewStock || canViewExpirations) && (
-          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             {canViewProducts && (
               <MetricCard
-                title="Produits actifs"
+                title="Produits"
                 value={totalProducts.toString()}
-                icon={<Package className="h-6 w-6" />}
+                icon={<Package className="h-5 w-5 md:h-6 md:w-6" />}
                 tone="blue"
               />
             )}
 
             {canViewStock && (
               <MetricCard
-                title="Quantité totale"
+                title="Quantité"
                 value={totalQuantity.toString()}
-                icon={<Boxes className="h-6 w-6" />}
+                icon={<Boxes className="h-5 w-5 md:h-6 md:w-6" />}
                 tone="green"
               />
             )}
@@ -301,7 +320,7 @@ export default function DashboardPage() {
               <MetricCard
                 title="Stock faible"
                 value={lowStockCount.toString()}
-                icon={<AlertTriangle className="h-6 w-6" />}
+                icon={<AlertTriangle className="h-5 w-5 md:h-6 md:w-6" />}
                 tone="orange"
               />
             )}
@@ -310,36 +329,63 @@ export default function DashboardPage() {
               <MetricCard
                 title="Ruptures"
                 value={outOfStockCount.toString()}
-                icon={<CalendarClock className="h-6 w-6" />}
+                icon={<CalendarClock className="h-5 w-5 md:h-6 md:w-6" />}
                 tone="red"
               />
             )}
           </section>
         )}
 
+        {priorityModules.length > 0 && (
+          <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black text-slate-950 md:text-xl">
+                  Actions rapides
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-500 md:text-sm">
+                  Les fonctions les plus utilisées sur le terminal.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+              {priorityModules.map((item) => (
+                <QuickActionLink
+                  key={item.href}
+                  href={item.href}
+                  icon={item.icon}
+                  title={item.title}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
         <section
           className={
             canViewExpirations
-              ? "grid grid-cols-1 gap-5 lg:grid-cols-3"
-              : "grid grid-cols-1 gap-5"
+              ? "grid grid-cols-1 gap-4 lg:grid-cols-3 md:gap-5"
+              : "grid grid-cols-1 gap-4 md:gap-5"
           }
         >
           <div
             className={
               canViewExpirations
-                ? "rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2"
-                : "rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"
+                ? "rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-6 lg:col-span-2"
+                : "rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-6"
             }
           >
-            <h2 className="text-xl font-black text-slate-950">
+            <h2 className="text-lg font-black text-slate-950 md:text-xl">
               Modules principaux
             </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-xs text-slate-500 md:text-sm">
               Accédez rapidement aux zones autorisées pour votre rôle.
             </p>
 
-            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="mt-4 grid grid-cols-2 gap-2 md:mt-5 md:grid-cols-2 md:gap-4">
               {visibleDashboardModules.map((item) => (
                 <ModuleLink
                   key={item.href}
@@ -353,48 +399,48 @@ export default function DashboardPage() {
           </div>
 
           {canViewExpirations && (
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-black text-slate-950">
-                Alertes expiration
-              </h2>
+            <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-6">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-black text-slate-950 md:text-xl">
+                    Alertes expiration
+                  </h2>
 
-              <p className="mt-1 text-sm text-slate-500">
-                Lots proches de l’expiration ou déjà expirés.
-              </p>
+                  <p className="mt-1 text-xs text-slate-500 md:text-sm">
+                    Lots proches de l’expiration.
+                  </p>
+                </div>
 
-              <div className="mt-5">
+                {expirationAlerts.length > 0 && (
+                  <span className="rounded-full bg-orange-50 px-2 py-1 text-xs font-black text-orange-700">
+                    {expirationAlerts.length}
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-4 md:mt-5">
                 {expirationAlerts.length === 0 ? (
-                  <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5">
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 md:rounded-3xl md:p-5">
                     <p className="font-black text-emerald-800">
                       Aucun lot critique
                     </p>
+
                     <p className="mt-1 text-sm text-emerald-700">
                       Aucun produit proche de l’expiration pour le moment.
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2 md:space-y-3">
                     {expirationAlerts.slice(0, 5).map((alert) => (
-                      <div
-                        key={alert.batch_id}
-                        className="rounded-3xl border border-orange-100 bg-orange-50 p-4"
-                      >
-                        <p className="font-black text-orange-900">
-                          {alert.product_name}
-                        </p>
-
-                        <p className="mt-1 text-sm text-orange-700">
-                          Expire le {alert.expiry_date} · Stock :{" "}
-                          {Number(alert.quantity_available || 0)}
-                        </p>
-                      </div>
+                      <ExpirationAlertCard key={alert.batch_id} alert={alert} />
                     ))}
 
                     <Link
                       href="/expirations"
-                      className="mt-4 inline-flex text-sm font-black text-blue-700 hover:text-blue-800"
+                      className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-black text-blue-700 hover:bg-blue-100 md:w-auto md:text-sm"
                     >
                       Voir toutes les alertes
+                      <ArrowRight className="h-4 w-4" />
                     </Link>
                   </div>
                 )}
@@ -404,6 +450,21 @@ export default function DashboardPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function ExpirationAlertCard({ alert }: { alert: ExpirationAlert }) {
+  return (
+    <div className="rounded-2xl border border-orange-100 bg-orange-50 p-3 md:rounded-3xl md:p-4">
+      <p className="line-clamp-2 text-sm font-black text-orange-900">
+        {alert.product_name}
+      </p>
+
+      <p className="mt-1 text-xs font-semibold text-orange-700 md:text-sm">
+        Expire le {formatDate(alert.expiry_date)} · Stock :{" "}
+        {Number(alert.quantity_available || 0)}
+      </p>
+    </div>
   );
 }
 
@@ -426,16 +487,45 @@ function MetricCard({
   }[tone];
 
   return (
-    <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-sm md:rounded-[2rem] md:p-5">
       <div
-        className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${toneClass}`}
+        className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl md:mb-4 md:h-12 md:w-12 ${toneClass}`}
       >
         {icon}
       </div>
 
-      <p className="text-sm font-bold text-slate-500">{title}</p>
-      <p className="mt-2 text-3xl font-black text-slate-950">{value}</p>
+      <p className="text-xs font-bold text-slate-500 md:text-sm">{title}</p>
+
+      <p className="mt-1 break-words text-2xl font-black text-slate-950 md:mt-2 md:text-3xl">
+        {value}
+      </p>
     </div>
+  );
+}
+
+function QuickActionLink({
+  href,
+  icon,
+  title,
+}: {
+  href: string;
+  icon: ReactNode;
+  title: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex min-h-24 flex-col justify-between rounded-2xl border border-blue-100 bg-blue-50 p-3 text-blue-700 transition hover:bg-blue-100 md:min-h-28 md:rounded-3xl md:p-4"
+    >
+      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white md:h-11 md:w-11">
+        {icon}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <span className="line-clamp-1 text-sm font-black">{title}</span>
+        <ArrowRight className="h-4 w-4 shrink-0" />
+      </div>
+    </Link>
   );
 }
 
@@ -453,14 +543,25 @@ function ModuleLink({
   return (
     <Link
       href={href}
-      className="rounded-3xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md"
+      className="rounded-2xl border border-slate-200 bg-white p-3 transition hover:bg-slate-50 hover:shadow-md md:rounded-3xl md:p-5"
     >
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700 md:mb-4 md:h-12 md:w-12 md:rounded-2xl">
         {icon}
       </div>
 
-      <h3 className="font-black text-slate-950">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
+      <h3 className="line-clamp-1 text-sm font-black text-slate-950 md:text-base">
+        {title}
+      </h3>
+
+      <p className="mt-1 hidden text-sm leading-6 text-slate-500 md:mt-2 md:block">
+        {description}
+      </p>
     </Link>
   );
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "-";
+
+  return new Intl.DateTimeFormat("fr-FR").format(new Date(value));
 }

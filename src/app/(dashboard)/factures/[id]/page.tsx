@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import InvoicePrintTicket from "@/components/invoices/InvoicePrintTicket";
 import {
   ArrowLeft,
   Building2,
@@ -13,6 +12,7 @@ import {
   RefreshCcw,
 } from "lucide-react";
 
+import InvoicePrintTicket from "@/components/invoices/InvoicePrintTicket";
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
 import { getInvoiceById } from "@/services/invoices.service";
 
@@ -29,6 +29,7 @@ export default function InvoiceDetailsPage() {
   const [invoice, setInvoice] = useState<SaleWithItems | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isPreparingPrint, setIsPreparingPrint] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   async function loadData() {
@@ -66,6 +67,18 @@ export default function InvoiceDetailsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceId]);
 
+  useEffect(() => {
+    function handleAfterPrint() {
+      setIsPreparingPrint(false);
+    }
+
+    window.addEventListener("afterprint", handleAfterPrint);
+
+    return () => {
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, []);
+
   const subtotal = useMemo(() => {
     if (!invoice) return 0;
 
@@ -75,13 +88,23 @@ export default function InvoiceDetailsPage() {
   }, [invoice]);
 
   function handlePrint() {
-    window.print();
+    if (isPreparingPrint) return;
+
+    setIsPreparingPrint(true);
+
+    window.setTimeout(() => {
+      window.print();
+
+      window.setTimeout(() => {
+        setIsPreparingPrint(false);
+      }, 3000);
+    }, 300);
   }
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-50 p-4 md:p-6">
-        <div className="mx-auto max-w-5xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+      <main className="min-h-screen bg-slate-50 p-3 md:p-6">
+        <div className="mx-auto max-w-5xl rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm md:rounded-[2rem] md:p-8">
           <p className="font-semibold text-slate-500">
             Chargement de la facture...
           </p>
@@ -92,9 +115,9 @@ export default function InvoiceDetailsPage() {
 
   if (!pharmacy || !invoice) {
     return (
-      <main className="min-h-screen bg-slate-50 p-4 md:p-6">
-        <div className="mx-auto max-w-5xl rounded-[2rem] border border-red-100 bg-red-50 p-8">
-          <h1 className="text-2xl font-black text-red-800">
+      <main className="min-h-screen bg-slate-50 p-3 md:p-6">
+        <div className="mx-auto max-w-5xl rounded-[1.5rem] border border-red-100 bg-red-50 p-5 md:rounded-[2rem] md:p-8">
+          <h1 className="text-xl font-black text-red-800 md:text-2xl">
             Facture introuvable
           </h1>
 
@@ -117,105 +140,111 @@ export default function InvoiceDetailsPage() {
 
   return (
     <>
-      <main className="no-print min-h-screen bg-slate-50 p-4 md:p-6">
-        <div className="mx-auto max-w-5xl space-y-6">
-          <header className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+      <main className="no-print min-h-screen bg-slate-50 p-3 md:p-6">
+        <div className="mx-auto max-w-5xl space-y-4 md:space-y-6">
+          <header className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-6">
             <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
               <div>
                 <Link
                   href="/factures"
-                  className="mb-4 inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
+                  className="mb-3 inline-flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 md:mb-4"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   Retour factures
                 </Link>
 
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-blue-700">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700 md:text-sm">
                   {pharmacy.name}
                 </p>
 
-                <h1 className="mt-2 text-3xl font-black text-slate-950">
+                <h1 className="mt-1 text-2xl font-black text-slate-950 md:mt-2 md:text-3xl">
                   Facture {invoice.invoice_number}
                 </h1>
 
-                <p className="mt-2 text-sm text-slate-500">
+                <p className="mt-1 text-xs text-slate-500 md:mt-2 md:text-sm">
                   Consultation et impression du reçu de vente.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={loadData}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
+                  disabled={isPreparingPrint}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <RefreshCcw className="h-5 w-5" />
                   Actualiser
                 </button>
 
-<button
-  type="button"
-  onClick={handlePrint}
-  className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-blue-700 px-5 py-4 text-sm font-black text-white hover:bg-blue-800"
->
-  <Printer className="h-5 w-5" />
-  Imprimer ticket
-</button>
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  disabled={isPreparingPrint}
+                  className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-blue-700 px-5 py-4 text-sm font-black text-white shadow-lg shadow-blue-100 hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  <Printer
+                    className={`h-5 w-5 ${
+                      isPreparingPrint ? "animate-pulse" : ""
+                    }`}
+                  />
+                  {isPreparingPrint ? "Préparation..." : "Imprimer ticket"}
+                </button>
               </div>
             </div>
           </header>
 
           {errorMessage && (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
               {errorMessage}
             </div>
           )}
 
-          <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <section className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
             <InfoMetric
               title="Client"
               value={invoice.customer_name || "Client comptoir"}
-              icon={<Building2 className="h-6 w-6" />}
+              icon={<Building2 className="h-5 w-5 md:h-6 md:w-6" />}
             />
 
             <InfoMetric
               title="Paiement"
               value={formatPaymentMethod(invoice.payment_method)}
-              icon={<Receipt className="h-6 w-6" />}
+              icon={<Receipt className="h-5 w-5 md:h-6 md:w-6" />}
             />
 
             <InfoMetric
               title="Date"
               value={new Date(invoice.created_at).toLocaleString("fr-CD")}
-              icon={<CalendarDays className="h-6 w-6" />}
+              icon={<CalendarDays className="h-5 w-5 md:h-6 md:w-6" />}
             />
           </section>
 
-          <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-xl font-black text-slate-950">
+          <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-5">
+            <h2 className="text-lg font-black text-slate-950 md:text-xl">
               Articles vendus
             </h2>
 
-            <div className="mt-5 space-y-3 md:hidden">
+            <div className="mt-4 space-y-2 md:hidden">
               {invoice.items.length === 0 ? (
-                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 text-sm font-semibold text-slate-500">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm font-semibold text-slate-500">
                   Aucun article trouvé.
                 </div>
               ) : (
-                invoice.items.map((item) => (
+                invoice.items.map((item, index) => (
                   <article
-                    key={getItemKey(item)}
-                    className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"
+                    key={`${getItemKey(item)}-${index}`}
+                    className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
                   >
-                    <h3 className="font-black text-slate-950">
+                    <h3 className="line-clamp-2 text-sm font-black text-slate-950">
                       {getItemName(item)}
                     </h3>
 
-                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                    <p className="mt-1 line-clamp-2 text-xs font-semibold text-slate-500">
                       {getItemDetails(item)}
                     </p>
 
-                    <div className="mt-4 grid grid-cols-3 gap-3">
+                    <div className="mt-3 grid grid-cols-3 gap-2">
                       <MobileInfo
                         label="Qté"
                         value={String(getItemQuantity(item))}
@@ -223,12 +252,18 @@ export default function InvoiceDetailsPage() {
 
                       <MobileInfo
                         label="PU"
-                        value={formatMoney(getItemUnitPrice(item), invoice.currency)}
+                        value={formatMoney(
+                          getItemUnitPrice(item),
+                          invoice.currency
+                        )}
                       />
 
                       <MobileInfo
                         label="Total"
-                        value={formatMoney(getItemTotal(item), invoice.currency)}
+                        value={formatMoney(
+                          getItemTotal(item),
+                          invoice.currency
+                        )}
                         strong
                       />
                     </div>
@@ -261,8 +296,8 @@ export default function InvoiceDetailsPage() {
                         </td>
                       </tr>
                     ) : (
-                      invoice.items.map((item) => (
-                        <tr key={getItemKey(item)}>
+                      invoice.items.map((item, index) => (
+                        <tr key={`${getItemKey(item)}-${index}`}>
                           <td className="px-5 py-4 font-black text-slate-950">
                             {getItemName(item)}
                           </td>
@@ -276,7 +311,10 @@ export default function InvoiceDetailsPage() {
                           </td>
 
                           <td className="px-5 py-4 text-sm text-slate-600">
-                            {formatMoney(getItemUnitPrice(item), invoice.currency)}
+                            {formatMoney(
+                              getItemUnitPrice(item),
+                              invoice.currency
+                            )}
                           </td>
 
                           <td className="px-5 py-4 font-black text-slate-950">
@@ -291,23 +329,28 @@ export default function InvoiceDetailsPage() {
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-xl font-black text-slate-950">Résumé</h2>
+          <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-5">
+            <h2 className="text-lg font-black text-slate-950 md:text-xl">
+              Résumé
+            </h2>
 
-            <div className="mt-5 space-y-3 rounded-3xl bg-slate-50 p-5">
+            <div className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-4 md:rounded-3xl md:p-5">
               <AmountLine
                 label="Sous-total"
                 value={formatMoney(subtotal, invoice.currency)}
               />
 
-             <AmountLine
-  label="Remise"
-  value={formatMoney(getInvoiceDiscount(invoice), invoice.currency)}
-/>
+              <AmountLine
+                label="Remise"
+                value={formatMoney(getInvoiceDiscount(invoice), invoice.currency)}
+              />
 
               <AmountLine
                 label="Total payé"
-                value={formatMoney(Number(invoice.total_amount || 0), invoice.currency)}
+                value={formatMoney(
+                  Number(invoice.total_amount || 0),
+                  invoice.currency
+                )}
                 strong
               />
             </div>
@@ -315,11 +358,11 @@ export default function InvoiceDetailsPage() {
         </div>
       </main>
 
-     <InvoicePrintTicket
-  pharmacy={pharmacy}
-  invoice={invoice}
-  subtotal={subtotal}
-/>
+      <InvoicePrintTicket
+        pharmacy={pharmacy}
+        invoice={invoice}
+        subtotal={subtotal}
+      />
 
       <style jsx global>{`
         @media print {
@@ -331,6 +374,8 @@ export default function InvoiceDetailsPage() {
           html,
           body {
             background: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
 
           body * {
@@ -343,6 +388,7 @@ export default function InvoiceDetailsPage() {
           }
 
           .print-ticket {
+            display: block !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
@@ -353,6 +399,7 @@ export default function InvoiceDetailsPage() {
             padding: 4mm !important;
             font-family: Arial, sans-serif !important;
             font-size: 11px !important;
+            line-height: 1.35 !important;
           }
 
           .no-print {
@@ -364,7 +411,6 @@ export default function InvoiceDetailsPage() {
   );
 }
 
-
 function InfoMetric({
   title,
   value,
@@ -375,13 +421,15 @@ function InfoMetric({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-5">
+      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 md:mb-4 md:h-12 md:w-12">
         {icon}
       </div>
 
-      <p className="text-sm font-bold text-slate-500">{title}</p>
-      <p className="mt-2 text-lg font-black text-slate-950">{value}</p>
+      <p className="text-xs font-bold text-slate-500 md:text-sm">{title}</p>
+      <p className="mt-1 text-sm font-black text-slate-950 md:mt-2 md:text-lg">
+        {value}
+      </p>
     </div>
   );
 }
@@ -396,10 +444,10 @@ function MobileInfo({
   strong?: boolean;
 }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-3">
-      <p className="text-xs font-bold text-slate-500">{label}</p>
+    <div className="rounded-xl bg-slate-50 p-2">
+      <p className="text-[10px] font-bold text-slate-500">{label}</p>
       <p
-        className={`mt-1 text-sm ${
+        className={`mt-0.5 text-xs ${
           strong ? "font-black text-slate-950" : "font-semibold text-slate-700"
         }`}
       >
@@ -422,7 +470,7 @@ function AmountLine({
     <div
       className={`flex justify-between gap-4 ${
         strong
-          ? "border-t border-slate-200 pt-3 text-xl font-black text-slate-950"
+          ? "border-t border-slate-200 pt-3 text-lg font-black text-slate-950 md:text-xl"
           : "text-sm font-semibold text-slate-600"
       }`}
     >
@@ -447,7 +495,14 @@ function getItemRecord(item: SaleItem) {
 function getItemKey(item: SaleItem) {
   const row = getItemRecord(item);
 
-  return String(row.id ?? row.product_id ?? row.productId ?? Math.random());
+  return String(
+    row.id ??
+      row.product_id ??
+      row.productId ??
+      row.product_name ??
+      row.name ??
+      "item"
+  );
 }
 
 function getItemName(item: SaleItem) {
@@ -459,15 +514,17 @@ function getItemName(item: SaleItem) {
 function getItemDetails(item: SaleItem) {
   const row = getItemRecord(item);
 
-  return [
-    row.generic_name,
-    row.dosage,
-    row.form,
-    row.unit,
-    row.batch_number ? `Lot ${row.batch_number}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ") || "-";
+  return (
+    [
+      row.generic_name,
+      row.dosage,
+      row.form,
+      row.unit,
+      row.batch_number ? `Lot ${row.batch_number}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "-"
+  );
 }
 
 function getItemQuantity(item: SaleItem) {

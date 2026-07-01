@@ -130,14 +130,13 @@ export default function OfflineStatusBar({ pharmacyId }: OfflineStatusBarProps) 
       const result = await syncPendingOfflineSalesToServer(pharmacyId);
 
       const summary = [
-        `Ventes traitées : ${result.attemptedCount}`,
-        `Synchronisées : ${result.syncedCount}`,
+        `Traitées : ${result.attemptedCount}`,
+        `OK : ${result.syncedCount}`,
         `Conflits : ${result.conflictCount}`,
         `Échecs : ${result.failedCount}`,
       ].join(" · ");
 
       setMessage(summary);
-
       await refreshLocalStats();
     } catch (error) {
       setMessage(
@@ -158,12 +157,107 @@ export default function OfflineStatusBar({ pharmacyId }: OfflineStatusBarProps) 
     ? new Date(syncState.last_synced_at).toLocaleString("fr-CD")
     : "Jamais";
 
+  const shortLastSyncText = syncState?.last_synced_at
+    ? new Date(syncState.last_synced_at).toLocaleTimeString("fr-CD", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "Jamais";
+
   const productCount = syncState?.count ?? 0;
   const isBusy = isSyncingProducts || isSyncingSales;
 
   return (
     <section className="no-print border-b border-slate-200 bg-white">
-      <div className="mx-auto max-w-7xl px-4 py-3 md:px-6">
+      {/* Mobile / terminal Android */}
+      <div className="px-3 py-2 xl:hidden">
+        <div
+          className={`rounded-2xl border px-3 py-3 ${
+            isOnline
+              ? "border-emerald-100 bg-emerald-50"
+              : "border-amber-100 bg-amber-50"
+          }`}
+        >
+          <div className="flex items-start gap-2">
+            <div
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white ${
+                isOnline ? "text-emerald-700" : "text-amber-700"
+              }`}
+            >
+              {isOnline ? (
+                <Wifi className="h-4 w-4" />
+              ) : (
+                <WifiOff className="h-4 w-4" />
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <p
+                  className={`truncate text-xs font-black ${
+                    isOnline ? "text-emerald-800" : "text-amber-800"
+                  }`}
+                >
+                  {isOnline ? "En ligne" : "Hors-ligne"}
+                </p>
+
+                {pendingSalesCount > 0 && (
+                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black text-amber-800">
+                    {pendingSalesCount} vente(s)
+                  </span>
+                )}
+              </div>
+
+              <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-600">
+                Produits : {productCount} · Sync : {shortLastSyncText}
+              </p>
+
+              {message && (
+                <p className="mt-1 line-clamp-2 text-[11px] font-bold text-slate-700">
+                  {message}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={handleSyncProducts}
+              disabled={!isOnline || isBusy}
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-blue-700 px-3 py-2 text-[11px] font-black text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RefreshCcw
+                className={`h-3.5 w-3.5 ${
+                  isSyncingProducts ? "animate-spin" : ""
+                }`}
+              />
+              {isSyncingProducts ? "Produits..." : "Produits"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSyncSales}
+              disabled={!isOnline || isBusy || pendingSalesCount === 0}
+              className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-[11px] font-black text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <UploadCloud
+                className={`h-3.5 w-3.5 ${
+                  isSyncingSales ? "animate-pulse" : ""
+                }`}
+              />
+              {isSyncingSales
+                ? "Ventes..."
+                : pendingSalesCount > 0
+                  ? `Ventes (${pendingSalesCount})`
+                  : "Ventes"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop / tablette large */}
+      <div className="mx-auto hidden max-w-7xl px-4 py-3 md:px-6 xl:block">
         <div
           className={`rounded-3xl border p-4 ${
             isOnline
@@ -210,7 +304,7 @@ export default function OfflineStatusBar({ pharmacyId }: OfflineStatusBarProps) 
 
                 {message && (
                   <p className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-slate-700">
-                    {message.includes("Synchronisées") ||
+                    {message.includes("OK") ||
                     message.includes("disponibles") ? (
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
                     ) : (
