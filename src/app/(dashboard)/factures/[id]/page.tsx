@@ -367,15 +367,19 @@ export default function InvoiceDetailsPage() {
       <style jsx global>{`
         @media print {
           @page {
-            size: 80mm auto;
+            size: 80mm 297mm;
             margin: 0;
           }
 
           html,
           body {
+            width: 80mm !important;
+            min-width: 80mm !important;
+            max-width: 80mm !important;
             background: #ffffff !important;
             margin: 0 !important;
             padding: 0 !important;
+            overflow: visible !important;
           }
 
           body * {
@@ -392,14 +396,69 @@ export default function InvoiceDetailsPage() {
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            width: 80mm !important;
+            width: 72mm !important;
+            max-width: 72mm !important;
             min-height: auto !important;
             background: #ffffff !important;
             color: #000000 !important;
-            padding: 4mm !important;
-            font-family: Arial, sans-serif !important;
-            font-size: 11px !important;
-            line-height: 1.35 !important;
+            padding: 2mm 3mm !important;
+            margin: 0 !important;
+            font-family: "Courier New", Courier, monospace !important;
+            font-size: 12px !important;
+            font-weight: 700 !important;
+            line-height: 1.25 !important;
+            letter-spacing: 0 !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            -webkit-font-smoothing: none !important;
+            font-smooth: never !important;
+          }
+
+          .print-ticket * {
+            color: #000000 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+            border-color: #000000 !important;
+            font-weight: 700 !important;
+          }
+
+          .print-ticket h1,
+          .print-ticket h2,
+          .print-ticket h3,
+          .print-ticket strong,
+          .print-ticket b {
+            font-weight: 900 !important;
+          }
+
+          .print-ticket table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+          }
+
+          .print-ticket th,
+          .print-ticket td {
+            padding: 1mm 0 !important;
+            vertical-align: top !important;
+          }
+
+          .print-ticket hr,
+          .print-ticket .separator,
+          .print-ticket [data-separator="true"] {
+            border: 0 !important;
+            border-top: 1px solid #000000 !important;
+            height: 0 !important;
+            margin: 2mm 0 !important;
+          }
+
+          .print-ticket img {
+            max-width: 28mm !important;
+            max-height: 14mm !important;
+            object-fit: contain !important;
+            filter: grayscale(1) contrast(2.2) !important;
+            image-rendering: crisp-edges !important;
           }
 
           .no-print {

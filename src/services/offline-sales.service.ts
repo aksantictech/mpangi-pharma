@@ -79,6 +79,17 @@ function getResultValue(result: unknown, key: string) {
   return record?.[key];
 }
 
+function cartItemRequiresPrescription(item: CartItem) {
+  const record = item as unknown as Record<string, unknown>;
+
+  return Boolean(
+    record.requiresPrescription ??
+      record.requires_prescription ??
+      record.requires_prescription_at_sale ??
+      false
+  );
+}
+
 export async function createOfflineSale(payload: CreateOfflineSalePayload) {
   if (payload.items.length === 0) {
     throw new Error("Le panier est vide.");
@@ -131,7 +142,8 @@ export async function createOfflineSale(payload: CreateOfflineSalePayload) {
     unit_price: item.unitPrice,
     total_price: item.quantity * item.unitPrice,
     available_quantity_at_sale: item.availableQuantity,
-  }));
+    requires_prescription: cartItemRequiresPrescription(item),
+  })) as OfflineSaleItem[];
 
   await offlineDb.transaction(
     "rw",
@@ -250,16 +262,21 @@ export async function syncPendingOfflineSalesToServer(
         );
       }
 
-const cartItems = saleItems.map((item) => ({
-  productId: item.product_id,
-  name: item.product_name,
-  dosage: item.dosage ?? undefined,
-  form: item.form ?? undefined,
-  unit: item.unit ?? undefined,
-  quantity: Number(item.quantity || 0),
-  unitPrice: Number(item.unit_price || 0),
-  availableQuantity: Number(item.available_quantity_at_sale || 0),
-})) as CartItem[];
+      const cartItems = saleItems.map((item) => {
+        const itemRecord = item as unknown as Record<string, unknown>;
+
+        return {
+          productId: item.product_id,
+          name: item.product_name,
+          dosage: item.dosage ?? undefined,
+          form: item.form ?? undefined,
+          unit: item.unit ?? undefined,
+          quantity: Number(item.quantity || 0),
+          unitPrice: Number(item.unit_price || 0),
+          availableQuantity: Number(item.available_quantity_at_sale || 0),
+          requiresPrescription: Boolean(itemRecord.requires_prescription),
+        };
+      }) as CartItem[];
 
       const serverSale = await createSale({
         pharmacyId,
@@ -346,6 +363,12 @@ const cartItems = saleItems.map((item) => ({
         );
       }
     }
+  }
+
+  if (result.syncedCount > 0) {
+    result.messages.push(
+      "Ventes synchronisées. Pensez à relancer la synchronisation des produits pour actualiser le cache offline."
+    );
   }
 
   if (typeof window !== "undefined") {

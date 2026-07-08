@@ -42,6 +42,7 @@ type ProductFormState = {
   supplierId: string;
   minStock: string;
   requiresPrescription: boolean;
+  hasVisibleExpiryDate: boolean;
   description: string;
   batchNumber: string;
   expiryDate: string;
@@ -62,6 +63,7 @@ const initialForm: ProductFormState = {
   supplierId: "",
   minStock: "0",
   requiresPrescription: false,
+  hasVisibleExpiryDate: true,
   description: "",
   batchNumber: "",
   expiryDate: "",
@@ -89,7 +91,18 @@ const defaultUnitOptions = [
   "sachet",
   "tube",
   "pièce",
+  "paquet",
+  "pot",
+  "bouteille",
+  "bidon",
+  "carton",
+  "rouleau",
+  "kit",
+  "litre",
+  "ml",
 ];
+
+const FAR_FUTURE_EXPIRY_DATE = "2099-12-31";
 
 export default function AddProductDialog({
   pharmacyId,
@@ -217,6 +230,14 @@ export default function AddProductDialog({
     setIsManualMode(true);
     setSelectedNationalProduct(null);
     resetProductIdentityFields();
+
+    setForm((current) => ({
+      ...current,
+      unit: current.unit || "pièce",
+      hasVisibleExpiryDate: false,
+      requiresPrescription: false,
+      description: current.description || "Produit hors catalogue ACOREP.",
+    }));
   }
 
   function backToCatalogueMode() {
@@ -288,6 +309,9 @@ export default function AddProductDialog({
 
     try {
       const quantity = Number(form.quantity || 0);
+      const expiryDateForSave = form.hasVisibleExpiryDate
+        ? form.expiryDate
+        : FAR_FUTURE_EXPIRY_DATE;
 
       if (!isManualMode && !selectedNationalProduct) {
         throw new Error(
@@ -305,7 +329,7 @@ export default function AddProductDialog({
         throw new Error("Le nom du produit est obligatoire.");
       }
 
-      if (quantity > 0 && !form.expiryDate) {
+      if (quantity > 0 && !expiryDateForSave) {
         throw new Error(
           "La date d’expiration est obligatoire si le stock initial est supérieur à zéro."
         );
@@ -331,7 +355,7 @@ export default function AddProductDialog({
         requiresPrescription: form.requiresPrescription,
         description: form.description,
         batchNumber: form.batchNumber,
-        expiryDate: form.expiryDate,
+        expiryDate: expiryDateForSave,
         purchasePrice: Number(form.purchasePrice || 0),
         sellingPrice: Number(form.sellingPrice || 0),
         quantity,
@@ -371,8 +395,7 @@ export default function AddProductDialog({
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Sélectionnez un médicament depuis le catalogue ACOREP 2026 ou
-                  ajoutez-le manuellement s’il est absent.
+                  Sélectionnez un médicament depuis le catalogue ACOREP 2026 ou ajoutez un produit hors catalogue : lingettes, savon, lait de beauté, produit bébé, matériel médical, etc.
                 </p>
               </div>
 
@@ -425,7 +448,7 @@ export default function AddProductDialog({
                       className="inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-700 hover:bg-amber-100"
                     >
                       <Plus className="h-4 w-4" />
-                      Produit absent ? Ajouter manuellement
+                      Produit hors catalogue
                     </button>
                   </div>
                 </div>
@@ -546,8 +569,7 @@ export default function AddProductDialog({
                 <div className="mt-4 max-h-80 overflow-y-auto rounded-3xl border border-slate-200 bg-white">
                   {isManualMode ? (
                     <div className="px-5 py-8 text-center text-sm font-bold text-amber-700">
-                      Mode manuel activé. Saisissez les informations du produit
-                      dans l’étape 2.
+                      Mode hors catalogue activé. Saisissez les informations du produit dans l’étape 2.
                     </div>
                   ) : isCatalogueLoading ? (
                     <div className="px-5 py-8 text-center text-sm font-bold text-slate-500">
@@ -555,8 +577,7 @@ export default function AddProductDialog({
                     </div>
                   ) : catalogueProducts.length === 0 ? (
                     <div className="px-5 py-8 text-center text-sm font-bold text-slate-500">
-                      Aucun produit trouvé. Essayez une autre recherche ou
-                      utilisez l’ajout manuel.
+                      Aucun produit trouvé. Essayez une autre recherche ou utilisez Produit hors catalogue.
                     </div>
                   ) : (
                     <div className="divide-y divide-slate-100">
@@ -640,9 +661,7 @@ export default function AddProductDialog({
 
                 {isManualMode ? (
                   <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
-                    Mode manuel activé. L’application contrôlera si un produit
-                    identique existe déjà dans cette pharmacie avant
-                    l’enregistrement.
+                    Produit hors catalogue activé. Utilisez ce mode pour les lingettes, savons, laits de beauté, produits bébé, matériel médical ou autres produits non ACOREP. L’application contrôlera si un produit identique existe déjà avant l’enregistrement.
                     <button
                       type="button"
                       onClick={backToCatalogueMode}
@@ -705,7 +724,7 @@ export default function AddProductDialog({
                       }`}
                       placeholder={
                         isManualMode
-                          ? "Ex : Nom du produit"
+                          ? "Ex : Lingettes bébé, savon, lait de beauté..."
                           : "Sélection depuis ACOREP"
                       }
                       required
@@ -757,7 +776,7 @@ export default function AddProductDialog({
                     />
                   </FormField>
 
-                  <FormField label="Forme pharmaceutique">
+                  <FormField label="Forme / Présentation">
                     <input
                       value={form.form}
                       readOnly={!isManualMode}
@@ -767,7 +786,7 @@ export default function AddProductDialog({
                       className={`form-input ${
                         isManualMode ? "bg-white" : "bg-slate-50"
                       }`}
-                      placeholder="Ex : comprimé"
+                      placeholder="Ex : comprimé, savon, lingettes, lait"
                     />
                   </FormField>
 
@@ -798,7 +817,7 @@ export default function AddProductDialog({
                     />
                   </FormField>
 
-                  <FormField label="Fabricant">
+                  <FormField label="Fabricant / Marque">
                     <input
                       value={form.manufacturer}
                       onChange={(event) =>
@@ -833,17 +852,45 @@ export default function AddProductDialog({
                   />
                 </FormField>
 
-                <label className="mt-4 flex items-center gap-3 text-sm font-semibold text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={form.requiresPrescription}
-                    onChange={(event) =>
-                      updateField("requiresPrescription", event.target.checked)
-                    }
-                    className="h-4 w-4 rounded border-slate-300"
-                  />
-                  Produit nécessitant une ordonnance
-                </label>
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={form.requiresPrescription}
+                      onChange={(event) =>
+                        updateField("requiresPrescription", event.target.checked)
+                      }
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                    />
+                    <span>
+                      <span className="block font-black text-slate-900">
+                        Produit nécessitant une ordonnance
+                      </span>
+                      <span className="mt-1 block text-xs font-medium text-slate-500">
+                        À cocher pour les médicaments soumis à prescription.
+                      </span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={!form.hasVisibleExpiryDate}
+                      onChange={(event) =>
+                        updateField("hasVisibleExpiryDate", !event.target.checked)
+                      }
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                    />
+                    <span>
+                      <span className="block font-black text-slate-900">
+                        Pas de date d’expiration visible
+                      </span>
+                      <span className="mt-1 block text-xs font-medium text-slate-500">
+                        Exemple : savon, accessoires, certains produits d’hygiène.
+                      </span>
+                    </span>
+                  </label>
+                </div>
               </section>
 
               <section>
@@ -901,11 +948,16 @@ export default function AddProductDialog({
                   <FormField label="Date d’expiration">
                     <input
                       type="date"
-                      value={form.expiryDate}
+                      value={
+                        form.hasVisibleExpiryDate
+                          ? form.expiryDate
+                          : FAR_FUTURE_EXPIRY_DATE
+                      }
                       onChange={(event) =>
                         updateField("expiryDate", event.target.value)
                       }
                       className="form-input"
+                      disabled={!form.hasVisibleExpiryDate}
                     />
                   </FormField>
 

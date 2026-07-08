@@ -52,6 +52,7 @@ export type OfflineSaleItem = {
   unit_price: number;
   total_price: number;
   available_quantity_at_sale: number;
+  requires_prescription?: boolean;
 };
 
 export type OfflineSyncState = {
@@ -85,6 +86,16 @@ class MpangiOfflineDatabase extends Dexie {
     super("mpangi_pharma_offline");
 
     this.version(1).stores({
+      sellableProducts:
+        "local_id, pharmacy_id, product_id, name, generic_name, barcode, cached_at",
+      offlineSales:
+        "id, pharmacy_id, device_id, status, created_at, synced_at, server_sale_id",
+      offlineSaleItems: "id, offline_sale_id, pharmacy_id, product_id",
+      syncState: "id, pharmacy_id, key, status, last_synced_at",
+      syncLogs: "id, pharmacy_id, type, status, created_at",
+    });
+
+    this.version(2).stores({
       sellableProducts:
         "local_id, pharmacy_id, product_id, name, generic_name, barcode, cached_at",
       offlineSales:
