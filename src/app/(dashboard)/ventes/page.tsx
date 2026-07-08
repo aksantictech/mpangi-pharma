@@ -61,6 +61,47 @@ type PendingOfflineSaleForDisplay = {
   status: string;
   created_at: string;
 };
+const CURRENT_PHARMACY_CACHE_KEY = "mpangi_pharma_current_pharmacy";
+
+function getOnlineState() {
+  if (typeof navigator === "undefined") {
+    return true;
+  }
+
+  return navigator.onLine;
+}
+
+function cacheCurrentPharmacy(pharmacy: PharmacyWithRole) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      CURRENT_PHARMACY_CACHE_KEY,
+      JSON.stringify(pharmacy)
+    );
+  } catch {
+    // Le cache navigateur peut être indisponible sur certains terminaux.
+  }
+}
+
+function getCachedCurrentPharmacy() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const rawValue = window.localStorage.getItem(CURRENT_PHARMACY_CACHE_KEY);
+
+    if (!rawValue) return null;
+
+    const parsedValue = JSON.parse(rawValue) as PharmacyWithRole;
+
+    if (!parsedValue?.id) return null;
+
+    return parsedValue;
+  } catch {
+    return null;
+  }
+}
+
 
 export default function SalesPage() {
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
@@ -96,28 +137,50 @@ export default function SalesPage() {
     setIsLoading(true);
     setErrorMessage("");
 
+    const onlineNow = getOnlineState();
+    setIsOnline(onlineNow);
+
     try {
-      const currentPharmacy = await getCurrentPharmacy();
+      let currentPharmacy: PharmacyWithRole | null = null;
+      let isUsingCachedPharmacy = false;
+
+      if (onlineNow) {
+        try {
+          currentPharmacy = await getCurrentPharmacy();
+
+          if (currentPharmacy) {
+            cacheCurrentPharmacy(currentPharmacy);
+          }
+        } catch {
+          currentPharmacy = getCachedCurrentPharmacy();
+          isUsingCachedPharmacy = Boolean(currentPharmacy);
+        }
+      } else {
+        currentPharmacy = getCachedCurrentPharmacy();
+        isUsingCachedPharmacy = Boolean(currentPharmacy);
+      }
 
       if (!currentPharmacy) {
         setPharmacy(null);
         setProducts([]);
         setRecentSales([]);
         setPendingOfflineSales([]);
+
+        if (!onlineNow) {
+          setErrorMessage(
+            "Aucune pharmacie en cache sur ce terminal. Connectez-vous au moins une fois avec Internet, puis synchronisez les produits avant d’utiliser le mode hors-ligne."
+          );
+        }
+
         return;
       }
 
       setPharmacy(currentPharmacy);
 
-      const onlineNow =
-        typeof navigator === "undefined" ? true : navigator.onLine;
-
-      setIsOnline(onlineNow);
-
       const pendingSales = await getPendingOfflineSales(currentPharmacy.id);
       setPendingOfflineSales(pendingSales as PendingOfflineSaleForDisplay[]);
 
-      if (onlineNow) {
+      if (onlineNow && !isUsingCachedPharmacy) {
         try {
           const [productsData, salesData] = await Promise.all([
             getSellableProducts(currentPharmacy.id),
@@ -129,19 +192,7 @@ export default function SalesPage() {
           setProductsSource("online");
           return;
         } catch {
-          const offlineProducts = await getOfflineSellableProducts(
-            currentPharmacy.id
-          );
-
-          setProducts(offlineProducts as unknown as SellableProduct[]);
-          setRecentSales([]);
-          setProductsSource("offline");
-
-          setErrorMessage(
-            "Connexion Supabase instable. La caisse utilise les produits offline disponibles sur ce terminal."
-          );
-
-          return;
+          // Si Supabase devient instable, on bascule automatiquement sur le cache offline.
         }
       }
 
@@ -152,6 +203,20 @@ export default function SalesPage() {
       setProducts(offlineProducts as unknown as SellableProduct[]);
       setRecentSales([]);
       setProductsSource("offline");
+
+      if (offlineProducts.length === 0) {
+        setErrorMessage(
+          "Aucun produit offline trouvé sur ce terminal. Remettez Internet, allez dans Synchronisation, puis synchronisez les produits."
+        );
+      } else if (!onlineNow) {
+        setErrorMessage(
+          "Mode hors-ligne actif. Les produits affichés viennent du cache de ce terminal."
+        );
+      } else {
+        setErrorMessage(
+          "Connexion Supabase instable. La caisse utilise les produits offline disponibles sur ce terminal."
+        );
+      }
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -163,9 +228,10 @@ export default function SalesPage() {
     }
   }
 
+
   useEffect(() => {
     function updateNetworkStatus() {
-      setIsOnline(navigator.onLine);
+      setIsOnline(getOnlineState());
     }
 
     updateNetworkStatus();
