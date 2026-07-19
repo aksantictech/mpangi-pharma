@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { PackagePlus, Save, X } from "lucide-react";
+import { Calculator, PackagePlus, Save, X } from "lucide-react";
 
 import QuickSupplierDialog from "@/components/products/QuickSupplierDialog";
 
@@ -10,8 +10,12 @@ import {
   getSuppliers,
   type Supplier,
 } from "@/services/products.service";
+import {
+  calculateAutomaticSellingPrice,
+  getProductPricingContext,
+} from "@/services/pricing.service";
 
-import type { ProductStockSummary } from "@/types/product";
+import type { PricingRoundingMode, ProductStockSummary } from "@/types/product";
 
 type AddBatchDialogProps = {
   pharmacyId: string;
@@ -26,6 +30,9 @@ type BatchFormState = {
   purchasePrice: string;
   sellingPrice: string;
   quantity: string;
+  autoPricingEnabled: boolean;
+  pricingCoefficient: string;
+  roundingMode: PricingRoundingMode;
 };
 
 const initialForm: BatchFormState = {
@@ -35,6 +42,9 @@ const initialForm: BatchFormState = {
   purchasePrice: "0",
   sellingPrice: "0",
   quantity: "1",
+  autoPricingEnabled: false,
+  pricingCoefficient: "1",
+  roundingMode: "none",
 };
 
 export default function AddBatchDialog({
@@ -56,8 +66,36 @@ export default function AddBatchDialog({
       setErrorMessage("");
 
       try {
-        const data = await getSuppliers(pharmacyId);
-        setSuppliers(data);
+        const [supplierData, pricingContext] = await Promise.all([
+          getSuppliers(pharmacyId),
+          getProductPricingContext(pharmacyId, product.product_id),
+        ]);
+
+        setSuppliers(supplierData);
+
+        const coefficient =
+          pricingContext.pricing_coefficient ??
+          pricingContext.pricing_rule?.coefficient ??
+          1;
+
+        const roundingMode =
+          pricingContext.pricing_rule?.rounding_mode ?? "none";
+
+        setForm((current) => ({
+          ...current,
+          autoPricingEnabled: pricingContext.auto_pricing_enabled,
+          pricingCoefficient: String(coefficient),
+          roundingMode,
+          sellingPrice: pricingContext.auto_pricing_enabled
+            ? String(
+                calculateAutomaticSellingPrice({
+                  purchasePrice: Number(current.purchasePrice || 0),
+                  coefficient,
+                  roundingMode,
+                })
+              )
+            : current.sellingPrice,
+        }));
       } catch {
         setErrorMessage("Impossible de charger les fournisseurs.");
       }
@@ -73,6 +111,43 @@ export default function AddBatchDialog({
     setForm((current) => ({
       ...current,
       [field]: value,
+    }));
+  }
+
+  function updatePurchasePrice(value: string) {
+    setForm((current) => {
+      const next = {
+        ...current,
+        purchasePrice: value,
+      };
+
+      if (current.autoPricingEnabled) {
+        next.sellingPrice = String(
+          calculateAutomaticSellingPrice({
+            purchasePrice: Number(value || 0),
+            coefficient: Number(current.pricingCoefficient || 0),
+            roundingMode: current.roundingMode,
+          })
+        );
+      }
+
+      return next;
+    });
+  }
+
+  function updateCoefficient(value: string) {
+    setForm((current) => ({
+      ...current,
+      pricingCoefficient: value,
+      sellingPrice: current.autoPricingEnabled
+        ? String(
+            calculateAutomaticSellingPrice({
+              purchasePrice: Number(current.purchasePrice || 0),
+              coefficient: Number(value || 0),
+              roundingMode: current.roundingMode,
+            })
+          )
+        : current.sellingPrice,
     }));
   }
 
@@ -229,7 +304,10 @@ export default function AddBatchDialog({
                     onChange={(event) =>
                       updateField("expiryDate", event.target.value)
                     }
-                    className="form-input"
+                    className={`form-input ${
+                      form.autoPricingEnabled ? "bg-slate-100" : ""
+                    }`}
+                    readOnly={form.autoPricingEnabled}
                     required
                   />
                 </FormField>
@@ -248,6 +326,70 @@ export default function AddBatchDialog({
                   />
                 </FormField>
 
+                <div className="md:col-span-2 rounded-3xl border border-blue-100 bg-blue-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <Calculator className="mt-0.5 h-5 w-5 text-blue-700" />
+                    <div className="flex-1">
+                      <label className="flex items-center gap-3 text-sm font-black text-blue-900">
+                        <input
+                          type="checkbox"
+                          checked={form.autoPricingEnabled}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              autoPricingEnabled: event.target.checked,
+                              sellingPrice: event.target.checked
+                                ? String(
+                                    calculateAutomaticSellingPrice({
+                                      purchasePrice: Number(
+                                        current.purchasePrice || 0
+                                      ),
+                                      coefficient: Number(
+                                        current.pricingCoefficient || 0
+                                      ),
+                                      roundingMode: current.roundingMode,
+                                    })
+                                  )
+                                : current.sellingPrice,
+                            }))
+                          }
+                          className="h-4 w-4 rounded border-blue-300"
+                        />
+                        Calcul automatique du prix de vente
+                      </label>
+
+                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <label>
+                          <span className="mb-2 block text-xs font-bold text-blue-800">
+                            Coefficient
+                          </span>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={form.pricingCoefficient}
+                            onChange={(event) =>
+                              updateCoefficient(event.target.value)
+                            }
+                            className="form-input bg-white"
+                          />
+                        </label>
+
+                        <div className="rounded-2xl bg-white p-3">
+                          <p className="text-xs font-bold text-slate-500">
+                            Prix calculé
+                          </p>
+                          <p className="mt-1 text-lg font-black text-blue-800">
+                            {Number(form.sellingPrice || 0).toLocaleString(
+                              "fr-CD"
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <FormField label="Prix d’achat">
                   <input
                     type="number"
@@ -255,7 +397,7 @@ export default function AddBatchDialog({
                     step="0.01"
                     value={form.purchasePrice}
                     onChange={(event) =>
-                      updateField("purchasePrice", event.target.value)
+                      updatePurchasePrice(event.target.value)
                     }
                     className="form-input"
                   />

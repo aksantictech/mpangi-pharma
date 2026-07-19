@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import {
+  Calculator,
   CheckCircle2,
   Plus,
   RefreshCcw,
@@ -22,8 +23,13 @@ import {
   type ProductCategory,
   type Supplier,
 } from "@/services/products.service";
+import {
+  calculateAutomaticSellingPrice,
+  getPricingRules,
+} from "@/services/pricing.service";
 
 import type { NationalProduct } from "@/types/national-product";
+import type { PricingRule, VatRate } from "@/types/product";
 
 type AddProductDialogProps = {
   pharmacyId: string;
@@ -60,6 +66,13 @@ type ProductFormState = {
   purchasePrice: string;
   sellingPrice: string;
   quantity: string;
+  vatApplicable: boolean;
+  vatRate: VatRate;
+  pricingRuleId: string;
+  originCode: string;
+  originLabel: string;
+  autoPricingEnabled: boolean;
+  pricingCoefficient: string;
 };
 
 const initialForm: ProductFormState = {
@@ -82,6 +95,13 @@ const initialForm: ProductFormState = {
   purchasePrice: "0",
   sellingPrice: "0",
   quantity: "0",
+  vatApplicable: false,
+  vatRate: 5,
+  pricingRuleId: "",
+  originCode: "",
+  originLabel: "",
+  autoPricingEnabled: false,
+  pricingCoefficient: "1",
 };
 
 const initialFilters: NationalProductFilterOptions = {
@@ -138,6 +158,7 @@ export default function AddProductDialog({
 
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
 
   const [catalogueProducts, setCatalogueProducts] = useState<NationalProduct[]>(
     []
@@ -170,15 +191,32 @@ export default function AddProductDialog({
       setErrorMessage("");
 
       try {
-        const [categoriesData, suppliersData, filtersData] = await Promise.all([
-          getProductCategories(pharmacyId),
-          getSuppliers(pharmacyId),
-          getNationalProductFilters(),
-        ]);
+        const [categoriesData, suppliersData, filtersData, pricingRuleData] =
+          await Promise.all([
+            getProductCategories(pharmacyId),
+            getSuppliers(pharmacyId),
+            getNationalProductFilters(),
+            getPricingRules(pharmacyId),
+          ]);
 
         setCategories(categoriesData);
         setSuppliers(suppliersData);
         setFilterOptions(filtersData);
+        setPricingRules(pricingRuleData);
+
+        const defaultRule =
+          pricingRuleData.find((rule) => rule.is_default) ??
+          pricingRuleData[0];
+
+        if (defaultRule) {
+          setForm((current) => ({
+            ...current,
+            pricingRuleId: defaultRule.id,
+            originCode: defaultRule.origin_code,
+            originLabel: defaultRule.origin_label,
+            pricingCoefficient: String(defaultRule.coefficient),
+          }));
+        }
 
         if (
           filtersData.ammStatuses.length > 0 &&
@@ -206,6 +244,61 @@ export default function AddProductDialog({
     setForm((current) => ({
       ...current,
       [field]: value,
+    }));
+  }
+
+  function recalculateSellingPrice(
+    purchasePrice: string,
+    coefficient: string
+  ) {
+    return String(
+      calculateAutomaticSellingPrice({
+        purchasePrice: Number(purchasePrice || 0),
+        coefficient: Number(coefficient || 0),
+        roundingMode:
+          pricingRules.find((rule) => rule.id === form.pricingRuleId)
+            ?.rounding_mode ?? "none",
+      })
+    );
+  }
+
+  function handlePricingRuleChange(ruleId: string) {
+    const rule = pricingRules.find((item) => item.id === ruleId);
+
+    setForm((current) => ({
+      ...current,
+      pricingRuleId: ruleId,
+      originCode: rule?.origin_code ?? "",
+      originLabel: rule?.origin_label ?? "",
+      pricingCoefficient: String(rule?.coefficient ?? 1),
+      sellingPrice: current.autoPricingEnabled
+        ? String(
+            calculateAutomaticSellingPrice({
+              purchasePrice: Number(current.purchasePrice || 0),
+              coefficient: Number(rule?.coefficient ?? 1),
+              roundingMode: rule?.rounding_mode ?? "none",
+            })
+          )
+        : current.sellingPrice,
+    }));
+  }
+
+  function handlePurchasePriceChange(value: string) {
+    setForm((current) => ({
+      ...current,
+      purchasePrice: value,
+      sellingPrice: current.autoPricingEnabled
+        ? String(
+            calculateAutomaticSellingPrice({
+              purchasePrice: Number(value || 0),
+              coefficient: Number(current.pricingCoefficient || 0),
+              roundingMode:
+                pricingRules.find(
+                  (rule) => rule.id === current.pricingRuleId
+                )?.rounding_mode ?? "none",
+            })
+          )
+        : current.sellingPrice,
     }));
   }
 
@@ -305,6 +398,23 @@ export default function AddProductDialog({
     setIsManualMode(false);
     setSelectedNationalProduct(product);
 
+    const country = String(product.country ?? "").trim().toLowerCase();
+    const matchedRule =
+      pricingRules.find((rule) => {
+        const code = rule.origin_code.toLowerCase();
+        const label = rule.origin_label.toLowerCase();
+
+        return (
+          country.includes(code) ||
+          label.includes(country) ||
+          (country.includes("belg") && code === "belgium") ||
+          (country.includes("canad") && code === "canada") ||
+          (country.includes("inde") && code === "india")
+        );
+      }) ??
+      pricingRules.find((rule) => rule.is_default) ??
+      pricingRules[0];
+
     setForm((current) => ({
       ...current,
       productType: "medicament",
@@ -316,6 +426,12 @@ export default function AddProductDialog({
       manufacturer: product.manufacturer || "",
       hasVisibleExpiryDate: true,
       description: buildAcorepDescription(product),
+      pricingRuleId: matchedRule?.id ?? current.pricingRuleId,
+      originCode: matchedRule?.origin_code ?? current.originCode,
+      originLabel: matchedRule?.origin_label ?? product.country ?? "",
+      pricingCoefficient: String(
+        matchedRule?.coefficient ?? current.pricingCoefficient
+      ),
     }));
   }
 
@@ -409,6 +525,13 @@ export default function AddProductDialog({
         purchasePrice: Number(form.purchasePrice || 0),
         sellingPrice: Number(form.sellingPrice || 0),
         quantity,
+        vatApplicable: form.vatApplicable,
+        vatRate: form.vatApplicable ? form.vatRate : 0,
+        pricingRuleId: form.pricingRuleId,
+        originCode: form.originCode,
+        originLabel: form.originLabel,
+        autoPricingEnabled: form.autoPricingEnabled,
+        pricingCoefficient: Number(form.pricingCoefficient || 0),
       });
 
       closeDialog();
@@ -922,6 +1045,38 @@ export default function AddProductDialog({
                       />
                     </FormField>
 
+<FormField label="Fabricant / Marque">
+  <input
+    value={form.manufacturer}
+    onChange={(event) =>
+      updateField("manufacturer", event.target.value)
+    }
+    className="form-input"
+    placeholder="Ex : fabricant ou marque"
+  />
+</FormField>
+
+<FormField label="Origine du produit">
+  <input
+    value={form.originLabel}
+    readOnly
+    className="form-input bg-slate-50"
+    placeholder="Sélectionnée dans la tarification"
+  />
+</FormField>
+
+<FormField label="Seuil stock faible">
+  <input
+    type="number"
+    min="0"
+    value={form.minStock}
+    onChange={(event) =>
+      updateField("minStock", event.target.value)
+    }
+    className="form-input"
+  />
+</FormField>
+
                     <FormField label="Seuil stock faible">
                       <input
                         type="number"
@@ -1062,6 +1217,128 @@ export default function AddProductDialog({
                       />
                     </FormField>
 
+                    <div className="md:col-span-3 rounded-3xl border border-blue-100 bg-blue-50 p-4">
+                      <div className="flex items-start gap-3">
+                        <Calculator className="mt-0.5 h-5 w-5 text-blue-700" />
+                        <div className="flex-1">
+                          <h4 className="font-black text-blue-950">
+                            Tarification automatique
+                          </h4>
+
+                          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                            <label>
+                              <span className="mb-2 block text-xs font-bold text-blue-800">
+                                Pays ou zone d’origine
+                              </span>
+                              <select
+                                value={form.pricingRuleId}
+                                onChange={(event) =>
+                                  handlePricingRuleChange(event.target.value)
+                                }
+                                className="form-input bg-white"
+                              >
+                                <option value="">Sélectionner l’origine</option>
+                                {pricingRules.map((rule) => (
+  <option key={rule.id} value={rule.id}>
+    {rule.origin_label}
+  </option>
+))}
+                              </select>
+                            </label>
+
+                            <label>
+                              <span className="mb-2 block text-xs font-bold text-blue-800">
+                                Coefficient
+                              </span>
+                              <input
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value={form.pricingCoefficient}
+                                onChange={(event) =>
+                                  setForm((current) => ({
+                                    ...current,
+                                    pricingCoefficient: event.target.value,
+                                    sellingPrice: current.autoPricingEnabled
+                                      ? recalculateSellingPrice(
+                                          current.purchasePrice,
+                                          event.target.value
+                                        )
+                                      : current.sellingPrice,
+                                  }))
+                                }
+                                className="form-input bg-white"
+                              />
+                            </label>
+
+                            <label className="flex items-center gap-3 rounded-2xl bg-white p-4 text-sm font-black text-blue-900">
+                              <input
+                                type="checkbox"
+                                checked={form.autoPricingEnabled}
+                                onChange={(event) =>
+                                  setForm((current) => ({
+                                    ...current,
+                                    autoPricingEnabled: event.target.checked,
+                                    sellingPrice: event.target.checked
+                                      ? recalculateSellingPrice(
+                                          current.purchasePrice,
+                                          current.pricingCoefficient
+                                        )
+                                      : current.sellingPrice,
+                                  }))
+                                }
+                                className="h-4 w-4 rounded border-blue-300"
+                              />
+                              Calculer automatiquement le prix
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-3 rounded-3xl border border-amber-100 bg-amber-50 p-4">
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <label className="flex items-center gap-3 rounded-2xl bg-white p-4 text-sm font-black text-amber-900">
+                          <input
+                            type="checkbox"
+                            checked={form.vatApplicable}
+                            onChange={(event) =>
+                              setForm((current) => ({
+                                ...current,
+                                vatApplicable: event.target.checked,
+                                vatRate: event.target.checked
+                                  ? current.vatRate || 5
+                                  : 0,
+                              }))
+                            }
+                            className="h-4 w-4 rounded border-amber-300"
+                          />
+                          TVA applicable à ce produit
+                        </label>
+
+                        <label>
+                          <span className="mb-2 block text-xs font-bold text-amber-800">
+                            Taux TVA
+                          </span>
+                          <select
+                            value={form.vatRate}
+                            disabled={!form.vatApplicable}
+                            onChange={(event) =>
+                              updateField(
+                                "vatRate",
+                                Number(event.target.value) as VatRate
+                              )
+                            }
+                            className="form-input bg-white disabled:bg-slate-100"
+                          >
+                            <option value={0}>0 %</option>
+                            <option value={5}>5 %</option>
+                            <option value={16}>16 %</option>
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+
                     <FormField label="Prix d’achat">
                       <input
                         type="number"
@@ -1069,7 +1346,7 @@ export default function AddProductDialog({
                         step="0.01"
                         value={form.purchasePrice}
                         onChange={(event) =>
-                          updateField("purchasePrice", event.target.value)
+                          handlePurchasePriceChange(event.target.value)
                         }
                         className="form-input"
                       />
@@ -1084,7 +1361,10 @@ export default function AddProductDialog({
                         onChange={(event) =>
                           updateField("sellingPrice", event.target.value)
                         }
-                        className="form-input"
+                        className={`form-input ${
+                          form.autoPricingEnabled ? "bg-slate-100" : ""
+                        }`}
+                        readOnly={form.autoPricingEnabled}
                       />
                     </FormField>
 

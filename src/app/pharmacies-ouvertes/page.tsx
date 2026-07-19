@@ -82,14 +82,11 @@ export default function PublicOpenPharmaciesPage() {
 
   return (
   <main className="min-h-screen bg-slate-50 pb-24 lg:pb-0">
+      <PublicSiteFooter />
     <PublicSiteHeader />
 
     {/* Garde ici tout le contenu actuel de ta page */}
-    <div>
-      {/* ton bloc bleu */}
-      {/* ton formulaire */}
-      {/* la liste des pharmacies */}
-    </div>
+   
 
     <section className="mx-auto max-w-7xl px-4 pb-12 md:px-6">
       <div className="rounded-[2rem] bg-gradient-to-r from-blue-800 via-blue-700 to-emerald-600 p-6 text-white shadow-lg">

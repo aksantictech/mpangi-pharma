@@ -6,6 +6,7 @@ import type {
   Product,
   ProductBatch,
   ProductStockSummary,
+  VatRate,
 } from "@/types/product";
 
 export type ProductCategory = {
@@ -49,6 +50,73 @@ export type CreateProductPayload = {
   purchasePrice?: number;
   sellingPrice?: number;
   quantity?: number;
+  vatApplicable?: boolean;
+  vatRate?: VatRate;
+  originCode?: string;
+  originLabel?: string;
+  autoPricingEnabled?: boolean;
+  pricingCoefficient?: number;
+  pricingRuleId?: string;
+};
+
+export type AddProductBatchPayload = {
+  pharmacyId: string;
+  productId: string;
+  supplierId?: string;
+  batchNumber?: string;
+  expiryDate?: string;
+  purchasePrice?: number;
+  sellingPrice?: number;
+  quantity?: number;
+};
+
+export type CreateProductCategoryPayload = {
+  pharmacyId: string;
+  name: string;
+  description?: string;
+  color?: string;
+};
+
+export type UpdateProductCategoryPayload = {
+  pharmacyId: string;
+  categoryId: string;
+  name: string;
+  description?: string;
+  color?: string;
+  isActive?: boolean;
+};
+
+export type CreateSupplierPayload = {
+  pharmacyId: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  contactPerson?: string;
+};
+
+export type UpdateSupplierPayload = {
+  pharmacyId: string;
+  supplierId: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  contactPerson?: string;
+  isActive?: boolean;
+};
+
+export type CorrectBatchQuantityPayload = {
+  pharmacyId: string;
+  batchId: string;
+  newQuantity: number;
+  reason?: string;
+};
+
+export type RemoveBatchFromSalePayload = {
+  pharmacyId: string;
+  batchId: string;
+  reason?: string;
 };
 
 export type ProductDuplicateCandidate = {
@@ -93,7 +161,10 @@ function cleanFilter(value?: string) {
 }
 
 function escapeSearchValue(value: string) {
-  return value.replaceAll("%", "\\%").replaceAll("_", "\\_").replaceAll(",", " ");
+  return value
+    .replaceAll("%", "\\%")
+    .replaceAll("_", "\\_")
+    .replaceAll(",", " ");
 }
 
 function uniqueSorted(values: Array<string | null>) {
@@ -104,6 +175,33 @@ function uniqueSorted(values: Array<string | null>) {
         .filter((value) => value.length > 0)
     )
   ).sort((a, b) => a.localeCompare(b, "fr"));
+}
+
+function normalizeDuplicateValue(value?: string | null) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ");
+}
+
+function buildProductDuplicateKey(payload: {
+  name?: string | null;
+  genericName?: string | null;
+  generic_name?: string | null;
+  dosage?: string | null;
+  form?: string | null;
+  unit?: string | null;
+}) {
+  return [
+    normalizeDuplicateValue(payload.name),
+    normalizeDuplicateValue(payload.genericName ?? payload.generic_name),
+    normalizeDuplicateValue(payload.dosage),
+    normalizeDuplicateValue(payload.form),
+    normalizeDuplicateValue(payload.unit),
+  ].join("|");
 }
 
 export async function searchNationalProducts(
@@ -202,33 +300,6 @@ export async function getNationalProductFilters(): Promise<NationalProductFilter
   };
 }
 
-function normalizeDuplicateValue(value?: string | null) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .replace(/\s+/g, " ");
-}
-
-function buildProductDuplicateKey(payload: {
-  name?: string | null;
-  genericName?: string | null;
-  generic_name?: string | null;
-  dosage?: string | null;
-  form?: string | null;
-  unit?: string | null;
-}) {
-  return [
-    normalizeDuplicateValue(payload.name),
-    normalizeDuplicateValue(payload.genericName ?? payload.generic_name),
-    normalizeDuplicateValue(payload.dosage),
-    normalizeDuplicateValue(payload.form),
-    normalizeDuplicateValue(payload.unit),
-  ].join("|");
-}
-
 export async function findDuplicateProductInPharmacy(payload: {
   pharmacyId: string;
   name: string;
@@ -238,7 +309,6 @@ export async function findDuplicateProductInPharmacy(payload: {
   unit?: string;
 }) {
   const supabase = createSupabaseClient();
-
   const searchedName = payload.name.trim();
 
   if (!searchedName) {
@@ -258,11 +328,9 @@ export async function findDuplicateProductInPharmacy(payload: {
 
   const searchedKey = buildProductDuplicateKey(payload);
 
-  const duplicate = (data ?? []).find((product) => {
-    const productKey = buildProductDuplicateKey(product);
-
-    return productKey === searchedKey;
-  });
+  const duplicate = (data ?? []).find(
+    (product) => buildProductDuplicateKey(product) === searchedKey
+  );
 
   return (duplicate ?? null) as ProductDuplicateCandidate | null;
 }
@@ -276,8 +344,16 @@ export async function getProducts(pharmacyId: string) {
       `
       *,
       category:product_categories(id, name, color),
-      supplier:suppliers(id, name, phone)
-    `
+      supplier:suppliers(id, name, phone),
+      pricing_rule:pricing_rules(
+        id,
+        name,
+        origin_code,
+        origin_label,
+        coefficient,
+        rounding_mode
+      )
+      `
     )
     .eq("pharmacy_id", pharmacyId)
     .order("name", { ascending: true });
@@ -338,14 +414,23 @@ export async function getExpirationAlerts(pharmacyId: string) {
   return data as ExpirationAlert[];
 }
 
-export async function getProductCategories(pharmacyId: string) {
+export async function getProductCategories(
+  pharmacyId: string,
+  activeOnly = true
+) {
   const supabase = createSupabaseClient();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("product_categories")
     .select("*")
-    .eq("pharmacy_id", pharmacyId)
-    .eq("is_active", true)
+    .eq("pharmacy_id", pharmacyId);
+
+  if (activeOnly) {
+    query = query.eq("is_active", true);
+  }
+
+  const { data, error } = await query
+    .order("is_active", { ascending: false })
     .order("name", { ascending: true });
 
   if (error) {
@@ -355,14 +440,23 @@ export async function getProductCategories(pharmacyId: string) {
   return data as ProductCategory[];
 }
 
-export async function getSuppliers(pharmacyId: string) {
+export async function getSuppliers(
+  pharmacyId: string,
+  activeOnly = true
+) {
   const supabase = createSupabaseClient();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("suppliers")
     .select("*")
-    .eq("pharmacy_id", pharmacyId)
-    .eq("is_active", true)
+    .eq("pharmacy_id", pharmacyId);
+
+  if (activeOnly) {
+    query = query.eq("is_active", true);
+  }
+
+  const { data, error } = await query
+    .order("is_active", { ascending: false })
     .order("name", { ascending: true });
 
   if (error) {
@@ -440,7 +534,18 @@ export async function createProductWithInitialBatch(
 
   const productId = String(data);
 
-  const updatePayload: Record<string, string | null> = {};
+  const updatePayload: Record<string, unknown> = {
+    vat_applicable: payload.vatApplicable ?? false,
+    vat_rate: payload.vatApplicable ? payload.vatRate ?? 5 : 0,
+    origin_code: emptyToNull(payload.originCode),
+    origin_label: emptyToNull(payload.originLabel),
+    auto_pricing_enabled: payload.autoPricingEnabled ?? false,
+    pricing_coefficient:
+      payload.autoPricingEnabled && Number(payload.pricingCoefficient) > 0
+        ? Number(payload.pricingCoefficient)
+        : null,
+    pricing_rule_id: emptyToNull(payload.pricingRuleId),
+  };
 
   if (payload.nationalProductId) {
     updatePayload.national_product_id = payload.nationalProductId;
@@ -450,16 +555,14 @@ export async function createProductWithInitialBatch(
     updatePayload.description = emptyToNull(payload.description);
   }
 
-  if (Object.keys(updatePayload).length > 0) {
-    const { error: updateError } = await supabase
-      .from("products")
-      .update(updatePayload)
-      .eq("id", productId)
-      .eq("pharmacy_id", payload.pharmacyId);
+  const { error: updateError } = await supabase
+    .from("products")
+    .update(updatePayload)
+    .eq("id", productId)
+    .eq("pharmacy_id", payload.pharmacyId);
 
-    if (updateError) {
-      throw new Error(updateError.message);
-    }
+  if (updateError) {
+    throw new Error(updateError.message);
   }
 
   return productId;
@@ -500,37 +603,14 @@ export async function addProductBatch(payload: AddProductBatchPayload) {
   return data as string;
 }
 
-export type CreateProductCategoryPayload = {
-  pharmacyId: string;
-  name: string;
-  description?: string;
-  color?: string;
-};
-
-export type AddProductBatchPayload = {
-  pharmacyId: string;
-  productId: string;
-  supplierId?: string;
-  batchNumber?: string;
-  expiryDate?: string;
-  purchasePrice?: number;
-  sellingPrice?: number;
-  quantity?: number;
-};
-
-export type CreateSupplierPayload = {
-  pharmacyId: string;
-  name: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  contactPerson?: string;
-};
-
 export async function createProductCategory(
   payload: CreateProductCategoryPayload
 ) {
   const supabase = createSupabaseClient();
+
+  if (!payload.name.trim()) {
+    throw new Error("Le nom de la catégorie est obligatoire.");
+  }
 
   const { data, error } = await supabase
     .from("product_categories")
@@ -551,8 +631,41 @@ export async function createProductCategory(
   return data as ProductCategory;
 }
 
+export async function updateProductCategory(
+  payload: UpdateProductCategoryPayload
+) {
+  const supabase = createSupabaseClient();
+
+  if (!payload.name.trim()) {
+    throw new Error("Le nom de la catégorie est obligatoire.");
+  }
+
+  const { data, error } = await supabase
+    .from("product_categories")
+    .update({
+      name: payload.name.trim(),
+      description: emptyToNull(payload.description),
+      color: payload.color || "#2563eb",
+      is_active: payload.isActive ?? true,
+    })
+    .eq("id", payload.categoryId)
+    .eq("pharmacy_id", payload.pharmacyId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as ProductCategory;
+}
+
 export async function createSupplier(payload: CreateSupplierPayload) {
   const supabase = createSupabaseClient();
+
+  if (!payload.name.trim()) {
+    throw new Error("Le nom du fournisseur est obligatoire.");
+  }
 
   const { data, error } = await supabase
     .from("suppliers")
@@ -575,18 +688,35 @@ export async function createSupplier(payload: CreateSupplierPayload) {
 
   return data as Supplier;
 }
-export type CorrectBatchQuantityPayload = {
-  pharmacyId: string;
-  batchId: string;
-  newQuantity: number;
-  reason?: string;
-};
 
-export type RemoveBatchFromSalePayload = {
-  pharmacyId: string;
-  batchId: string;
-  reason?: string;
-};
+export async function updateSupplier(payload: UpdateSupplierPayload) {
+  const supabase = createSupabaseClient();
+
+  if (!payload.name.trim()) {
+    throw new Error("Le nom du fournisseur est obligatoire.");
+  }
+
+  const { data, error } = await supabase
+    .from("suppliers")
+    .update({
+      name: payload.name.trim(),
+      phone: emptyToNull(payload.phone),
+      email: emptyToNull(payload.email),
+      address: emptyToNull(payload.address),
+      contact_person: emptyToNull(payload.contactPerson),
+      is_active: payload.isActive ?? true,
+    })
+    .eq("id", payload.supplierId)
+    .eq("pharmacy_id", payload.pharmacyId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as Supplier;
+}
 
 export async function correctBatchQuantity(
   payload: CorrectBatchQuantityPayload

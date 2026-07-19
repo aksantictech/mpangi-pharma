@@ -9,6 +9,30 @@ export type ExpirationStatus =
   | "expires_30_days"
   | "expired";
 
+export type VatRate = 0 | 5 | 16;
+
+export type PricingRoundingMode =
+  | "none"
+  | "ceil_50"
+  | "ceil_100"
+  | "ceil_500"
+  | "ceil_1";
+
+export type PricingRule = {
+  id: string;
+  pharmacy_id: string;
+  name: string;
+  origin_code: string;
+  origin_label: string;
+  coefficient: number;
+  is_active: boolean;
+  is_default: boolean;
+  rounding_mode: PricingRoundingMode;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Product = {
   id: string;
   pharmacy_id: string;
@@ -27,6 +51,14 @@ export type Product = {
   status: ProductStatus;
   created_at: string;
   updated_at: string;
+
+  vat_applicable: boolean;
+  vat_rate: VatRate;
+  origin_code: string | null;
+  origin_label: string | null;
+  auto_pricing_enabled: boolean;
+  pricing_coefficient: number | null;
+  pricing_rule_id: string | null;
 };
 
 export type ProductBatch = {
@@ -60,6 +92,19 @@ export type ProductStockSummary = {
   total_quantity: number;
   nearest_expiry_date: string | null;
   stock_status: StockStatus;
+};
+
+export type ProductPricingContext = {
+  product_id: string;
+  pharmacy_id: string;
+  vat_applicable: boolean;
+  vat_rate: VatRate;
+  origin_code: string | null;
+  origin_label: string | null;
+  auto_pricing_enabled: boolean;
+  pricing_coefficient: number | null;
+  pricing_rule_id: string | null;
+  pricing_rule: PricingRule | null;
 };
 
 export type ExpirationAlert = {

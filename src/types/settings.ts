@@ -1,3 +1,5 @@
+import type { VatRate } from "@/types/product";
+
 export type PharmacySettings = {
   id: string;
   pharmacy_id: string;
@@ -7,6 +9,12 @@ export type PharmacySettings = {
   low_stock_alert_enabled: boolean;
   invoice_prefix: string;
   receipt_format: string;
+
+  vat_enabled: boolean;
+  default_vat_rate: VatRate;
+  prices_include_vat: boolean;
+  allowed_vat_rates: VatRate[];
+
   created_at: string;
   updated_at: string;
 };
