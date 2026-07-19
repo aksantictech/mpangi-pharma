@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
@@ -9,6 +10,8 @@ import {
   ChevronRight,
   Package,
   Search,
+  Store,
+  Warehouse,
 } from "lucide-react";
 
 import AddBatchDialog from "@/components/products/AddBatchDialog";
@@ -208,6 +211,40 @@ export default function ProductsPage() {
             {errorMessage}
           </div>
         )}
+
+        <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-5">
+          <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700">
+                Actions rapides
+              </p>
+              <h2 className="mt-1 text-lg font-black text-slate-950 md:text-xl">
+                Réseau et disponibilité
+              </h2>
+              <p className="mt-1 text-xs leading-5 text-slate-500 md:text-sm">
+                Vérifiez le stock des pharmacies partenaires ou consultez la page publique.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Link
+                href="/stock-voisin"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-100 hover:bg-blue-800"
+              >
+                <Warehouse className="h-5 w-5" />
+                Rechercher stock voisin
+              </Link>
+
+              <Link
+                href="/pharmacies-ouvertes"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 hover:bg-emerald-100"
+              >
+                <Store className="h-5 w-5" />
+                Voir pharmacies ouvertes
+              </Link>
+            </div>
+          </div>
+        </section>
 
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           <MetricCard

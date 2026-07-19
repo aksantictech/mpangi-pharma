@@ -333,6 +333,7 @@ export async function isCurrentUserPlatformAdmin() {
     .eq("is_active", true)
     .maybeSingle();
 
+    
   if (error) {
     return false;
   }

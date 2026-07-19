@@ -42,17 +42,28 @@ const modulePermissions: Record<AppModule, PharmacyRole[]> = {
   ventes: ["owner", "manager", "pharmacist", "cashier"],
 
   factures: ["owner", "manager", "pharmacist", "cashier", "accountant"],
-  synchronisation: ["owner", "manager", "pharmacist", "cashier", "stock_manager"],
+
+  synchronisation: [
+    "owner",
+    "manager",
+    "pharmacist",
+    "cashier",
+    "stock_manager",
+  ],
 
   expirations: ["owner", "manager", "pharmacist", "stock_manager"],
 
   finances: ["owner", "manager", "accountant"],
 
-  parametres: ["owner", "manager", "pharmacist"],
+  // Les paramètres de la pharmacie sont réservés au propriétaire
+  // et au gérant. Le super administrateur passe par le bypass
+  // isPlatformAdmin dans canAccessModule.
+  parametres: ["owner", "manager"],
 
-  audit: ["owner", "manager"],
+  // Audit et sauvegardes sont désormais réservés au super admin.
+  audit: [],
 
-  sauvegardes: ["owner", "manager"],
+  sauvegardes: [],
 
   compte: allRoles,
 };
@@ -94,7 +105,10 @@ export function getModuleFromPath(pathname: string): AppModule | null {
   if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
     return "dashboard";
   }
-  if (pathname.startsWith("/synchronisation")) return "synchronisation";
+
+  if (pathname.startsWith("/synchronisation")) {
+    return "synchronisation";
+  }
 
   if (pathname === "/pharmacies" || pathname.startsWith("/pharmacies/")) {
     return "pharmacies";
@@ -104,7 +118,12 @@ export function getModuleFromPath(pathname: string): AppModule | null {
     return "produits";
   }
 
-  if (pathname === "/stock" || pathname.startsWith("/stock/")) {
+  if (
+    pathname === "/stock" ||
+    pathname.startsWith("/stock/") ||
+    pathname === "/stock-voisin" ||
+    pathname.startsWith("/stock-voisin/")
+  ) {
     return "stock";
   }
 
@@ -146,11 +165,28 @@ export function getModuleFromPath(pathname: string): AppModule | null {
   return null;
 }
 
+function isSuperAdminOnlyPath(pathname: string) {
+  return (
+    pathname === "/parametres/audit-securite" ||
+    pathname.startsWith("/parametres/audit-securite/") ||
+    pathname === "/parametres/stabilite" ||
+    pathname.startsWith("/parametres/stabilite/") ||
+    pathname === "/audit" ||
+    pathname.startsWith("/audit/") ||
+    pathname === "/sauvegardes" ||
+    pathname.startsWith("/sauvegardes/")
+  );
+}
+
 export function canAccessPath(
   role: string | null | undefined,
   pathname: string,
   isPlatformAdmin = false
 ) {
+  if (isSuperAdminOnlyPath(pathname)) {
+    return isPlatformAdmin;
+  }
+
   const module = getModuleFromPath(pathname);
 
   if (!module) return true;
@@ -205,12 +241,12 @@ export function canViewAudit(
   role: string | null | undefined,
   isPlatformAdmin = false
 ) {
-  return canAccessModule(role, "audit", isPlatformAdmin);
+  return isPlatformAdmin;
 }
 
 export function canManageBackups(
   role: string | null | undefined,
   isPlatformAdmin = false
 ) {
-  return canAccessModule(role, "sauvegardes", isPlatformAdmin);
+  return isPlatformAdmin;
 }

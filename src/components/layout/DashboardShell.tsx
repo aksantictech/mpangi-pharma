@@ -21,12 +21,15 @@ import {
   Settings,
   ShieldCheck,
   ShoppingCart,
+  Store,
   UserCircle,
+  Warehouse,
   X,
   type LucideIcon,
 } from "lucide-react";
 
 import AppLogo from "@/components/branding/AppLogo";
+import PharmacyOpeningStatusControl from "@/components/pharmacies/PharmacyOpeningStatusControl";
 import OfflineStatusBar from "@/components/offline/OfflineStatusBar";
 import {
   canAccessModule,
@@ -90,11 +93,23 @@ const navigationItems: NavigationItem[] = [
     icon: FileText,
   },
   {
-  label: "Synchronisation",
-  href: "/synchronisation",
-  module: "synchronisation",
-  icon: UploadCloud,
-},
+    label: "Stock voisin",
+    href: "/stock-voisin",
+    module: "stock",
+    icon: Warehouse,
+  },
+  {
+    label: "Pharmacies ouvertes",
+    href: "/pharmacies-ouvertes",
+    module: "produits",
+    icon: Store,
+  },
+  {
+    label: "Synchronisation",
+    href: "/synchronisation",
+    module: "synchronisation",
+    icon: UploadCloud,
+  },
   {
     label: "Expirations",
     href: "/expirations",
@@ -133,7 +148,7 @@ const navigationItems: NavigationItem[] = [
   },
 ];
 
-const mobileMainHrefs = ["/dashboard", "/produits", "/ventes", "/factures"];
+const mobileMainHrefs = ["/dashboard", "/produits", "/ventes", "/stock-voisin"];
 
 function canStayWithoutActivePharmacy(pathname: string) {
   return (
@@ -163,6 +178,10 @@ function isNetworkError(error: unknown) {
     message.includes("fetch") ||
     message.includes("timeout")
   );
+}
+
+function canManageOpeningStatus(role?: string | null) {
+  return role === "owner" || role === "manager" || role === "pharmacist";
 }
 
 export default function DashboardShell({ children }: { children: ReactNode }) {
@@ -355,10 +374,13 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
 
     clearStoredActivePharmacyId();
 
-    await supabase.auth.signOut();
-
-    router.push("/connexion");
-    router.refresh();
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      router.push("/connexion");
+      router.refresh();
+      setIsSigningOut(false);
+    }
   }
 
   return (
@@ -405,6 +427,15 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
               </div>
             )}
           </div>
+
+          {pharmacy && (
+            <div className="border-b border-slate-100 px-4 py-4">
+              <PharmacyOpeningStatusControl
+                pharmacyId={pharmacy.id}
+                canManage={canManageOpeningStatus(pharmacy.role)}
+              />
+            </div>
+          )}
 
           <nav className="flex-1 space-y-1 overflow-y-auto p-4">
             {visibleNavigationItems.map((item) => {
@@ -576,6 +607,15 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
                 )}
               </div>
 
+              {pharmacy && (
+                <div className="mt-3">
+                  <PharmacyOpeningStatusControl
+                    pharmacyId={pharmacy.id}
+                    canManage={canManageOpeningStatus(pharmacy.role)}
+                  />
+                </div>
+              )}
+
               <div className="mt-5">
                 <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
                   Navigation
@@ -707,6 +747,8 @@ function shortMobileLabel(label: string) {
     Produits: "Produits",
     Ventes: "Ventes",
     Factures: "Factures",
+    "Stock voisin": "Voisin",
+    "Pharmacies ouvertes": "Ouvertes",
   };
 
   return labels[label] ?? label;
