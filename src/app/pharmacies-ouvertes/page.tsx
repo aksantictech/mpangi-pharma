@@ -13,6 +13,7 @@ import {
   Clock,
   MapPin,
   Navigation,
+   ChevronLeft,
   Phone,
   Search,
   SlidersHorizontal,
@@ -84,7 +85,21 @@ export default function PublicOpenPharmaciesPage() {
   <main className="min-h-screen bg-slate-50 pb-24 lg:pb-0">
       <PublicSiteFooter />
     <PublicSiteHeader />
+<section className="border-b border-slate-200 bg-white">
+  <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 md:px-6">
+    <Link
+      href="/"
+      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-50"
+    >
+      <ChevronLeft className="h-5 w-5" />
+      Retour à l’accueil
+    </Link>
 
+    <p className="hidden text-sm font-bold text-slate-500 md:block">
+      Recherche publique des pharmacies ouvertes
+    </p>
+  </div>
+</section>
     {/* Garde ici tout le contenu actuel de ta page */}
    
 
