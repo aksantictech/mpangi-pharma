@@ -12,13 +12,18 @@ import {
 } from "lucide-react";
  
 import { getAuditLogs } from "@/services/audit.service";
-import { getCurrentPharmacy } from "@/services/pharmacies.service";
+import {
+  getCurrentPharmacy,
+  isCurrentUserPlatformAdmin,
+} from "@/services/pharmacies.service";
 import { canViewAudit } from "@/lib/permissions";
 import type { AuditLog } from "@/types/audit";
 import type { PharmacyWithRole } from "@/types/pharmacy";
 
 export default function AuditPage() {
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
+  const [isPlatformAdmin, setIsPlatformAdmin] =
+  useState(false);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -30,21 +35,36 @@ export default function AuditPage() {
     setErrorMessage("");
 
     try {
-      const currentPharmacy = await getCurrentPharmacy();
+const [
+  currentPharmacy,
+  platformAdminStatus,
+] = await Promise.all([
+  getCurrentPharmacy(),
+  isCurrentUserPlatformAdmin(),
+]);
 
-      if (!currentPharmacy) {
-        setPharmacy(null);
-        setLogs([]);
-        return;
-      }
+setIsPlatformAdmin(platformAdminStatus);
 
-      setPharmacy(currentPharmacy);
+if (!currentPharmacy) {
+  setPharmacy(null);
+  setLogs([]);
+  return;
+}
 
-      if (!canViewAudit(currentPharmacy.role)) {
-        setLogs([]);
-        setErrorMessage("Accès réservé au propriétaire et au gérant.");
-        return;
-      }
+setPharmacy(currentPharmacy);
+
+if (
+  !canViewAudit(
+    currentPharmacy.role,
+    platformAdminStatus
+  )
+) {
+  setLogs([]);
+  setErrorMessage(
+    "Accès réservé au super administrateur."
+  );
+  return;
+}
 
       const auditData = await getAuditLogs(currentPharmacy.id, 150);
       setLogs(auditData);
@@ -111,7 +131,10 @@ export default function AuditPage() {
     );
   }
 
-  const canReadAudit = canViewAudit(pharmacy.role);
+  const canReadAudit = canViewAudit(
+  pharmacy.role,
+  isPlatformAdmin
+);
 
   return (
     <main className="min-h-screen bg-slate-50 p-6">
@@ -159,8 +182,7 @@ export default function AuditPage() {
                   Accès limité
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-amber-700">
-                  Le journal d’audit est réservé au propriétaire et au gérant de
-                  la pharmacie.
+                  Le journal d’audit est réservé au super administrateur de la plateforme.
                 </p>
               </div>
             </div>

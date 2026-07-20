@@ -14,12 +14,17 @@ import {
   downloadJsonBackup,
   exportPharmacyBackup,
 } from "@/services/backup.service";
-import { getCurrentPharmacy } from "@/services/pharmacies.service";
+import {
+  getCurrentPharmacy,
+  isCurrentUserPlatformAdmin,
+} from "@/services/pharmacies.service";
 import { canManageBackups } from "@/lib/permissions";
 import type { PharmacyWithRole } from "@/types/pharmacy";
 
 export default function BackupsPage() {
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
+  const [isPlatformAdmin, setIsPlatformAdmin] =
+  useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -32,8 +37,16 @@ export default function BackupsPage() {
     setSuccessMessage("");
 
     try {
-      const currentPharmacy = await getCurrentPharmacy();
-      setPharmacy(currentPharmacy);
+      const [
+  currentPharmacy,
+  platformAdminStatus,
+] = await Promise.all([
+  getCurrentPharmacy(),
+  isCurrentUserPlatformAdmin(),
+]);
+
+setPharmacy(currentPharmacy);
+setIsPlatformAdmin(platformAdminStatus);
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -106,7 +119,10 @@ export default function BackupsPage() {
     );
   }
 
-  const canExport = canManageBackups(pharmacy.role);
+  const canExport = canManageBackups(
+  pharmacy.role,
+  isPlatformAdmin
+);
 
   return (
     <main className="min-h-screen bg-slate-50 p-6">
