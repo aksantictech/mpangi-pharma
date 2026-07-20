@@ -4,13 +4,17 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
+  Archive,
   Boxes,
   CalendarClock,
   ChevronLeft,
   ChevronRight,
+  MoreVertical,
   Package,
+  Power,
   Search,
   Store,
+  Trash2,
   Warehouse,
 } from "lucide-react";
 
@@ -23,25 +27,53 @@ import ProductSetupPanel from "@/components/products/ProductSetupPanel";
 import StockStatusBadge from "@/components/products/StockStatusBadge";
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
 import {
+  deleteProduct,
   getExpirationAlerts,
+  getProducts,
   getProductStock,
+  updateProductStatus,
 } from "@/services/products.service";
 
 import type { PharmacyWithRole } from "@/types/pharmacy";
-import type { ExpirationAlert, ProductStockSummary } from "@/types/product";
+import type {
+  ExpirationAlert,
+  Product,
+  ProductStockSummary,
+  ProductStatus,
+} from "@/types/product";
 
 const MOBILE_PAGE_SIZE = 5;
+const DESKTOP_PAGE_SIZE = 50;
 
+
+type ProductListItem = ProductStockSummary & {
+  category_id?: string | null;
+  category_name?: string | null;
+  default_supplier_id?: string | null;
+  supplier_name?: string | null;
+  manufacturer?: string | null;
+  origin_code?: string | null;
+  origin_label?: string | null;
+  status: ProductStatus;
+};
 
 export default function ProductsPage() {
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
-  const [products, setProducts] = useState<ProductStockSummary[]>([]);
+  const [products, setProducts] = useState<ProductListItem[]>([]);
   const [expirationAlerts, setExpirationAlerts] = useState<ExpirationAlert[]>(
     []
   );
 
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [supplierFilter, setSupplierFilter] = useState("all");
+  const [originFilter, setOriginFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
+  const [stockFilter, setStockFilter] = useState("all");
+  const [prescriptionFilter, setPrescriptionFilter] = useState("all");
   const [mobilePage, setMobilePage] = useState(1);
+  const [desktopPage, setDesktopPage] = useState(1);
+  const [changingProductId, setChangingProductId] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -62,12 +94,62 @@ export default function ProductsPage() {
 
       setPharmacy(currentPharmacy);
 
-      const [stockData, alertsData] = await Promise.all([
+      const [stockData, alertsData, productData] = await Promise.all([
         getProductStock(currentPharmacy.id),
         getExpirationAlerts(currentPharmacy.id),
+        getProducts(currentPharmacy.id),
       ]);
 
-      setProducts(stockData);
+      const stockMap = new Map(
+        stockData.map((stockRow) => [
+          stockRow.product_id,
+          stockRow,
+        ])
+      );
+
+      const enrichedProducts = productData.map((product) => {
+        const stockRow = stockMap.get(product.id);
+
+        const totalQuantity = Number(
+          stockRow?.total_quantity ?? 0
+        );
+
+        const stockStatus =
+          stockRow?.stock_status ??
+          (totalQuantity <= 0
+            ? "out_of_stock"
+            : totalQuantity <= Number(product.min_stock || 0)
+              ? "low_stock"
+              : "available");
+
+        return {
+          product_id: product.id,
+          pharmacy_id: product.pharmacy_id,
+          name: product.name,
+          generic_name: product.generic_name,
+          dosage: product.dosage,
+          form: product.form,
+          unit: product.unit,
+          min_stock: product.min_stock,
+          requires_prescription:
+            product.requires_prescription,
+          status: product.status,
+          total_quantity: totalQuantity,
+          nearest_expiry_date:
+            stockRow?.nearest_expiry_date ?? null,
+          stock_status: stockStatus,
+          category_id: product.category_id,
+          category_name: product.category?.name ?? null,
+          default_supplier_id:
+            product.default_supplier_id,
+          supplier_name: product.supplier?.name ?? null,
+          manufacturer: product.manufacturer,
+          origin_code: product.origin_code,
+          origin_label: product.origin_label,
+        } satisfies ProductListItem;
+      });
+
+      setProducts(enrichedProducts);
       setExpirationAlerts(alertsData);
     } catch (error) {
       setErrorMessage(
@@ -86,12 +168,43 @@ export default function ProductsPage() {
 
   useEffect(() => {
     setMobilePage(1);
-  }, [search]);
+    setDesktopPage(1);
+  }, [
+    search,
+    categoryFilter,
+    supplierFilter,
+    originFilter,
+    statusFilter,
+    stockFilter,
+    prescriptionFilter,
+  ]);
+
+  const filterOptions = useMemo(() => {
+    const categories = new Set<string>();
+    const suppliers = new Set<string>();
+    const origins = new Set<string>();
+
+    products.forEach((product) => {
+      if (product.category_name) categories.add(product.category_name);
+      if (product.supplier_name) suppliers.add(product.supplier_name);
+      if (product.origin_label) origins.add(product.origin_label);
+    });
+
+    return {
+      categories: Array.from(categories).sort((a, b) =>
+        a.localeCompare(b, "fr")
+      ),
+      suppliers: Array.from(suppliers).sort((a, b) =>
+        a.localeCompare(b, "fr")
+      ),
+      origins: Array.from(origins).sort((a, b) =>
+        a.localeCompare(b, "fr")
+      ),
+    };
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
-
-    if (!normalizedSearch) return products;
 
     return products.filter((product) => {
       const value = [
@@ -100,15 +213,71 @@ export default function ProductsPage() {
         product.dosage,
         product.form,
         product.unit,
-        productRequiresPrescription(product) ? "ordonnance prescription" : "",
+        product.manufacturer,
+        product.category_name,
+        product.supplier_name,
+        product.origin_label,
+        productRequiresPrescription(product)
+          ? "ordonnance prescription"
+          : "",
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
 
-      return value.includes(normalizedSearch);
+      const matchesSearch =
+        !normalizedSearch || value.includes(normalizedSearch);
+
+      const matchesCategory =
+        categoryFilter === "all" ||
+        product.category_name === categoryFilter;
+
+      const matchesSupplier =
+        supplierFilter === "all" ||
+        product.supplier_name === supplierFilter;
+
+      const matchesOrigin =
+        originFilter === "all" ||
+        product.origin_label === originFilter;
+
+      const matchesStatus =
+        statusFilter === "all" ||
+        product.status === statusFilter;
+
+      const matchesStock =
+        stockFilter === "all" ||
+        product.stock_status === stockFilter;
+
+      const requiresPrescription =
+        productRequiresPrescription(product);
+
+      const matchesPrescription =
+        prescriptionFilter === "all" ||
+        (prescriptionFilter === "required" &&
+          requiresPrescription) ||
+        (prescriptionFilter === "not_required" &&
+          !requiresPrescription);
+
+      return (
+        matchesSearch &&
+        matchesCategory &&
+        matchesSupplier &&
+        matchesOrigin &&
+        matchesStatus &&
+        matchesStock &&
+        matchesPrescription
+      );
     });
-  }, [products, search]);
+  }, [
+    products,
+    search,
+    categoryFilter,
+    supplierFilter,
+    originFilter,
+    statusFilter,
+    stockFilter,
+    prescriptionFilter,
+  ]);
 
   const mobileTotalPages = Math.max(
     1,
@@ -120,6 +289,21 @@ export default function ProductsPage() {
   const mobileProducts = filteredProducts.slice(
     (safeMobilePage - 1) * MOBILE_PAGE_SIZE,
     safeMobilePage * MOBILE_PAGE_SIZE
+  );
+
+  const desktopTotalPages = Math.max(
+    1,
+    Math.ceil(filteredProducts.length / DESKTOP_PAGE_SIZE)
+  );
+
+  const safeDesktopPage = Math.min(
+    desktopPage,
+    desktopTotalPages
+  );
+
+  const desktopProducts = filteredProducts.slice(
+    (safeDesktopPage - 1) * DESKTOP_PAGE_SIZE,
+    safeDesktopPage * DESKTOP_PAGE_SIZE
   );
 
   useEffect(() => {
@@ -142,6 +326,81 @@ export default function ProductsPage() {
   );
 
   const prescriptionCount = products.filter(productRequiresPrescription).length;
+
+  async function changeProductStatus(
+    product: ProductListItem,
+    status: ProductStatus
+  ) {
+    if (!pharmacy) return;
+
+    const labels: Record<ProductStatus, string> = {
+      active: "réactiver",
+      inactive: "désactiver",
+      archived: "archiver",
+    };
+
+    const confirmed = window.confirm(
+      `Confirmez-vous que vous voulez ${labels[status]} le produit « ${product.name} » ?`
+    );
+
+    if (!confirmed) return;
+
+    setChangingProductId(product.product_id);
+    setErrorMessage("");
+
+    try {
+      await updateProductStatus({
+        pharmacyId: pharmacy.id,
+        productId: product.product_id,
+        status,
+      });
+
+      await loadData();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible de modifier le statut du produit."
+      );
+    } finally {
+      setChangingProductId(null);
+    }
+  }
+
+  async function handleDeleteProduct(product: ProductListItem) {
+    if (!pharmacy) return;
+
+    const confirmed = window.confirm(
+      [
+        `Supprimer définitivement « ${product.name} » ?`,
+        "",
+        "La suppression est autorisée uniquement si le produit n’a aucun lot, aucune vente et aucun mouvement de stock.",
+        "Cette action est irréversible.",
+      ].join("\\n")
+    );
+
+    if (!confirmed) return;
+
+    setChangingProductId(product.product_id);
+    setErrorMessage("");
+
+    try {
+      await deleteProduct({
+        pharmacyId: pharmacy.id,
+        productId: product.product_id,
+      });
+
+      await loadData();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible de supprimer le produit."
+      );
+    } finally {
+      setChangingProductId(null);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -340,6 +599,94 @@ export default function ProductsPage() {
             </div>
           </div>
 
+          <div className="mb-4 grid grid-cols-1 gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 xl:grid-cols-6">
+            <FilterSelect
+              label="Catégorie"
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              options={filterOptions.categories}
+            />
+
+            <FilterSelect
+              label="Fournisseur"
+              value={supplierFilter}
+              onChange={setSupplierFilter}
+              options={filterOptions.suppliers}
+            />
+
+            <FilterSelect
+              label="Origine"
+              value={originFilter}
+              onChange={setOriginFilter}
+              options={filterOptions.origins}
+            />
+
+            <label>
+              <span className="mb-2 block text-xs font-black text-slate-600">
+                Statut
+              </span>
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                className="form-input bg-white"
+              >
+                <option value="all">Tous</option>
+                <option value="active">Actifs</option>
+                <option value="inactive">Inactifs</option>
+                <option value="archived">Archivés</option>
+              </select>
+            </label>
+
+            <label>
+              <span className="mb-2 block text-xs font-black text-slate-600">
+                Stock
+              </span>
+              <select
+                value={stockFilter}
+                onChange={(event) => setStockFilter(event.target.value)}
+                className="form-input bg-white"
+              >
+                <option value="all">Tous</option>
+                <option value="available">Disponible</option>
+                <option value="low_stock">Stock faible</option>
+                <option value="out_of_stock">Rupture</option>
+              </select>
+            </label>
+
+            <label>
+              <span className="mb-2 block text-xs font-black text-slate-600">
+                Ordonnance
+              </span>
+              <select
+                value={prescriptionFilter}
+                onChange={(event) =>
+                  setPrescriptionFilter(event.target.value)
+                }
+                className="form-input bg-white"
+              >
+                <option value="all">Tous</option>
+                <option value="required">Requise</option>
+                <option value="not_required">Non requise</option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setCategoryFilter("all");
+                setSupplierFilter("all");
+                setOriginFilter("all");
+                setStatusFilter("active");
+                setStockFilter("all");
+                setPrescriptionFilter("all");
+              }}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 sm:col-span-2 xl:col-span-6"
+            >
+              Réinitialiser les filtres
+            </button>
+          </div>
+
           <div className="space-y-2 xl:hidden">
             <MobilePagination
               page={safeMobilePage}
@@ -363,6 +710,14 @@ export default function ProductsPage() {
                   pharmacyId={pharmacy.id}
                   product={product}
                   onChanged={loadData}
+                  onDeactivate={() =>
+                    void changeProductStatus(product, "inactive")
+                  }
+                  onArchive={() =>
+                    void changeProductStatus(product, "archived")
+                  }
+                  onDelete={() => void handleDeleteProduct(product)}
+                  isChanging={changingProductId === product.product_id}
                 />
               ))
             )}
@@ -405,7 +760,7 @@ export default function ProductsPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredProducts.map((product) => (
+                    desktopProducts.map((product) => (
                       <tr
                         key={product.product_id}
                         className="hover:bg-slate-50"
@@ -462,7 +817,7 @@ export default function ProductsPage() {
                         </td>
 
                         <td className="px-5 py-4">
-                          <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <ProductBatchesDialog
                               pharmacyId={pharmacy.id}
                               product={product}
@@ -474,6 +829,30 @@ export default function ProductsPage() {
                               product={product}
                               onCreated={loadData}
                             />
+
+                            <ProductActionMenu
+                              product={product}
+                              disabled={
+                                changingProductId === product.product_id
+                              }
+                              onDeactivate={() =>
+                                void changeProductStatus(
+                                  product,
+                                  product.status === "inactive"
+                                    ? "active"
+                                    : "inactive"
+                                )
+                              }
+                              onArchive={() =>
+                                void changeProductStatus(
+                                  product,
+                                  "archived"
+                                )
+                              }
+                              onDelete={() =>
+                                void handleDeleteProduct(product)
+                              }
+                            />
                           </div>
                         </td>
                       </tr>
@@ -482,6 +861,23 @@ export default function ProductsPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          <div className="mt-4 hidden xl:block">
+            <MobilePagination
+              page={safeDesktopPage}
+              totalPages={desktopTotalPages}
+              totalItems={filteredProducts.length}
+              pageSize={DESKTOP_PAGE_SIZE}
+              onPrevious={() =>
+                setDesktopPage((page) => Math.max(1, page - 1))
+              }
+              onNext={() =>
+                setDesktopPage((page) =>
+                  Math.min(desktopTotalPages, page + 1)
+                )
+              }
+            />
           </div>
         </section>
       </div>
@@ -493,10 +889,18 @@ function MobileProductCard({
   pharmacyId,
   product,
   onChanged,
+  onDeactivate,
+  onArchive,
+  onDelete,
+  isChanging,
 }: {
   pharmacyId: string;
-  product: ProductStockSummary;
+  product: ProductListItem;
   onChanged: () => void;
+  onDeactivate: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
+  isChanging: boolean;
 }) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
@@ -563,7 +967,141 @@ function MobileProductCard({
           onCreated={onChanged}
         />
       </div>
+
+      <div className="mt-2 grid grid-cols-3 gap-2">
+        <button
+          type="button"
+          onClick={onDeactivate}
+          disabled={isChanging}
+          className="inline-flex items-center justify-center gap-1 rounded-xl bg-amber-50 px-2 py-2 text-[11px] font-black text-amber-700 disabled:opacity-50"
+        >
+          <Power className="h-3.5 w-3.5" />
+          {product.status === "inactive" ? "Activer" : "Désactiver"}
+        </button>
+
+        <button
+          type="button"
+          onClick={onArchive}
+          disabled={isChanging}
+          className="inline-flex items-center justify-center gap-1 rounded-xl bg-slate-100 px-2 py-2 text-[11px] font-black text-slate-700 disabled:opacity-50"
+        >
+          <Archive className="h-3.5 w-3.5" />
+          Archiver
+        </button>
+
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={isChanging}
+          className="inline-flex items-center justify-center gap-1 rounded-xl bg-red-50 px-2 py-2 text-[11px] font-black text-red-700 disabled:opacity-50"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Supprimer
+        </button>
+      </div>
     </article>
+  );
+}
+
+function ProductActionMenu({
+  product,
+  disabled,
+  onDeactivate,
+  onArchive,
+  onDelete,
+}: {
+  product: ProductListItem;
+  disabled: boolean;
+  onDeactivate: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen((value) => !value)}
+        disabled={disabled}
+        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 disabled:opacity-50"
+        title="Autres actions"
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 z-20 mt-2 w-48 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              onDeactivate();
+            }}
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-black text-amber-700 hover:bg-amber-50"
+          >
+            <Power className="h-4 w-4" />
+            {product.status === "inactive" ? "Réactiver" : "Désactiver"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              onArchive();
+            }}
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-black text-slate-700 hover:bg-slate-50"
+          >
+            <Archive className="h-4 w-4" />
+            Archiver
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              onDelete();
+            }}
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-black text-red-700 hover:bg-red-50"
+          >
+            <Trash2 className="h-4 w-4" />
+            Supprimer
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+}) {
+  return (
+    <label>
+      <span className="mb-2 block text-xs font-black text-slate-600">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="form-input bg-white"
+      >
+        <option value="all">Tous</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

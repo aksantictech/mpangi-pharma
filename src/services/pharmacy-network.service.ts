@@ -43,6 +43,8 @@ export type PublicOpenPharmacy = {
   commune: string | null;
   district: string | null;
   address: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   phone: string | null;
   whatsapp: string | null;
   is_24h: boolean;

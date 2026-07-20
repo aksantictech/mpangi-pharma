@@ -20,13 +20,22 @@ import type { PharmacyWithRole } from "@/types/pharmacy";
 import type { PaymentMethod, Sale } from "@/types/sale";
 
 const MOBILE_PAGE_SIZE = 5;
+const DESKTOP_PAGE_SIZE = 50;
 
 export default function InvoicesPage() {
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [invoices, setInvoices] = useState<Sale[]>([]);
 
   const [search, setSearch] = useState("");
+  const [paymentFilter, setPaymentFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [periodPreset, setPeriodPreset] = useState<"all" | "today" | "week" | "month" | "custom">("month");
+  const monthRange = getCurrentMonthRange();
+  const [startDate, setStartDate] = useState(monthRange.startDate);
+  const [endDate, setEndDate] = useState(monthRange.endDate);
   const [mobilePage, setMobilePage] = useState(1);
+  const [desktopPage, setDesktopPage] = useState(1);
+  const [isPrinting, setIsPrinting] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -65,14 +74,24 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     setMobilePage(1);
-  }, [search]);
+    setDesktopPage(1);
+  }, [search, paymentFilter, statusFilter, startDate, endDate]);
 
   const filteredInvoices = useMemo(() => {
     const normalized = search.trim().toLowerCase();
 
-    if (!normalized) return invoices;
-
     return invoices.filter((invoice) => {
+      const invoiceDate = new Date(invoice.created_at).toISOString().slice(0, 10);
+      const matchesDate =
+        periodPreset === "all" ||
+        (invoiceDate >= startDate && invoiceDate <= endDate);
+
+      const matchesPayment =
+        paymentFilter === "all" || invoice.payment_method === paymentFilter;
+
+      const matchesStatus =
+        statusFilter === "all" || invoice.status === statusFilter;
+
       const value = [
         invoice.invoice_number,
         invoice.customer_name,
@@ -84,9 +103,19 @@ export default function InvoicesPage() {
         .join(" ")
         .toLowerCase();
 
-      return value.includes(normalized);
+      const matchesSearch = !normalized || value.includes(normalized);
+
+      return matchesDate && matchesPayment && matchesStatus && matchesSearch;
     });
-  }, [invoices, search]);
+  }, [
+    invoices,
+    search,
+    paymentFilter,
+    statusFilter,
+    startDate,
+    endDate,
+    periodPreset,
+  ]);
 
   const mobileTotalPages = Math.max(
     1,
@@ -99,6 +128,49 @@ export default function InvoicesPage() {
     (safeMobilePage - 1) * MOBILE_PAGE_SIZE,
     safeMobilePage * MOBILE_PAGE_SIZE
   );
+
+  const desktopTotalPages = Math.max(
+    1,
+    Math.ceil(filteredInvoices.length / DESKTOP_PAGE_SIZE)
+  );
+
+  const safeDesktopPage = Math.min(desktopPage, desktopTotalPages);
+
+  const desktopInvoices = filteredInvoices.slice(
+    (safeDesktopPage - 1) * DESKTOP_PAGE_SIZE,
+    safeDesktopPage * DESKTOP_PAGE_SIZE
+  );
+
+  const filteredTotalAmount = filteredInvoices.reduce(
+    (sum, invoice) => sum + Number(invoice.total_amount || 0),
+    0
+  );
+
+  const filteredTotalMargin = filteredInvoices.reduce(
+    (sum, invoice) => sum + Number(invoice.gross_margin || 0),
+    0
+  );
+
+  function applyPeriod(preset: "all" | "today" | "week" | "month" | "custom") {
+    setPeriodPreset(preset);
+
+    if (preset === "all" || preset === "custom") return;
+
+    const range =
+      preset === "today"
+        ? { startDate: today(), endDate: today() }
+        : preset === "week"
+          ? getCurrentWeekRange()
+          : getCurrentMonthRange();
+
+    setStartDate(range.startDate);
+    setEndDate(range.endDate);
+  }
+
+  function handlePrint() {
+    setIsPrinting(true);
+    window.setTimeout(() => window.print(), 200);
+  }
 
   useEffect(() => {
     if (mobilePage > mobileTotalPages) {
@@ -163,6 +235,16 @@ export default function InvoicesPage() {
               </p>
             </div>
 
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white"
+              >
+                <Printer className="h-5 w-5" />
+                {isPrinting ? "Préparation..." : "Imprimer / PDF"}
+              </button>
+
             <button
               type="button"
               onClick={loadData}
@@ -171,6 +253,7 @@ export default function InvoicesPage() {
               <RefreshCcw className="h-5 w-5" />
               Actualiser
             </button>
+            </div>
           </div>
         </header>
 
@@ -222,6 +305,40 @@ export default function InvoicesPage() {
                 className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
               />
             </div>
+          </div>
+
+          <div className="mb-4 grid grid-cols-1 gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2 xl:grid-cols-6">
+            <select value={periodPreset} onChange={(event) => applyPeriod(event.target.value as "all" | "today" | "week" | "month" | "custom")} className="form-input bg-white">
+              <option value="all">Toutes les périodes</option>
+              <option value="today">Aujourd’hui</option>
+              <option value="week">Cette semaine</option>
+              <option value="month">Ce mois</option>
+              <option value="custom">Personnalisée</option>
+            </select>
+
+            <input type="date" value={startDate} onChange={(event) => { setPeriodPreset("custom"); setStartDate(event.target.value); }} className="form-input bg-white" />
+            <input type="date" value={endDate} onChange={(event) => { setPeriodPreset("custom"); setEndDate(event.target.value); }} className="form-input bg-white" />
+
+            <select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)} className="form-input bg-white">
+              <option value="all">Tous les paiements</option>
+              <option value="cash_cdf">Cash CDF</option>
+              <option value="cash_usd">Cash USD</option>
+              <option value="mobile_money">Mobile Money</option>
+              <option value="card">Carte</option>
+              <option value="credit">Crédit</option>
+              <option value="mixed">Mixte</option>
+            </select>
+
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="form-input bg-white">
+              <option value="all">Tous les statuts</option>
+              <option value="completed">Validées</option>
+              <option value="pending">En attente</option>
+              <option value="cancelled">Annulées</option>
+            </select>
+
+            <button type="button" onClick={() => { setSearch(""); setPaymentFilter("all"); setStatusFilter("all"); applyPeriod("month"); }} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700">
+              Réinitialiser
+            </button>
           </div>
 
           <div className="space-y-2 xl:hidden">
@@ -282,7 +399,7 @@ export default function InvoicesPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredInvoices.map((invoice) => (
+                    desktopInvoices.map((invoice) => (
                       <tr key={invoice.id} className="hover:bg-slate-50">
                         <td className="px-5 py-4">
                           <p className="font-black text-slate-950">
@@ -336,8 +453,67 @@ export default function InvoicesPage() {
               </table>
             </div>
           </div>
+
+          <div className="mt-4 hidden xl:block">
+            <MobilePagination
+              page={safeDesktopPage}
+              totalPages={desktopTotalPages}
+              totalItems={filteredInvoices.length}
+              pageSize={DESKTOP_PAGE_SIZE}
+              onPrevious={() => setDesktopPage((page) => Math.max(1, page - 1))}
+              onNext={() => setDesktopPage((page) => Math.min(desktopTotalPages, page + 1))}
+            />
+          </div>
         </section>
       </div>
+
+      <section className="invoice-history-print hidden print:block">
+        <div className="border-b border-black pb-4 text-center">
+          <h1 className="text-2xl font-black">{pharmacy.name}</h1>
+          <h2 className="mt-1 text-xl font-black">Historique des factures</h2>
+          <p className="mt-1 text-sm">Période : {periodPreset === "all" ? "Toutes" : `${formatDate(startDate)} au ${formatDate(endDate)}`}</p>
+        </div>
+
+        <div className="mt-5 grid grid-cols-3 gap-3">
+          <PrintMetric label="Factures" value={filteredInvoices.length.toString()} />
+          <PrintMetric label="Total vendu" value={`${filteredTotalAmount.toLocaleString("fr-CD")} CDF`} />
+          <PrintMetric label="Marge brute" value={`${filteredTotalMargin.toLocaleString("fr-CD")} CDF`} />
+        </div>
+
+        <table className="mt-6 w-full border-collapse text-xs">
+          <thead>
+            <tr>
+              <th className="border p-2 text-left">Date</th>
+              <th className="border p-2 text-left">Facture</th>
+              <th className="border p-2 text-left">Client</th>
+              <th className="border p-2 text-left">Paiement</th>
+              <th className="border p-2 text-right">Total</th>
+              <th className="border p-2 text-right">Marge</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredInvoices.map((invoice) => (
+              <tr key={`print-${invoice.id}`}>
+                <td className="border p-2">{new Date(invoice.created_at).toLocaleString("fr-CD")}</td>
+                <td className="border p-2">{invoice.invoice_number}</td>
+                <td className="border p-2">{invoice.customer_name || "Comptoir"}</td>
+                <td className="border p-2">{formatPaymentMethod(invoice.payment_method)}</td>
+                <td className="border p-2 text-right">{formatMoney(Number(invoice.total_amount || 0), invoice.currency)}</td>
+                <td className="border p-2 text-right">{formatMoney(Number(invoice.gross_margin || 0), invoice.currency)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <style jsx global>{`
+        @media print {
+          @page { size: A4 landscape; margin: 10mm; }
+          body * { visibility: hidden !important; }
+          .invoice-history-print, .invoice-history-print * { visibility: visible !important; }
+          .invoice-history-print { display: block !important; position: absolute !important; inset: 0 !important; background: white !important; color: black !important; }
+        }
+      `}</style>
     </main>
   );
 }
@@ -538,4 +714,48 @@ function formatStatus(status?: string | null) {
 
 function formatMoney(value: number, currency: string) {
   return `${Number(value || 0).toLocaleString("fr-CD")} ${currency}`;
+}
+
+
+function PrintMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border border-black p-3">
+      <p className="text-xs">{label}</p>
+      <p className="mt-1 text-lg font-black">{value}</p>
+    </div>
+  );
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toDateInputValue(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getCurrentMonthRange() {
+  const current = new Date();
+  return {
+    startDate: toDateInputValue(new Date(current.getFullYear(), current.getMonth(), 1)),
+    endDate: toDateInputValue(new Date(current.getFullYear(), current.getMonth() + 1, 0)),
+  };
+}
+
+function getCurrentWeekRange() {
+  const current = new Date();
+  const day = current.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(current);
+  monday.setDate(current.getDate() + diffToMonday);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return {
+    startDate: toDateInputValue(monday),
+    endDate: toDateInputValue(sunday),
+  };
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("fr-FR").format(new Date(value));
 }

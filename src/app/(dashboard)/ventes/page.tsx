@@ -38,6 +38,7 @@ import type {
 } from "@/types/sale";
 
 const MOBILE_PAGE_SIZE = 5;
+const DESKTOP_PAGE_SIZE = 50;
 
 type SaleCartItem = CartItem & {
   requiresPrescription?: boolean;
@@ -114,10 +115,16 @@ export default function SalesPage() {
   const [cart, setCart] = useState<SaleCartItem[]>([]);
 
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [originFilter, setOriginFilter] = useState("all");
+  const [formFilter, setFormFilter] = useState("all");
+  const [prescriptionFilter, setPrescriptionFilter] = useState("all");
+  const [stockFilter, setStockFilter] = useState("available");
   const [mobilePage, setMobilePage] = useState(1);
+  const [desktopPage, setDesktopPage] = useState(1);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash_cdf");
-  const [currency, setCurrency] = useState("CDF");
+  const currency = "CDF";
   const [discount, setDiscount] = useState("0");
   const [customerName, setCustomerName] = useState("");
   const [notes, setNotes] = useState("");
@@ -258,28 +265,140 @@ export default function SalesPage() {
 
   useEffect(() => {
     setMobilePage(1);
-  }, [search]);
+    setDesktopPage(1);
+  }, [
+    search,
+    categoryFilter,
+    originFilter,
+    formFilter,
+    prescriptionFilter,
+    stockFilter,
+  ]);
+
+  const filterOptions = useMemo(() => {
+    const categories = new Set<string>();
+    const origins = new Set<string>();
+    const forms = new Set<string>();
+
+    for (const product of products) {
+      const row = product as unknown as Record<string, unknown>;
+
+      const category = String(
+        row.category_name ??
+          row.category ??
+          row.product_category ??
+          ""
+      ).trim();
+
+      const origin = String(
+        row.origin_label ??
+          row.origin_code ??
+          row.country ??
+          ""
+      ).trim();
+
+      const pharmaceuticalForm = String(product.form ?? "").trim();
+
+      if (category) categories.add(category);
+      if (origin) origins.add(origin);
+      if (pharmaceuticalForm) forms.add(pharmaceuticalForm);
+    }
+
+    return {
+      categories: Array.from(categories).sort((a, b) =>
+        a.localeCompare(b, "fr")
+      ),
+      origins: Array.from(origins).sort((a, b) =>
+        a.localeCompare(b, "fr")
+      ),
+      forms: Array.from(forms).sort((a, b) =>
+        a.localeCompare(b, "fr")
+      ),
+    };
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     const normalized = search.trim().toLowerCase();
 
-    if (!normalized) return products;
-
     return products.filter((product) => {
-      const value = [
+      const row = product as unknown as Record<string, unknown>;
+
+      const searchableValue = [
         product.name,
         product.generic_name,
         product.dosage,
         product.form,
         product.barcode,
+        row.category_name,
+        row.category,
+        row.origin_label,
+        row.origin_code,
+        row.country,
+        row.manufacturer,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
 
-      return value.includes(normalized);
+      const category = String(
+        row.category_name ??
+          row.category ??
+          row.product_category ??
+          ""
+      );
+
+      const origin = String(
+        row.origin_label ??
+          row.origin_code ??
+          row.country ??
+          ""
+      );
+
+      const matchesSearch =
+        !normalized || searchableValue.includes(normalized);
+
+      const matchesCategory =
+        categoryFilter === "all" || category === categoryFilter;
+
+      const matchesOrigin =
+        originFilter === "all" || origin === originFilter;
+
+      const matchesForm =
+        formFilter === "all" || String(product.form ?? "") === formFilter;
+
+      const requiresPrescription = productRequiresPrescription(product);
+
+      const matchesPrescription =
+        prescriptionFilter === "all" ||
+        (prescriptionFilter === "required" && requiresPrescription) ||
+        (prescriptionFilter === "not_required" && !requiresPrescription);
+
+      const quantity = Number(product.total_quantity || 0);
+
+      const matchesStock =
+        stockFilter === "all" ||
+        (stockFilter === "available" && quantity > 0) ||
+        (stockFilter === "low" && quantity > 0 && quantity <= 5) ||
+        (stockFilter === "out" && quantity <= 0);
+
+      return (
+        matchesSearch &&
+        matchesCategory &&
+        matchesOrigin &&
+        matchesForm &&
+        matchesPrescription &&
+        matchesStock
+      );
     });
-  }, [products, search]);
+  }, [
+    products,
+    search,
+    categoryFilter,
+    originFilter,
+    formFilter,
+    prescriptionFilter,
+    stockFilter,
+  ]);
 
   const mobileTotalPages = Math.max(
     1,
@@ -291,6 +410,18 @@ export default function SalesPage() {
   const mobileProducts = filteredProducts.slice(
     (safeMobilePage - 1) * MOBILE_PAGE_SIZE,
     safeMobilePage * MOBILE_PAGE_SIZE
+  );
+
+  const desktopTotalPages = Math.max(
+    1,
+    Math.ceil(filteredProducts.length / DESKTOP_PAGE_SIZE)
+  );
+
+  const safeDesktopPage = Math.min(desktopPage, desktopTotalPages);
+
+  const desktopProducts = filteredProducts.slice(
+    (safeDesktopPage - 1) * DESKTOP_PAGE_SIZE,
+    safeDesktopPage * DESKTOP_PAGE_SIZE
   );
 
   useEffect(() => {
@@ -306,18 +437,13 @@ export default function SalesPage() {
 
   const discountValue = Number(discount || 0);
   const total = Math.max(subtotal - discountValue, 0);
+  const exchangeRate = Number(pharmacy?.exchange_rate || 2800);
+  const totalUsd =
+    exchangeRate > 0 ? total / exchangeRate : 0;
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   function handlePaymentMethodChange(method: PaymentMethod) {
     setPaymentMethod(method);
-
-    if (method === "cash_usd") {
-      setCurrency("USD");
-    }
-
-    if (method === "cash_cdf") {
-      setCurrency("CDF");
-    }
   }
 
   function addToCart(product: SellableProduct) {
@@ -497,7 +623,16 @@ export default function SalesPage() {
       setSuccessMessage(
         `Vente validée. Facture ${result.invoice_number} · Total ${Number(
           result.total_amount
-        ).toLocaleString("fr-CD")} ${currency}`
+        ).toLocaleString("fr-CD")} CDF${
+          paymentMethod === "cash_usd"
+            ? ` · Équivalent ${(
+                Number(result.total_amount) / exchangeRate
+              ).toLocaleString("fr-CD", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })} USD`
+            : ""
+        }`
       );
 
       setCart([]);
@@ -704,10 +839,81 @@ export default function SalesPage() {
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Nom, DCI, dosage..."
+                  placeholder="Nom, DCI, dosage, fabricant..."
                   className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
                 />
               </div>
+            </div>
+
+            <div className="mb-4 grid grid-cols-1 gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 xl:grid-cols-5">
+              <FilterSelect
+                label="Catégorie"
+                value={categoryFilter}
+                onChange={setCategoryFilter}
+                options={filterOptions.categories}
+              />
+
+              <FilterSelect
+                label="Origine"
+                value={originFilter}
+                onChange={setOriginFilter}
+                options={filterOptions.origins}
+              />
+
+              <FilterSelect
+                label="Forme"
+                value={formFilter}
+                onChange={setFormFilter}
+                options={filterOptions.forms}
+              />
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-black text-slate-600">
+                  Ordonnance
+                </span>
+                <select
+                  value={prescriptionFilter}
+                  onChange={(event) =>
+                    setPrescriptionFilter(event.target.value)
+                  }
+                  className="form-input bg-white"
+                >
+                  <option value="all">Tous</option>
+                  <option value="required">Ordonnance requise</option>
+                  <option value="not_required">Sans ordonnance</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-black text-slate-600">
+                  Stock
+                </span>
+                <select
+                  value={stockFilter}
+                  onChange={(event) => setStockFilter(event.target.value)}
+                  className="form-input bg-white"
+                >
+                  <option value="all">Tous</option>
+                  <option value="available">Disponibles</option>
+                  <option value="low">Stock faible</option>
+                  <option value="out">Rupture</option>
+                </select>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setCategoryFilter("all");
+                  setOriginFilter("all");
+                  setFormFilter("all");
+                  setPrescriptionFilter("all");
+                  setStockFilter("available");
+                }}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 sm:col-span-2 xl:col-span-5"
+              >
+                Réinitialiser les filtres
+              </button>
             </div>
 
             <div className="space-y-2 xl:hidden">
@@ -760,7 +966,7 @@ export default function SalesPage() {
                   ligne si vous voulez vendre hors-ligne.
                 </div>
               ) : (
-                filteredProducts.map((product) => (
+                desktopProducts.map((product) => (
                   <ProductSaleCard
                     key={product.product_id}
                     product={product}
@@ -768,6 +974,23 @@ export default function SalesPage() {
                   />
                 ))
               )}
+            </div>
+
+            <div className="mt-4 hidden xl:block">
+              <MobilePagination
+                page={safeDesktopPage}
+                totalPages={desktopTotalPages}
+                totalItems={filteredProducts.length}
+                pageSize={DESKTOP_PAGE_SIZE}
+                onPrevious={() =>
+                  setDesktopPage((page) => Math.max(1, page - 1))
+                }
+                onNext={() =>
+                  setDesktopPage((page) =>
+                    Math.min(desktopTotalPages, page + 1)
+                  )
+                }
+              />
             </div>
           </div>
 
@@ -837,15 +1060,10 @@ export default function SalesPage() {
 
             <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
               <div className="grid grid-cols-2 gap-2">
-                <FormField label="Devise">
-                  <select
-                    value={currency}
-                    onChange={(event) => setCurrency(event.target.value)}
-                    className="form-input"
-                  >
-                    <option value="CDF">CDF</option>
-                    <option value="USD">USD</option>
-                  </select>
+                <FormField label="Devise des prix">
+                  <div className="form-input flex items-center bg-slate-100 font-black text-slate-700">
+                    CDF
+                  </div>
                 </FormField>
 
                 <FormField label="Paiement">
@@ -876,7 +1094,7 @@ export default function SalesPage() {
                 />
               </FormField>
 
-              <FormField label={`Remise (${currency})`}>
+              <FormField label="Remise (CDF)">
                 <input
                   type="number"
                   min="0"
@@ -908,8 +1126,28 @@ export default function SalesPage() {
 
                 <div className="mt-3 flex justify-between border-t border-slate-200 pt-3 text-lg font-black text-slate-950 md:text-xl">
                   <span>Total</span>
-                  <span>{formatMoney(total, currency)}</span>
+                  <span>{formatMoney(total, "CDF")}</span>
                 </div>
+
+                {paymentMethod === "cash_usd" && (
+                  <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-3">
+                    <div className="flex justify-between text-sm font-black text-blue-900">
+                      <span>Équivalent USD</span>
+                      <span>
+                        {totalUsd.toLocaleString("fr-CD", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}{" "}
+                        USD
+                      </span>
+                    </div>
+
+                    <p className="mt-1 text-xs font-semibold text-blue-700">
+                      Taux appliqué : 1 USD ={" "}
+                      {exchangeRate.toLocaleString("fr-CD")} CDF
+                    </p>
+                  </div>
+                )}
               </div>
 
               <button
@@ -1264,6 +1502,40 @@ function MobilePagination({
         <ChevronRight className="h-4 w-4" />
       </button>
     </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+}) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-xs font-black text-slate-600">
+        {label}
+      </span>
+
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="form-input bg-white"
+      >
+        <option value="all">Tous</option>
+
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

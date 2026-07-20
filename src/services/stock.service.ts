@@ -22,7 +22,7 @@ export async function getStockMovements(pharmacyId: string) {
     .select("*")
     .eq("pharmacy_id", pharmacyId)
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(5000);
 
   if (error) {
     throw new Error(error.message);
@@ -39,7 +39,23 @@ export async function getAllActiveBatches(pharmacyId: string) {
     .select(
       `
       *,
-      product:products(id, name, generic_name, dosage, form, unit)
+      product:products(
+        id,
+        name,
+        generic_name,
+        dosage,
+        form,
+        unit,
+        category_id,
+        default_supplier_id,
+        origin_code,
+        origin_label,
+        min_stock,
+        status,
+        category:product_categories(id, name),
+        supplier:suppliers(id, name)
+      ),
+      supplier:suppliers(id, name)
     `
     )
     .eq("pharmacy_id", pharmacyId)
@@ -58,7 +74,16 @@ export async function getAllActiveBatches(pharmacyId: string) {
       dosage: string | null;
       form: string | null;
       unit: string;
+      category_id: string | null;
+      default_supplier_id: string | null;
+      origin_code: string | null;
+      origin_label: string | null;
+      min_stock: number;
+      status: string;
+      category?: { id: string; name: string } | null;
+      supplier?: { id: string; name: string } | null;
     };
+    supplier?: { id: string; name: string } | null;
   })[];
 }
 

@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Mail,
   MapPin,
+  Navigation,
   Phone,
   Plus,
   RefreshCcw,
@@ -25,14 +26,25 @@ import {
 } from "@/services/pharmacies.service";
 
 import type { PharmacyWithRole } from "@/types/pharmacy";
+import {
+  COUNTRY_OPTIONS,
+  DRC_COUNTRY,
+  DRC_PROVINCES,
+} from "@/lib/location-options";
 
 type FormState = {
   name: string;
   slug: string;
   address: string;
   city: string;
+  commune: string;
+  district: string;
   province: string;
+  country: string;
+  latitude: string;
+  longitude: string;
   phone: string;
+  whatsapp: string;
   email: string;
   pharmacistName: string;
   exchangeRate: string;
@@ -43,8 +55,14 @@ const initialForm: FormState = {
   slug: "",
   address: "",
   city: "",
-  province: "",
+  commune: "",
+  district: "",
+  province: "Kinshasa",
+  country: DRC_COUNTRY,
+  latitude: "",
+  longitude: "",
   phone: "",
+  whatsapp: "",
   email: "",
   pharmacistName: "",
   exchangeRate: "2800",
@@ -142,6 +160,33 @@ export default function PharmaciesPage() {
     });
   }
 
+  function captureLocation() {
+    if (!navigator.geolocation) {
+      setErrorMessage("La géolocalisation n’est pas disponible sur cet appareil.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setForm((current) => ({
+          ...current,
+          latitude: position.coords.latitude.toFixed(7),
+          longitude: position.coords.longitude.toFixed(7),
+        }));
+      },
+      () => {
+        setErrorMessage(
+          "Impossible de récupérer la position. Autorisez la géolocalisation dans le navigateur."
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      }
+    );
+  }
+
   function closeDialog() {
     if (isCreating) return;
 
@@ -175,8 +220,14 @@ export default function PharmaciesPage() {
         slug: form.slug,
         address: form.address,
         city: form.city,
+        commune: form.commune,
+        district: form.district,
         province: form.province,
+        country: form.country,
+        latitude: form.latitude ? Number(form.latitude) : null,
+        longitude: form.longitude ? Number(form.longitude) : null,
         phone: form.phone,
+        whatsapp: form.whatsapp,
         email: form.email,
         pharmacistName: form.pharmacistName,
         exchangeRate,
@@ -421,45 +472,132 @@ export default function PharmaciesPage() {
                   </h3>
 
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
-                    <FormField label="Adresse">
-                      <input
-                        value={form.address}
-                        onChange={(event) =>
-                          updateField("address", event.target.value)
-                        }
+                    <FormField label="Pays">
+                      <select
+                        value={form.country}
+                        onChange={(event) => {
+                          updateField("country", event.target.value);
+                          if (event.target.value !== DRC_COUNTRY) {
+                            updateField("province", "");
+                          }
+                        }}
                         className="form-input"
-                        placeholder="Avenue, quartier, commune"
-                      />
+                      >
+                        {COUNTRY_OPTIONS.map((country) => (
+                          <option key={country} value={country}>
+                            {country}
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
+
+                    <FormField label="Province / région">
+                      {form.country === DRC_COUNTRY ? (
+                        <select
+                          value={form.province}
+                          onChange={(event) =>
+                            updateField("province", event.target.value)
+                          }
+                          className="form-input"
+                        >
+                          {DRC_PROVINCES.map((province) => (
+                            <option key={province} value={province}>
+                              {province}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          value={form.province}
+                          onChange={(event) =>
+                            updateField("province", event.target.value)
+                          }
+                          className="form-input"
+                          placeholder="Province, région ou État"
+                        />
+                      )}
                     </FormField>
 
                     <FormField label="Ville">
                       <input
                         value={form.city}
-                        onChange={(event) =>
-                          updateField("city", event.target.value)
-                        }
+                        onChange={(event) => updateField("city", event.target.value)}
                         className="form-input"
-                        placeholder="Ex : Kinshasa, Lubumbashi..."
+                        placeholder="Ex : Kinshasa"
                       />
                     </FormField>
 
-                    <FormField label="Province">
+                    <FormField label="Commune">
                       <input
-                        value={form.province}
-                        onChange={(event) =>
-                          updateField("province", event.target.value)
-                        }
+                        value={form.commune}
+                        onChange={(event) => updateField("commune", event.target.value)}
                         className="form-input"
-                        placeholder="Ex : Kinshasa, Haut-Katanga..."
+                        placeholder="Ex : Gombe"
                       />
                     </FormField>
+
+                    <FormField label="Quartier / district">
+                      <input
+                        value={form.district}
+                        onChange={(event) => updateField("district", event.target.value)}
+                        className="form-input"
+                        placeholder="Ex : Socimat"
+                      />
+                    </FormField>
+
+                    <FormField label="Adresse">
+                      <input
+                        value={form.address}
+                        onChange={(event) => updateField("address", event.target.value)}
+                        className="form-input"
+                        placeholder="Avenue, numéro, repère"
+                      />
+                    </FormField>
+
+                    <FormField label="Latitude">
+                      <input
+                        type="number"
+                        step="0.0000001"
+                        value={form.latitude}
+                        onChange={(event) => updateField("latitude", event.target.value)}
+                        className="form-input"
+                        placeholder="-4.3250000"
+                      />
+                    </FormField>
+
+                    <FormField label="Longitude">
+                      <input
+                        type="number"
+                        step="0.0000001"
+                        value={form.longitude}
+                        onChange={(event) => updateField("longitude", event.target.value)}
+                        className="form-input"
+                        placeholder="15.3220000"
+                      />
+                    </FormField>
+
+                    <button
+                      type="button"
+                      onClick={captureLocation}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 md:col-span-2"
+                    >
+                      <Navigation className="h-5 w-5" />
+                      Capturer ma position
+                    </button>
 
                     <FormField label="Téléphone">
                       <input
                         value={form.phone}
-                        onChange={(event) =>
-                          updateField("phone", event.target.value)
-                        }
+                        onChange={(event) => updateField("phone", event.target.value)}
+                        className="form-input"
+                        placeholder="+243 ..."
+                      />
+                    </FormField>
+
+                    <FormField label="WhatsApp">
+                      <input
+                        value={form.whatsapp}
+                        onChange={(event) => updateField("whatsapp", event.target.value)}
                         className="form-input"
                         placeholder="+243 ..."
                       />
@@ -469,9 +607,7 @@ export default function PharmaciesPage() {
                       <input
                         type="email"
                         value={form.email}
-                        onChange={(event) =>
-                          updateField("email", event.target.value)
-                        }
+                        onChange={(event) => updateField("email", event.target.value)}
                         className="form-input"
                         placeholder="contact@pharmacie.cd"
                       />

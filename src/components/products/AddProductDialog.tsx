@@ -61,6 +61,9 @@ type ProductFormState = {
   requiresPrescription: boolean;
   hasVisibleExpiryDate: boolean;
   description: string;
+  therapeuticIndications: string;
+  dosageInstructions: string;
+  contraindicationsPrecautions: string;
   batchNumber: string;
   expiryDate: string;
   purchasePrice: string;
@@ -90,6 +93,9 @@ const initialForm: ProductFormState = {
   requiresPrescription: false,
   hasVisibleExpiryDate: true,
   description: "",
+  therapeuticIndications: "",
+  dosageInstructions: "",
+  contraindicationsPrecautions: "",
   batchNumber: "",
   expiryDate: "",
   purchasePrice: "0",
@@ -343,6 +349,9 @@ export default function AddProductDialog({
       hasVisibleExpiryDate: true,
       requiresPrescription: false,
       description: "",
+      therapeuticIndications: "",
+      dosageInstructions: "",
+      contraindicationsPrecautions: "",
     }));
   }
 
@@ -520,6 +529,9 @@ export default function AddProductDialog({
         minStock: Number(form.minStock || 0),
         requiresPrescription: form.requiresPrescription,
         description,
+        therapeuticIndications: form.therapeuticIndications,
+        dosageInstructions: form.dosageInstructions,
+        contraindicationsPrecautions: form.contraindicationsPrecautions,
         batchNumber: form.batchNumber,
         expiryDate: expiryDateForSave,
         purchasePrice: Number(form.purchasePrice || 0),
@@ -1045,37 +1057,22 @@ export default function AddProductDialog({
                       />
                     </FormField>
 
-<FormField label="Fabricant / Marque">
-  <input
-    value={form.manufacturer}
-    onChange={(event) =>
-      updateField("manufacturer", event.target.value)
-    }
-    className="form-input"
-    placeholder="Ex : fabricant ou marque"
-  />
-</FormField>
-
-<FormField label="Origine du produit">
-  <input
-    value={form.originLabel}
-    readOnly
-    className="form-input bg-slate-50"
-    placeholder="Sélectionnée dans la tarification"
-  />
-</FormField>
-
-<FormField label="Seuil stock faible">
-  <input
-    type="number"
-    min="0"
-    value={form.minStock}
-    onChange={(event) =>
-      updateField("minStock", event.target.value)
-    }
-    className="form-input"
-  />
-</FormField>
+                    <FormField label="Origine du produit">
+                      <select
+                        value={form.pricingRuleId}
+                        onChange={(event) =>
+                          handlePricingRuleChange(event.target.value)
+                        }
+                        className="form-input"
+                      >
+                        <option value="">Sélectionner l’origine</option>
+                        {pricingRules.map((rule) => (
+                          <option key={rule.id} value={rule.id}>
+                            {rule.origin_label}
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
 
                     <FormField label="Seuil stock faible">
                       <input
@@ -1100,6 +1097,52 @@ export default function AddProductDialog({
                       placeholder="Ex : remarques internes, conditionnement, observations..."
                     />
                   </FormField>
+
+                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <FormField label="Indications thérapeutiques">
+                      <textarea
+                        value={form.therapeuticIndications}
+                        onChange={(event) =>
+                          updateField(
+                            "therapeuticIndications",
+                            event.target.value
+                          )
+                        }
+                        className="form-input min-h-28 resize-none"
+                        placeholder="Ex : traitement symptomatique de la douleur et de la fièvre..."
+                      />
+                    </FormField>
+
+                    <FormField label="Posologie / dosage recommandé">
+                      <textarea
+                        value={form.dosageInstructions}
+                        onChange={(event) =>
+                          updateField(
+                            "dosageInstructions",
+                            event.target.value
+                          )
+                        }
+                        className="form-input min-h-28 resize-none"
+                        placeholder="Ex : 1 comprimé matin et soir selon prescription..."
+                      />
+                    </FormField>
+
+                    <div className="md:col-span-2">
+                      <FormField label="Contre-indications / précautions">
+                        <textarea
+                          value={form.contraindicationsPrecautions}
+                          onChange={(event) =>
+                            updateField(
+                              "contraindicationsPrecautions",
+                              event.target.value
+                            )
+                          }
+                          className="form-input min-h-24 resize-none"
+                          placeholder="Ex : allergie connue, grossesse, interactions, précautions..."
+                        />
+                      </FormField>
+                    </div>
+                  </div>
 
                   <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                     <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700">
@@ -1228,22 +1271,14 @@ export default function AddProductDialog({
                           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
                             <label>
                               <span className="mb-2 block text-xs font-bold text-blue-800">
-                                Pays ou zone d’origine
+                                Origine sélectionnée
                               </span>
-                              <select
-                                value={form.pricingRuleId}
-                                onChange={(event) =>
-                                  handlePricingRuleChange(event.target.value)
-                                }
-                                className="form-input bg-white"
-                              >
-                                <option value="">Sélectionner l’origine</option>
-                                {pricingRules.map((rule) => (
-  <option key={rule.id} value={rule.id}>
-    {rule.origin_label}
-  </option>
-))}
-                              </select>
+                              <input
+                                value={form.originLabel}
+                                readOnly
+                                className="form-input bg-slate-100"
+                                placeholder="À sélectionner dans les informations du produit"
+                              />
                             </label>
 
                             <label>

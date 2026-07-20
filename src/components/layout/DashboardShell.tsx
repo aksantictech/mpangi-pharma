@@ -17,11 +17,11 @@ import {
   UploadCloud,
   MoreHorizontal,
   Package,
+  ReceiptText,
   ScrollText,
   Settings,
   ShieldCheck,
   ShoppingCart,
-  Store,
   UserCircle,
   Warehouse,
   X,
@@ -98,12 +98,7 @@ const navigationItems: NavigationItem[] = [
     module: "stock",
     icon: Warehouse,
   },
-  {
-    label: "Pharmacies ouvertes",
-    href: "/pharmacies-ouvertes",
-    module: "produits",
-    icon: Store,
-  },
+
   {
     label: "Synchronisation",
     href: "/synchronisation",
@@ -122,6 +117,12 @@ const navigationItems: NavigationItem[] = [
     module: "finances",
     icon: LineChart,
   },
+  {
+  label: "Rapport TVA",
+  href: "/finances/tva",
+  module: "finances",
+  icon: ReceiptText,
+},
   {
     label: "Audit",
     href: "/audit",
@@ -748,7 +749,6 @@ function shortMobileLabel(label: string) {
     Ventes: "Ventes",
     Factures: "Factures",
     "Stock voisin": "Voisin",
-    "Pharmacies ouvertes": "Ouvertes",
   };
 
   return labels[label] ?? label;

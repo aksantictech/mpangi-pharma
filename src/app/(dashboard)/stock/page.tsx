@@ -42,7 +42,16 @@ type BatchWithProduct = ProductBatch & {
     dosage: string | null;
     form: string | null;
     unit: string;
+    category_id: string | null;
+    default_supplier_id: string | null;
+    origin_code: string | null;
+    origin_label: string | null;
+    min_stock: number;
+    status: string;
+    category?: { id: string; name: string } | null;
+    supplier?: { id: string; name: string } | null;
   };
+  supplier?: { id: string; name: string } | null;
 };
 
 type EntryFormState = {
@@ -64,6 +73,7 @@ type CorrectionFormState = {
 };
 
 const MOBILE_PAGE_SIZE = 5;
+const DESKTOP_PAGE_SIZE = 50;
 
 const initialEntryForm: EntryFormState = {
   productId: "",
@@ -91,10 +101,22 @@ export default function StockPage() {
   const [movements, setMovements] = useState<StockMovement[]>([]);
 
   const [search, setSearch] = useState("");
+  const [batchCategoryFilter, setBatchCategoryFilter] = useState("all");
+  const [batchSupplierFilter, setBatchSupplierFilter] = useState("all");
+  const [batchOriginFilter, setBatchOriginFilter] = useState("all");
+  const [batchStockFilter, setBatchStockFilter] = useState("all");
+  const [batchExpiryFrom, setBatchExpiryFrom] = useState("");
+  const [batchExpiryTo, setBatchExpiryTo] = useState("");
+
   const [movementSearch, setMovementSearch] = useState("");
+  const [movementTypeFilter, setMovementTypeFilter] = useState("all");
+  const [movementDateFrom, setMovementDateFrom] = useState("");
+  const [movementDateTo, setMovementDateTo] = useState("");
 
   const [mobileBatchPage, setMobileBatchPage] = useState(1);
   const [mobileMovementPage, setMobileMovementPage] = useState(1);
+  const [desktopBatchPage, setDesktopBatchPage] = useState(1);
+  const [desktopMovementPage, setDesktopMovementPage] = useState(1);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isEntryOpen, setIsEntryOpen] = useState(false);
@@ -156,25 +178,72 @@ export default function StockPage() {
 
   useEffect(() => {
     setMobileBatchPage(1);
-  }, [search]);
+    setDesktopBatchPage(1);
+  }, [
+    search,
+    batchCategoryFilter,
+    batchSupplierFilter,
+    batchOriginFilter,
+    batchStockFilter,
+    batchExpiryFrom,
+    batchExpiryTo,
+  ]);
 
   useEffect(() => {
     setMobileMovementPage(1);
-  }, [movementSearch]);
+    setDesktopMovementPage(1);
+  }, [
+    movementSearch,
+    movementTypeFilter,
+    movementDateFrom,
+    movementDateTo,
+  ]);
+
+  const batchFilterOptions = useMemo(() => {
+    const categories = new Set<string>();
+    const suppliersSet = new Set<string>();
+    const origins = new Set<string>();
+
+    batches.forEach((batch) => {
+      const category = batch.product?.category?.name;
+      const supplierName =
+        batch.supplier?.name ?? batch.product?.supplier?.name;
+      const origin = batch.product?.origin_label;
+
+      if (category) categories.add(category);
+      if (supplierName) suppliersSet.add(supplierName);
+      if (origin) origins.add(origin);
+    });
+
+    return {
+      categories: Array.from(categories).sort((a, b) =>
+        a.localeCompare(b, "fr")
+      ),
+      suppliers: Array.from(suppliersSet).sort((a, b) =>
+        a.localeCompare(b, "fr")
+      ),
+      origins: Array.from(origins).sort((a, b) =>
+        a.localeCompare(b, "fr")
+      ),
+    };
+  }, [batches]);
 
   const filteredBatches = useMemo(() => {
     const normalized = search.trim().toLowerCase();
 
-    if (!normalized) return batches;
-
     return batches.filter((batch) => {
       const product = batch.product;
+      const supplierName =
+        batch.supplier?.name ?? product?.supplier?.name ?? "";
 
       const value = [
         product?.name,
         product?.generic_name,
         product?.dosage,
         product?.form,
+        product?.category?.name,
+        supplierName,
+        product?.origin_label,
         batch.batch_number,
         batch.expiry_date,
       ]
@@ -182,14 +251,63 @@ export default function StockPage() {
         .join(" ")
         .toLowerCase();
 
-      return value.includes(normalized);
+      const matchesSearch =
+        !normalized || value.includes(normalized);
+
+      const matchesCategory =
+        batchCategoryFilter === "all" ||
+        product?.category?.name === batchCategoryFilter;
+
+      const matchesSupplier =
+        batchSupplierFilter === "all" ||
+        supplierName === batchSupplierFilter;
+
+      const matchesOrigin =
+        batchOriginFilter === "all" ||
+        product?.origin_label === batchOriginFilter;
+
+      const quantity = Number(batch.quantity_available || 0);
+      const minStock = Number(product?.min_stock || 0);
+
+      const matchesStock =
+        batchStockFilter === "all" ||
+        (batchStockFilter === "available" && quantity > 0) ||
+        (batchStockFilter === "low" &&
+          quantity > 0 &&
+          quantity <= minStock) ||
+        (batchStockFilter === "out" && quantity <= 0);
+
+      const matchesExpiryFrom =
+        !batchExpiryFrom ||
+        batch.expiry_date >= batchExpiryFrom;
+
+      const matchesExpiryTo =
+        !batchExpiryTo ||
+        batch.expiry_date <= batchExpiryTo;
+
+      return (
+        matchesSearch &&
+        matchesCategory &&
+        matchesSupplier &&
+        matchesOrigin &&
+        matchesStock &&
+        matchesExpiryFrom &&
+        matchesExpiryTo
+      );
     });
-  }, [batches, search]);
+  }, [
+    batches,
+    search,
+    batchCategoryFilter,
+    batchSupplierFilter,
+    batchOriginFilter,
+    batchStockFilter,
+    batchExpiryFrom,
+    batchExpiryTo,
+  ]);
 
   const filteredMovements = useMemo(() => {
     const normalized = movementSearch.trim().toLowerCase();
-
-    if (!normalized) return movements;
 
     return movements.filter((movement) => {
       const value = [
@@ -199,14 +317,43 @@ export default function StockPage() {
         movement.movement_type,
         movement.reason,
         movement.user_name,
+        movement.reference_type,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
 
-      return value.includes(normalized);
+      const movementDate = movement.created_at.slice(0, 10);
+
+      const matchesSearch =
+        !normalized || value.includes(normalized);
+
+      const matchesType =
+        movementTypeFilter === "all" ||
+        movement.movement_type === movementTypeFilter;
+
+      const matchesDateFrom =
+        !movementDateFrom ||
+        movementDate >= movementDateFrom;
+
+      const matchesDateTo =
+        !movementDateTo ||
+        movementDate <= movementDateTo;
+
+      return (
+        matchesSearch &&
+        matchesType &&
+        matchesDateFrom &&
+        matchesDateTo
+      );
     });
-  }, [movements, movementSearch]);
+  }, [
+    movements,
+    movementSearch,
+    movementTypeFilter,
+    movementDateFrom,
+    movementDateTo,
+  ]);
 
   const mobileBatchTotalPages = Math.max(
     1,
@@ -236,6 +383,36 @@ export default function StockPage() {
   const mobileMovements = filteredMovements.slice(
     (safeMobileMovementPage - 1) * MOBILE_PAGE_SIZE,
     safeMobileMovementPage * MOBILE_PAGE_SIZE
+  );
+
+  const desktopBatchTotalPages = Math.max(
+    1,
+    Math.ceil(filteredBatches.length / DESKTOP_PAGE_SIZE)
+  );
+
+  const safeDesktopBatchPage = Math.min(
+    desktopBatchPage,
+    desktopBatchTotalPages
+  );
+
+  const desktopBatches = filteredBatches.slice(
+    (safeDesktopBatchPage - 1) * DESKTOP_PAGE_SIZE,
+    safeDesktopBatchPage * DESKTOP_PAGE_SIZE
+  );
+
+  const desktopMovementTotalPages = Math.max(
+    1,
+    Math.ceil(filteredMovements.length / DESKTOP_PAGE_SIZE)
+  );
+
+  const safeDesktopMovementPage = Math.min(
+    desktopMovementPage,
+    desktopMovementTotalPages
+  );
+
+  const desktopMovements = filteredMovements.slice(
+    (safeDesktopMovementPage - 1) * DESKTOP_PAGE_SIZE,
+    safeDesktopMovementPage * DESKTOP_PAGE_SIZE
   );
 
   useEffect(() => {
@@ -517,8 +694,77 @@ export default function StockPage() {
             <SearchBox
               value={search}
               onChange={setSearch}
-              placeholder="Produit, DCI, lot..."
+              placeholder="Produit, DCI, lot, fournisseur..."
             />
+          </div>
+
+          <div className="mb-4 grid grid-cols-1 gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 xl:grid-cols-6">
+            <FilterSelect
+              label="Catégorie"
+              value={batchCategoryFilter}
+              onChange={setBatchCategoryFilter}
+              options={batchFilterOptions.categories}
+            />
+
+            <FilterSelect
+              label="Fournisseur"
+              value={batchSupplierFilter}
+              onChange={setBatchSupplierFilter}
+              options={batchFilterOptions.suppliers}
+            />
+
+            <FilterSelect
+              label="Origine"
+              value={batchOriginFilter}
+              onChange={setBatchOriginFilter}
+              options={batchFilterOptions.origins}
+            />
+
+            <label>
+              <span className="mb-2 block text-xs font-black text-slate-600">
+                Stock
+              </span>
+              <select
+                value={batchStockFilter}
+                onChange={(event) =>
+                  setBatchStockFilter(event.target.value)
+                }
+                className="form-input bg-white"
+              >
+                <option value="all">Tous</option>
+                <option value="available">Disponible</option>
+                <option value="low">Stock faible</option>
+                <option value="out">Rupture</option>
+              </select>
+            </label>
+
+            <DateFilter
+              label="Expiration du"
+              value={batchExpiryFrom}
+              onChange={setBatchExpiryFrom}
+            />
+
+            <DateFilter
+              label="Expiration au"
+              value={batchExpiryTo}
+              onChange={setBatchExpiryTo}
+            />
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setBatchCategoryFilter("all");
+                setBatchSupplierFilter("all");
+                setBatchOriginFilter("all");
+                setBatchStockFilter("all");
+                setBatchExpiryFrom("");
+                setBatchExpiryTo("");
+              }}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 sm:col-span-2 xl:col-span-6"
+            >
+              Réinitialiser les filtres
+            </button>
           </div>
 
           <div className="space-y-2 xl:hidden">
@@ -592,7 +838,7 @@ export default function StockPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredBatches.map((batch) => (
+                    desktopBatches.map((batch) => (
                       <tr key={batch.id} className="hover:bg-slate-50">
                         <td className="px-5 py-4">
                           <p className="font-black text-slate-950">
@@ -646,6 +892,23 @@ export default function StockPage() {
               </table>
             </div>
           </div>
+
+          <div className="mt-4 hidden xl:block">
+            <MobilePagination
+              page={safeDesktopBatchPage}
+              totalPages={desktopBatchTotalPages}
+              totalItems={filteredBatches.length}
+              pageSize={DESKTOP_PAGE_SIZE}
+              onPrevious={() =>
+                setDesktopBatchPage((page) => Math.max(1, page - 1))
+              }
+              onNext={() =>
+                setDesktopBatchPage((page) =>
+                  Math.min(desktopBatchTotalPages, page + 1)
+                )
+              }
+            />
+          </div>
         </section>
 
         <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-5">
@@ -663,8 +926,62 @@ export default function StockPage() {
             <SearchBox
               value={movementSearch}
               onChange={setMovementSearch}
-              placeholder="Rechercher..."
+              placeholder="Produit, lot, utilisateur, référence..."
             />
+          </div>
+
+          <div className="mb-4 grid grid-cols-1 gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 xl:grid-cols-4">
+            <label>
+              <span className="mb-2 block text-xs font-black text-slate-600">
+                Type de mouvement
+              </span>
+              <select
+                value={movementTypeFilter}
+                onChange={(event) =>
+                  setMovementTypeFilter(event.target.value)
+                }
+                className="form-input bg-white"
+              >
+                <option value="all">Tous</option>
+                <option value="supplier_entry">Entrée fournisseur</option>
+                <option value="sale">Vente</option>
+                <option value="customer_return">Retour client</option>
+                <option value="supplier_return">Retour fournisseur</option>
+                <option value="adjustment_in">Ajustement +</option>
+                <option value="adjustment_out">Ajustement -</option>
+                <option value="loss">Perte</option>
+                <option value="damage">Casse</option>
+                <option value="expired">Expiré</option>
+                <option value="transfer_in">Transfert +</option>
+                <option value="transfer_out">Transfert -</option>
+                <option value="inventory_correction">Inventaire</option>
+              </select>
+            </label>
+
+            <DateFilter
+              label="Date du"
+              value={movementDateFrom}
+              onChange={setMovementDateFrom}
+            />
+
+            <DateFilter
+              label="Date au"
+              value={movementDateTo}
+              onChange={setMovementDateTo}
+            />
+
+            <button
+              type="button"
+              onClick={() => {
+                setMovementSearch("");
+                setMovementTypeFilter("all");
+                setMovementDateFrom("");
+                setMovementDateTo("");
+              }}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 sm:self-end"
+            >
+              Réinitialiser
+            </button>
           </div>
 
           <div className="space-y-2 xl:hidden">
@@ -733,7 +1050,7 @@ export default function StockPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredMovements.map((movement) => (
+                    desktopMovements.map((movement) => (
                       <tr key={movement.id} className="hover:bg-slate-50">
                         <td className="px-5 py-4 text-sm text-slate-500">
                           {new Date(movement.created_at).toLocaleString("fr-CD")}
@@ -776,6 +1093,23 @@ export default function StockPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          <div className="mt-4 hidden xl:block">
+            <MobilePagination
+              page={safeDesktopMovementPage}
+              totalPages={desktopMovementTotalPages}
+              totalItems={filteredMovements.length}
+              pageSize={DESKTOP_PAGE_SIZE}
+              onPrevious={() =>
+                setDesktopMovementPage((page) => Math.max(1, page - 1))
+              }
+              onNext={() =>
+                setDesktopMovementPage((page) =>
+                  Math.min(desktopMovementTotalPages, page + 1)
+                )
+              }
+            />
           </div>
         </section>
 
@@ -1055,6 +1389,62 @@ function MobileMovementCard({ movement }: { movement: StockMovement }) {
         </p>
       )}
     </article>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+}) {
+  return (
+    <label>
+      <span className="mb-2 block text-xs font-black text-slate-600">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="form-input bg-white"
+      >
+        <option value="all">Tous</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function DateFilter({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label>
+      <span className="mb-2 block text-xs font-black text-slate-600">
+        {label}
+      </span>
+      <input
+        type="date"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="form-input bg-white"
+      />
+    </label>
   );
 }
 

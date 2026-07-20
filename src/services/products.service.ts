@@ -16,6 +16,7 @@ export type ProductCategory = {
   description: string | null;
   color: string | null;
   is_active: boolean;
+  archived_at: string | null;
 };
 
 export type Supplier = {
@@ -28,6 +29,7 @@ export type Supplier = {
   contact_person: string | null;
   balance: number;
   is_active: boolean;
+  archived_at: string | null;
 };
 
 export type CreateProductPayload = {
@@ -45,6 +47,9 @@ export type CreateProductPayload = {
   minStock?: number;
   requiresPrescription?: boolean;
   description?: string;
+  therapeuticIndications?: string;
+  dosageInstructions?: string;
+  contraindicationsPrecautions?: string;
   batchNumber?: string;
   expiryDate?: string;
   purchasePrice?: number;
@@ -426,7 +431,7 @@ export async function getProductCategories(
     .eq("pharmacy_id", pharmacyId);
 
   if (activeOnly) {
-    query = query.eq("is_active", true);
+    query = query.eq("is_active", true).is("archived_at", null);
   }
 
   const { data, error } = await query
@@ -452,7 +457,7 @@ export async function getSuppliers(
     .eq("pharmacy_id", pharmacyId);
 
   if (activeOnly) {
-    query = query.eq("is_active", true);
+    query = query.eq("is_active", true).is("archived_at", null);
   }
 
   const { data, error } = await query
@@ -554,6 +559,16 @@ export async function createProductWithInitialBatch(
   if (payload.description !== undefined) {
     updatePayload.description = emptyToNull(payload.description);
   }
+
+  updatePayload.therapeutic_indications = emptyToNull(
+    payload.therapeuticIndications
+  );
+  updatePayload.dosage_instructions = emptyToNull(
+    payload.dosageInstructions
+  );
+  updatePayload.contraindications_precautions = emptyToNull(
+    payload.contraindicationsPrecautions
+  );
 
   const { error: updateError } = await supabase
     .from("products")
@@ -757,4 +772,186 @@ export async function removeBatchFromSale(
   }
 
   return data as string;
+}
+
+
+export async function updateProductStatus(payload: {
+  pharmacyId: string;
+  productId: string;
+  status: "active" | "inactive" | "archived";
+}) {
+  const supabase = createSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("products")
+    .update({
+      status: payload.status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", payload.productId)
+    .eq("pharmacy_id", payload.pharmacyId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as Product;
+}
+
+export async function deleteProduct(payload: {
+  pharmacyId: string;
+  productId: string;
+}) {
+  const supabase = createSupabaseClient();
+
+  const relatedTables = [
+    { table: "product_batches", column: "product_id", label: "lot(s)" },
+    { table: "sale_items", column: "product_id", label: "vente(s)" },
+    { table: "stock_movements", column: "product_id", label: "mouvement(s)" },
+    { table: "stock_requests", column: "product_id", label: "demande(s)" },
+  ] as const;
+
+  for (const relation of relatedTables) {
+    const { count, error } = await supabase
+      .from(relation.table)
+      .select("*", { count: "exact", head: true })
+      .eq(relation.column, payload.productId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (Number(count || 0) > 0) {
+      throw new Error(
+        `Suppression impossible : ce produit possède déjà ${relation.label}. Archivez-le plutôt.`
+      );
+    }
+  }
+
+  const { error } = await supabase
+    .from("products")
+    .delete()
+    .eq("id", payload.productId)
+    .eq("pharmacy_id", payload.pharmacyId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function archiveProductCategory(payload: {
+  pharmacyId: string;
+  categoryId: string;
+}) {
+  const supabase = createSupabaseClient();
+
+  const { error } = await supabase
+    .from("product_categories")
+    .update({
+      is_active: false,
+      archived_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", payload.categoryId)
+    .eq("pharmacy_id", payload.pharmacyId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function deleteProductCategory(payload: {
+  pharmacyId: string;
+  categoryId: string;
+}) {
+  const supabase = createSupabaseClient();
+
+  const { count, error: countError } = await supabase
+    .from("products")
+    .select("*", { count: "exact", head: true })
+    .eq("pharmacy_id", payload.pharmacyId)
+    .eq("category_id", payload.categoryId);
+
+  if (countError) {
+    throw new Error(countError.message);
+  }
+
+  if (Number(count || 0) > 0) {
+    throw new Error(
+      "Suppression impossible : cette catégorie est utilisée par un ou plusieurs produits. Archivez-la plutôt."
+    );
+  }
+
+  const { error } = await supabase
+    .from("product_categories")
+    .delete()
+    .eq("id", payload.categoryId)
+    .eq("pharmacy_id", payload.pharmacyId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function archiveSupplier(payload: {
+  pharmacyId: string;
+  supplierId: string;
+}) {
+  const supabase = createSupabaseClient();
+
+  const { error } = await supabase
+    .from("suppliers")
+    .update({
+      is_active: false,
+      archived_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", payload.supplierId)
+    .eq("pharmacy_id", payload.pharmacyId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function deleteSupplier(payload: {
+  pharmacyId: string;
+  supplierId: string;
+}) {
+  const supabase = createSupabaseClient();
+
+  const checks = [
+    { table: "products", column: "default_supplier_id" },
+    { table: "product_batches", column: "supplier_id" },
+    { table: "expenses", column: "supplier_id" },
+  ] as const;
+
+  for (const check of checks) {
+    const { count, error } = await supabase
+      .from(check.table)
+      .select("*", { count: "exact", head: true })
+      .eq(check.column, payload.supplierId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (Number(count || 0) > 0) {
+      throw new Error(
+        "Suppression impossible : ce fournisseur est déjà utilisé. Archivez-le plutôt."
+      );
+    }
+  }
+
+  const { error } = await supabase
+    .from("suppliers")
+    .delete()
+    .eq("id", payload.supplierId)
+    .eq("pharmacy_id", payload.pharmacyId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }

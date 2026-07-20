@@ -59,6 +59,22 @@ export type Product = {
   auto_pricing_enabled: boolean;
   pricing_coefficient: number | null;
   pricing_rule_id: string | null;
+  description: string | null;
+  therapeutic_indications: string | null;
+  dosage_instructions: string | null;
+  contraindications_precautions: string | null;
+
+  category?: {
+    id: string;
+    name: string;
+    color: string | null;
+  } | null;
+
+  supplier?: {
+    id: string;
+    name: string;
+    phone: string | null;
+  } | null;
 };
 
 export type ProductBatch = {
@@ -92,6 +108,15 @@ export type ProductStockSummary = {
   total_quantity: number;
   nearest_expiry_date: string | null;
   stock_status: StockStatus;
+  category_id?: string | null;
+  category_name?: string | null;
+  default_supplier_id?: string | null;
+  supplier_name?: string | null;
+  manufacturer?: string | null;
+  origin_code?: string | null;
+  origin_label?: string | null;
+  vat_applicable?: boolean;
+  vat_rate?: VatRate;
 };
 
 export type ProductPricingContext = {

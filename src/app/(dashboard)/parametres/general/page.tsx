@@ -11,6 +11,7 @@ import {
   ImagePlus,
   RefreshCcw,
   Save,
+  Navigation,
   Settings,
   ShieldCheck,
 } from "lucide-react";
@@ -26,13 +27,24 @@ import {
 
 import type { PharmacyWithRole } from "@/types/pharmacy";
 import type { PharmacySettings } from "@/types/settings";
+import {
+  COUNTRY_OPTIONS,
+  DRC_COUNTRY,
+  DRC_PROVINCES,
+} from "@/lib/location-options";
 
 type PharmacyFormState = {
   name: string;
   address: string;
   city: string;
+  commune: string;
+  district: string;
   province: string;
+  country: string;
+  latitude: string;
+  longitude: string;
   phone: string;
+  whatsapp: string;
   email: string;
   pharmacistName: string;
   exchangeRate: string;
@@ -57,8 +69,14 @@ export default function GeneralSettingsPage() {
     name: "",
     address: "",
     city: "",
-    province: "",
+    commune: "",
+    district: "",
+    province: "Kinshasa",
+    country: DRC_COUNTRY,
+    latitude: "",
+    longitude: "",
     phone: "",
+    whatsapp: "",
     email: "",
     pharmacistName: "",
     exchangeRate: "2800",
@@ -104,8 +122,20 @@ export default function GeneralSettingsPage() {
         name: currentPharmacy.name || "",
         address: currentPharmacy.address || "",
         city: currentPharmacy.city || "",
-        province: currentPharmacy.province || "",
+        commune: currentPharmacy.commune || "",
+        district: currentPharmacy.district || "",
+        province: currentPharmacy.province || "Kinshasa",
+        country: currentPharmacy.country || DRC_COUNTRY,
+        latitude:
+          currentPharmacy.latitude != null
+            ? String(currentPharmacy.latitude)
+            : "",
+        longitude:
+          currentPharmacy.longitude != null
+            ? String(currentPharmacy.longitude)
+            : "",
         phone: currentPharmacy.phone || "",
+        whatsapp: currentPharmacy.whatsapp || "",
         email: currentPharmacy.email || "",
         pharmacistName: currentPharmacy.pharmacist_name || "",
         exchangeRate: String(currentPharmacy.exchange_rate || 2800),
@@ -148,6 +178,33 @@ export default function GeneralSettingsPage() {
     value: SettingsFormState[K]
   ) {
     setSettingsForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function captureLocation() {
+    if (!navigator.geolocation) {
+      setErrorMessage("La géolocalisation n’est pas disponible sur cet appareil.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setPharmacyForm((current) => ({
+          ...current,
+          latitude: position.coords.latitude.toFixed(7),
+          longitude: position.coords.longitude.toFixed(7),
+        }));
+      },
+      () => {
+        setErrorMessage(
+          "Impossible de récupérer la position. Autorisez la géolocalisation dans le navigateur."
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      }
+    );
   }
 
   async function handleLogoUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -198,8 +255,18 @@ export default function GeneralSettingsPage() {
         name: pharmacyForm.name,
         address: pharmacyForm.address,
         city: pharmacyForm.city,
+        commune: pharmacyForm.commune,
+        district: pharmacyForm.district,
         province: pharmacyForm.province,
+        country: pharmacyForm.country,
+        latitude: pharmacyForm.latitude
+          ? Number(pharmacyForm.latitude)
+          : null,
+        longitude: pharmacyForm.longitude
+          ? Number(pharmacyForm.longitude)
+          : null,
         phone: pharmacyForm.phone,
+        whatsapp: pharmacyForm.whatsapp,
         email: pharmacyForm.email,
         pharmacistName: pharmacyForm.pharmacistName,
         exchangeRate,
@@ -382,6 +449,87 @@ export default function GeneralSettingsPage() {
                 />
               </FormField>
 
+              <FormField label="Pays">
+                <select
+                  value={pharmacyForm.country}
+                  onChange={(event) => {
+                    updatePharmacyField("country", event.target.value);
+                    if (event.target.value !== DRC_COUNTRY) {
+                      updatePharmacyField("province", "");
+                    }
+                  }}
+                  className="form-input"
+                  disabled={!canEdit}
+                >
+                  {COUNTRY_OPTIONS.map((country) => (
+                    <option key={country} value={country}>
+                      {country}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+
+              <FormField label="Province / région">
+                {pharmacyForm.country === DRC_COUNTRY ? (
+                  <select
+                    value={pharmacyForm.province}
+                    onChange={(event) =>
+                      updatePharmacyField("province", event.target.value)
+                    }
+                    className="form-input"
+                    disabled={!canEdit}
+                  >
+                    {DRC_PROVINCES.map((province) => (
+                      <option key={province} value={province}>
+                        {province}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    value={pharmacyForm.province}
+                    onChange={(event) =>
+                      updatePharmacyField("province", event.target.value)
+                    }
+                    className="form-input"
+                    disabled={!canEdit}
+                  />
+                )}
+              </FormField>
+
+              <FormField label="Ville">
+                <input
+                  value={pharmacyForm.city}
+                  onChange={(event) =>
+                    updatePharmacyField("city", event.target.value)
+                  }
+                  className="form-input"
+                  disabled={!canEdit}
+                />
+              </FormField>
+
+              <FormField label="Commune">
+                <input
+                  value={pharmacyForm.commune}
+                  onChange={(event) =>
+                    updatePharmacyField("commune", event.target.value)
+                  }
+                  className="form-input"
+                  disabled={!canEdit}
+                />
+              </FormField>
+
+              <FormField label="Quartier / district">
+                <input
+                  value={pharmacyForm.district}
+                  onChange={(event) =>
+                    updatePharmacyField("district", event.target.value)
+                  }
+                  className="form-input"
+                  disabled={!canEdit}
+                />
+              </FormField>
+
               <FormField label="Adresse">
                 <input
                   value={pharmacyForm.address}
@@ -393,30 +541,57 @@ export default function GeneralSettingsPage() {
                 />
               </FormField>
 
-              <FormField label="Ville">
+              <FormField label="Latitude">
                 <input
-                  value={pharmacyForm.city}
-                  onChange={(event) => updatePharmacyField("city", event.target.value)}
-                  className="form-input"
-                  disabled={!canEdit}
-                />
-              </FormField>
-
-              <FormField label="Province">
-                <input
-                  value={pharmacyForm.province}
+                  type="number"
+                  step="0.0000001"
+                  value={pharmacyForm.latitude}
                   onChange={(event) =>
-                    updatePharmacyField("province", event.target.value)
+                    updatePharmacyField("latitude", event.target.value)
                   }
                   className="form-input"
                   disabled={!canEdit}
                 />
               </FormField>
 
+              <FormField label="Longitude">
+                <input
+                  type="number"
+                  step="0.0000001"
+                  value={pharmacyForm.longitude}
+                  onChange={(event) =>
+                    updatePharmacyField("longitude", event.target.value)
+                  }
+                  className="form-input"
+                  disabled={!canEdit}
+                />
+              </FormField>
+
+              <button
+                type="button"
+                onClick={captureLocation}
+                disabled={!canEdit}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 disabled:opacity-50 md:col-span-2"
+              >
+                <Navigation className="h-5 w-5" />
+                Capturer ma position
+              </button>
+
               <FormField label="Téléphone">
                 <input
                   value={pharmacyForm.phone}
                   onChange={(event) => updatePharmacyField("phone", event.target.value)}
+                  className="form-input"
+                  disabled={!canEdit}
+                />
+              </FormField>
+
+              <FormField label="WhatsApp">
+                <input
+                  value={pharmacyForm.whatsapp}
+                  onChange={(event) =>
+                    updatePharmacyField("whatsapp", event.target.value)
+                  }
                   className="form-input"
                   disabled={!canEdit}
                 />
@@ -432,7 +607,7 @@ export default function GeneralSettingsPage() {
                 />
               </FormField>
 
-              <FormField label="Taux USD → CDF">
+              <FormField label="Taux de change : 1 USD = combien de CDF ?">
                 <input
                   type="number"
                   min="1"
@@ -445,6 +620,29 @@ export default function GeneralSettingsPage() {
                   disabled={!canEdit}
                 />
               </FormField>
+            </div>
+
+            <div className="mt-4 rounded-3xl border border-blue-100 bg-blue-50 p-4">
+              <p className="text-sm font-black text-blue-950">
+                Référence de conversion
+              </p>
+              <p className="mt-2 text-sm font-semibold text-blue-800">
+                1 USD = {Number(pharmacyForm.exchangeRate || 0).toLocaleString("fr-CD")} CDF
+              </p>
+              <p className="mt-1 text-xs font-semibold text-blue-700">
+                1 CDF ={" "}
+                {Number(pharmacyForm.exchangeRate || 0) > 0
+                  ? (1 / Number(pharmacyForm.exchangeRate)).toLocaleString("fr-CD", {
+                      minimumFractionDigits: 6,
+                      maximumFractionDigits: 6,
+                    })
+                  : "0,000000"}{" "}
+                USD
+              </p>
+              <p className="mt-2 text-xs leading-5 text-blue-700">
+                Les prix des produits restent enregistrés en CDF. Lors d’un paiement en USD,
+                seule l’équivalence finale du total sera calculée.
+              </p>
             </div>
 
             <div className="mt-4">

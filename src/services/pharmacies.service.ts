@@ -33,8 +33,14 @@ export type CreatePharmacyPayload = {
   logoUrl?: string;
   address?: string;
   city?: string;
+  commune?: string;
+  district?: string;
   province?: string;
+  country?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   phone?: string;
+  whatsapp?: string;
   email?: string;
   pharmacistName?: string;
   exchangeRate?: number;
@@ -168,15 +174,43 @@ export async function createPharmacy(payload: CreatePharmacyPayload) {
     throw new Error(error.message);
   }
 
-  return data as string;
+  const pharmacyId = String(data);
+
+  const { error: locationError } = await supabase
+    .from("pharmacies")
+    .update({
+      country: payload.country?.trim() || "République démocratique du Congo",
+      province: emptyToNull(payload.province),
+      city: emptyToNull(payload.city),
+      commune: emptyToNull(payload.commune),
+      district: emptyToNull(payload.district),
+      address: emptyToNull(payload.address),
+      latitude: payload.latitude ?? null,
+      longitude: payload.longitude ?? null,
+      whatsapp: emptyToNull(payload.whatsapp),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", pharmacyId);
+
+  if (locationError) {
+    throw new Error(locationError.message);
+  }
+
+  return pharmacyId;
 }
 export type UpdatePharmacyPayload = {
   pharmacyId: string;
   name: string;
   address?: string;
   city?: string;
+  commune?: string;
+  district?: string;
   province?: string;
+  country?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   phone?: string;
+  whatsapp?: string;
   email?: string;
   pharmacistName?: string;
   exchangeRate: number;
@@ -203,8 +237,14 @@ export async function updatePharmacy(payload: UpdatePharmacyPayload) {
       name: payload.name.trim(),
       address: emptyToNull(payload.address),
       city: emptyToNull(payload.city),
+      commune: emptyToNull(payload.commune),
+      district: emptyToNull(payload.district),
       province: emptyToNull(payload.province),
+      country: payload.country?.trim() || "République démocratique du Congo",
+      latitude: payload.latitude ?? null,
+      longitude: payload.longitude ?? null,
       phone: emptyToNull(payload.phone),
+      whatsapp: emptyToNull(payload.whatsapp),
       email: emptyToNull(payload.email),
       pharmacist_name: emptyToNull(payload.pharmacistName),
       exchange_rate: payload.exchangeRate,

@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import type { PharmacyWithRole } from "@/types/pharmacy";
 import type { PaymentMethod, SaleItem, SaleWithItems } from "@/types/sale";
 
@@ -14,16 +16,30 @@ export default function InvoicePrintTicket({
   invoice,
   subtotal,
 }: InvoicePrintTicketProps) {
+  const logoUrl = getPharmacyLogoUrl(pharmacy);
+  const totals = getInvoiceVatTotals(invoice);
+
   return (
     <section className="print-ticket hidden print:block">
       <div className="ticket-center">
-        <h1 className="ticket-title">{pharmacy.name}</h1>
+        {logoUrl && (
+          <div className="ticket-logo-wrapper">
+            <Image
+              src={logoUrl}
+              alt={`Logo ${pharmacy.name}`}
+              width={180}
+              height={90}
+              className="ticket-logo"
+              unoptimized
+            />
+          </div>
+        )}
 
+        <h1 className="ticket-title">{pharmacy.name}</h1>
         {pharmacy.address && <p>{pharmacy.address}</p>}
         {pharmacy.city && <p>{pharmacy.city}</p>}
         {pharmacy.phone && <p>Tél : {pharmacy.phone}</p>}
-
-        <p className="ticket-small">Mpangi_Pharma</p>
+        <p className="ticket-small">M Pharma</p>
       </div>
 
       <div className="ticket-separator" />
@@ -51,22 +67,28 @@ export default function InvoicePrintTicket({
       <div className="ticket-separator" />
 
       <div className="ticket-items">
-        {invoice.items.map((item) => (
-          <div key={getItemKey(item)} className="ticket-item">
+        {invoice.items.map((item, index) => (
+          <div key={`${getItemKey(item)}-${index}`} className="ticket-item">
             <p className="ticket-product">{getItemName(item)}</p>
-
             <p className="ticket-detail">{getItemDetails(item)}</p>
 
             <div className="ticket-row">
               <span>
                 {getItemQuantity(item)} x{" "}
-                {formatMoney(getItemUnitPrice(item), invoice.currency)}
+                {formatMoney(getItemUnitPriceTtc(item), invoice.currency)}
               </span>
 
               <strong>
-                {formatMoney(getItemTotal(item), invoice.currency)}
+                {formatMoney(getItemLineTotalTtc(item), invoice.currency)}
               </strong>
             </div>
+
+            {getItemVatRate(item) > 0 && (
+              <div className="ticket-row ticket-tax-line">
+                <span>TVA {getItemVatRate(item)} %</span>
+                <span>{formatMoney(getItemLineVat(item), invoice.currency)}</span>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -74,7 +96,7 @@ export default function InvoicePrintTicket({
       <div className="ticket-separator" />
 
       <div className="ticket-row">
-        <span>Sous-total</span>
+        <span>Sous-total TTC</span>
         <span>{formatMoney(subtotal, invoice.currency)}</span>
       </div>
 
@@ -83,11 +105,33 @@ export default function InvoicePrintTicket({
         <span>{formatMoney(getInvoiceDiscount(invoice), invoice.currency)}</span>
       </div>
 
+      <div className="ticket-row">
+        <span>Sous-total HT</span>
+        <span>{formatMoney(totals.subtotalHt, invoice.currency)}</span>
+      </div>
+
+      {totals.vat5 > 0 && (
+        <div className="ticket-row">
+          <span>TVA 5 %</span>
+          <span>{formatMoney(totals.vat5, invoice.currency)}</span>
+        </div>
+      )}
+
+      {totals.vat16 > 0 && (
+        <div className="ticket-row">
+          <span>TVA 16 %</span>
+          <span>{formatMoney(totals.vat16, invoice.currency)}</span>
+        </div>
+      )}
+
+      <div className="ticket-row">
+        <span>Total TVA</span>
+        <span>{formatMoney(totals.vatTotal, invoice.currency)}</span>
+      </div>
+
       <div className="ticket-row ticket-total">
-        <span>Total</span>
-        <strong>
-          {formatMoney(Number(invoice.total_amount || 0), invoice.currency)}
-        </strong>
+        <span>Total TTC</span>
+        <strong>{formatMoney(totals.totalTtc, invoice.currency)}</strong>
       </div>
 
       <div className="ticket-separator" />
@@ -97,64 +141,138 @@ export default function InvoicePrintTicket({
         <p>Gardez ce ticket pour toute réclamation.</p>
         <p className="ticket-small">Aksantic Technology © 2026</p>
       </div>
+
+      <style jsx>{`
+        .ticket-logo-wrapper {
+          display: flex;
+          justify-content: center;
+          margin-bottom: 6px;
+        }
+
+        .ticket-logo {
+          width: auto;
+          max-width: 120px;
+          max-height: 65px;
+          object-fit: contain;
+        }
+
+        .ticket-tax-line {
+          font-size: 10px;
+          opacity: 0.85;
+        }
+      `}</style>
     </section>
   );
 }
 
-function getItemRecord(item: SaleItem) {
-  return item as unknown as Record<string, any>;
+function asRecord(value: unknown) {
+  return value as Record<string, any>;
+}
+
+function getPharmacyLogoUrl(pharmacy: PharmacyWithRole) {
+  const row = asRecord(pharmacy);
+
+  return String(
+    row.logo_url ??
+      row.logoUrl ??
+      row.logo ??
+      row.pharmacy_logo_url ??
+      ""
+  ).trim();
 }
 
 function getItemKey(item: SaleItem) {
-  const row = getItemRecord(item);
-
-  return String(row.id ?? row.product_id ?? row.productId ?? crypto.randomUUID());
+  const row = asRecord(item);
+  return String(row.id ?? row.product_id ?? row.product_name ?? "item");
 }
 
 function getItemName(item: SaleItem) {
-  const row = getItemRecord(item);
-
+  const row = asRecord(item);
   return String(row.product_name ?? row.name ?? row.product?.name ?? "Produit");
 }
 
 function getItemDetails(item: SaleItem) {
-  const row = getItemRecord(item);
+  const row = asRecord(item);
 
-  return [
-    row.generic_name,
-    row.dosage,
-    row.form,
-    row.unit,
-    row.batch_number ? `Lot ${row.batch_number}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ") || "-";
+  return (
+    [
+      row.generic_name,
+      row.dosage,
+      row.form,
+      row.unit,
+      row.batch_number ? `Lot ${row.batch_number}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || "-"
+  );
 }
 
 function getItemQuantity(item: SaleItem) {
-  const row = getItemRecord(item);
-
-  return Number(row.quantity ?? 0);
+  return Number(asRecord(item).quantity ?? 0);
 }
 
-function getItemUnitPrice(item: SaleItem) {
-  const row = getItemRecord(item);
-
-  return Number(row.unit_price ?? row.selling_price ?? row.price ?? 0);
+function getItemVatRate(item: SaleItem) {
+  return Number(asRecord(item).vat_rate ?? 0);
 }
 
-function getItemTotal(item: SaleItem) {
-  const row = getItemRecord(item);
+function getItemUnitPriceHt(item: SaleItem) {
+  const row = asRecord(item);
 
-  const savedTotal = Number(row.total_price ?? row.line_total ?? 0);
+  return Number(
+    row.unit_price_ht ??
+      row.unit_price ??
+      row.selling_price ??
+      row.price ??
+      0
+  );
+}
 
-  if (savedTotal > 0) return savedTotal;
+function getItemUnitPriceTtc(item: SaleItem) {
+  const row = asRecord(item);
 
-  return getItemQuantity(item) * getItemUnitPrice(item);
+  return Number(
+    row.unit_price_ttc ??
+      row.unit_price ??
+      row.selling_price ??
+      row.price ??
+      0
+  );
+}
+
+function getItemLineTotalHt(item: SaleItem) {
+  const row = asRecord(item);
+  const saved = Number(row.line_total_ht ?? 0);
+
+  return saved > 0
+    ? saved
+    : getItemQuantity(item) * getItemUnitPriceHt(item);
+}
+
+function getItemLineTotalTtc(item: SaleItem) {
+  const row = asRecord(item);
+  const saved = Number(
+    row.line_total_ttc ??
+      row.total_price ??
+      row.line_total ??
+      0
+  );
+
+  return saved > 0
+    ? saved
+    : getItemQuantity(item) * getItemUnitPriceTtc(item);
+}
+
+function getItemLineVat(item: SaleItem) {
+  const row = asRecord(item);
+  const saved = Number(row.line_total_vat ?? row.vat_amount ?? 0);
+
+  return saved > 0
+    ? saved
+    : Math.max(getItemLineTotalTtc(item) - getItemLineTotalHt(item), 0);
 }
 
 function getInvoiceDiscount(invoice: SaleWithItems) {
-  const row = invoice as unknown as Record<string, any>;
+  const row = asRecord(invoice);
 
   return Number(
     row.discount_amount ??
@@ -163,6 +281,38 @@ function getInvoiceDiscount(invoice: SaleWithItems) {
       row.discountAmount ??
       0
   );
+}
+
+function getInvoiceVatTotals(invoice: SaleWithItems) {
+  const row = asRecord(invoice);
+
+  const vat5 = invoice.items
+    .filter((item) => getItemVatRate(item) === 5)
+    .reduce((sum, item) => sum + getItemLineVat(item), 0);
+
+  const vat16 = invoice.items
+    .filter((item) => getItemVatRate(item) === 16)
+    .reduce((sum, item) => sum + getItemLineVat(item), 0);
+
+  const subtotalHt =
+    Number(row.subtotal_ht ?? 0) ||
+    invoice.items.reduce((sum, item) => sum + getItemLineTotalHt(item), 0);
+
+  const vatTotal =
+    Number(row.vat_total ?? 0) ||
+    invoice.items.reduce((sum, item) => sum + getItemLineVat(item), 0);
+
+  const totalTtc =
+    Number(row.total_ttc ?? row.total_amount ?? 0) ||
+    subtotalHt + vatTotal;
+
+  return {
+    subtotalHt,
+    vat5,
+    vat16,
+    vatTotal,
+    totalTtc,
+  };
 }
 
 function formatPaymentMethod(method: PaymentMethod) {
@@ -179,5 +329,7 @@ function formatPaymentMethod(method: PaymentMethod) {
 }
 
 function formatMoney(value: number, currency: string) {
-  return `${Number(value || 0).toLocaleString("fr-CD")} ${currency}`;
+  return `${Number(value || 0).toLocaleString("fr-CD", {
+    maximumFractionDigits: 2,
+  })} ${currency}`;
 }

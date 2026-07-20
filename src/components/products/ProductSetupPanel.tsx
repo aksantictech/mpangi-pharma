@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  Archive,
   Building2,
   Check,
   Layers3,
@@ -9,12 +10,17 @@ import {
   Plus,
   RefreshCcw,
   Save,
+  Trash2,
   X,
 } from "lucide-react";
 
 import {
+  archiveProductCategory,
+  archiveSupplier,
   createProductCategory,
   createSupplier,
+  deleteProductCategory,
+  deleteSupplier,
   getProductCategories,
   getSuppliers,
   updateProductCategory,
@@ -94,8 +100,8 @@ export default function ProductSetupPanel({
 
     try {
       const [categoriesData, suppliersData] = await Promise.all([
-        getProductCategories(pharmacyId),
-        getSuppliers(pharmacyId),
+        getProductCategories(pharmacyId, false),
+        getSuppliers(pharmacyId, false),
       ]);
 
       setCategories(categoriesData);
@@ -339,6 +345,122 @@ export default function ProductSetupPanel({
     }
   }
 
+  async function handleArchiveCategory(category: ProductCategory) {
+    const confirmed = window.confirm(
+      `Archiver la catégorie « ${category.name} » ? Elle ne sera plus proposée lors de la création d’un produit.`
+    );
+
+    if (!confirmed) return;
+
+    setChangingId(category.id);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await archiveProductCategory({
+        pharmacyId,
+        categoryId: category.id,
+      });
+
+      await refreshAfterChange("Catégorie archivée.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’archiver la catégorie."
+      );
+    } finally {
+      setChangingId(null);
+    }
+  }
+
+  async function handleDeleteCategory(category: ProductCategory) {
+    const confirmed = window.confirm(
+      `Supprimer définitivement la catégorie « ${category.name} » ? Cette action est irréversible.`
+    );
+
+    if (!confirmed) return;
+
+    setChangingId(category.id);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await deleteProductCategory({
+        pharmacyId,
+        categoryId: category.id,
+      });
+
+      await refreshAfterChange("Catégorie supprimée.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible de supprimer la catégorie."
+      );
+    } finally {
+      setChangingId(null);
+    }
+  }
+
+  async function handleArchiveSupplier(supplier: Supplier) {
+    const confirmed = window.confirm(
+      `Archiver le fournisseur « ${supplier.name} » ?`
+    );
+
+    if (!confirmed) return;
+
+    setChangingId(supplier.id);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await archiveSupplier({
+        pharmacyId,
+        supplierId: supplier.id,
+      });
+
+      await refreshAfterChange("Fournisseur archivé.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’archiver le fournisseur."
+      );
+    } finally {
+      setChangingId(null);
+    }
+  }
+
+  async function handleDeleteSupplier(supplier: Supplier) {
+    const confirmed = window.confirm(
+      `Supprimer définitivement le fournisseur « ${supplier.name} » ? Cette action est irréversible.`
+    );
+
+    if (!confirmed) return;
+
+    setChangingId(supplier.id);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await deleteSupplier({
+        pharmacyId,
+        supplierId: supplier.id,
+      });
+
+      await refreshAfterChange("Fournisseur supprimé.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible de supprimer le fournisseur."
+      );
+    } finally {
+      setChangingId(null);
+    }
+  }
+
   return (
     <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-center">
@@ -457,32 +579,52 @@ export default function ProductSetupPanel({
                           : "bg-slate-200 text-slate-600"
                       }`}
                     >
-                      {category.is_active ? "Active" : "Inactive"}
+                      {category.archived_at
+                        ? "Archivée"
+                        : category.is_active
+                          ? "Active"
+                          : "Inactive"}
                     </span>
                   </div>
 
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
+                  <div className="mt-3 flex flex-wrap justify-end gap-2">
+                    <IconActionButton
+                      title="Modifier"
                       onClick={() => startEditCategory(category)}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700"
-                    >
-                      <Pencil className="h-4 w-4" />
-                      Modifier
-                    </button>
+                      icon={<Pencil className="h-4 w-4" />}
+                    />
 
-                    <button
-                      type="button"
-                      onClick={() => void toggleCategory(category)}
+                    {!category.archived_at && (
+                      <IconActionButton
+                        title={category.is_active ? "Désactiver" : "Réactiver"}
+                        onClick={() => void toggleCategory(category)}
+                        disabled={changingId === category.id}
+                        icon={
+                          category.is_active ? (
+                            <X className="h-4 w-4" />
+                          ) : (
+                            <Check className="h-4 w-4" />
+                          )
+                        }
+                      />
+                    )}
+
+                    {!category.archived_at && (
+                      <IconActionButton
+                        title="Archiver"
+                        onClick={() => void handleArchiveCategory(category)}
+                        disabled={changingId === category.id}
+                        icon={<Archive className="h-4 w-4" />}
+                      />
+                    )}
+
+                    <IconActionButton
+                      title="Supprimer"
+                      tone="danger"
+                      onClick={() => void handleDeleteCategory(category)}
                       disabled={changingId === category.id}
-                      className={`rounded-xl px-3 py-2 text-xs font-black disabled:opacity-50 ${
-                        category.is_active
-                          ? "bg-red-50 text-red-700"
-                          : "bg-emerald-50 text-emerald-700"
-                      }`}
-                    >
-                      {category.is_active ? "Désactiver" : "Réactiver"}
-                    </button>
+                      icon={<Trash2 className="h-4 w-4" />}
+                    />
                   </div>
                 </div>
               ))
@@ -580,32 +722,52 @@ export default function ProductSetupPanel({
                           : "bg-slate-200 text-slate-600"
                       }`}
                     >
-                      {supplier.is_active ? "Actif" : "Inactif"}
+                      {supplier.archived_at
+                        ? "Archivé"
+                        : supplier.is_active
+                          ? "Actif"
+                          : "Inactif"}
                     </span>
                   </div>
 
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
+                  <div className="mt-3 flex flex-wrap justify-end gap-2">
+                    <IconActionButton
+                      title="Modifier"
                       onClick={() => startEditSupplier(supplier)}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700"
-                    >
-                      <Pencil className="h-4 w-4" />
-                      Modifier
-                    </button>
+                      icon={<Pencil className="h-4 w-4" />}
+                    />
 
-                    <button
-                      type="button"
-                      onClick={() => void toggleSupplier(supplier)}
+                    {!supplier.archived_at && (
+                      <IconActionButton
+                        title={supplier.is_active ? "Désactiver" : "Réactiver"}
+                        onClick={() => void toggleSupplier(supplier)}
+                        disabled={changingId === supplier.id}
+                        icon={
+                          supplier.is_active ? (
+                            <X className="h-4 w-4" />
+                          ) : (
+                            <Check className="h-4 w-4" />
+                          )
+                        }
+                      />
+                    )}
+
+                    {!supplier.archived_at && (
+                      <IconActionButton
+                        title="Archiver"
+                        onClick={() => void handleArchiveSupplier(supplier)}
+                        disabled={changingId === supplier.id}
+                        icon={<Archive className="h-4 w-4" />}
+                      />
+                    )}
+
+                    <IconActionButton
+                      title="Supprimer"
+                      tone="danger"
+                      onClick={() => void handleDeleteSupplier(supplier)}
                       disabled={changingId === supplier.id}
-                      className={`rounded-xl px-3 py-2 text-xs font-black disabled:opacity-50 ${
-                        supplier.is_active
-                          ? "bg-red-50 text-red-700"
-                          : "bg-emerald-50 text-emerald-700"
-                      }`}
-                    >
-                      {supplier.is_active ? "Désactiver" : "Réactiver"}
-                    </button>
+                      icon={<Trash2 className="h-4 w-4" />}
+                    />
                   </div>
                 </div>
               ))
@@ -727,6 +889,37 @@ export default function ProductSetupPanel({
         </Modal>
       )}
     </section>
+  );
+}
+
+function IconActionButton({
+  title,
+  icon,
+  onClick,
+  disabled = false,
+  tone = "default",
+}: {
+  title: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  tone?: "default" | "danger";
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border disabled:opacity-50 ${
+        tone === "danger"
+          ? "border-red-100 bg-red-50 text-red-700"
+          : "border-slate-200 bg-white text-slate-700"
+      }`}
+    >
+      {icon}
+    </button>
   );
 }
 

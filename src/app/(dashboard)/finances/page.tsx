@@ -112,6 +112,7 @@ export default function FinancesPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isPrintingReport, setIsPrintingReport] = useState(false);
   const [isSavingExpense, setIsSavingExpense] = useState(false);
 
   const [expenseForm, setExpenseForm] =
@@ -395,6 +396,11 @@ export default function FinancesPage() {
     );
   }
 
+  function handlePrintReport() {
+    setIsPrintingReport(true);
+    window.setTimeout(() => window.print(), 200);
+  }
+
   const profitTone =
     summary.estimatedProfit >= 0
       ? "text-emerald-700 bg-emerald-50 border-emerald-100"
@@ -458,7 +464,21 @@ export default function FinancesPage() {
                 <RefreshCcw className="h-5 w-5" />
                 Actualiser
               </button>
-
+<button
+  type="button"
+  onClick={handlePrintReport}
+  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 md:self-end"
+>
+  <Printer className="h-5 w-5" />
+  {isPrintingReport ? "Préparation..." : "Rapport PDF"}
+</button>
+<Link
+  href="/finances/tva"
+  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 hover:bg-blue-100 md:self-end"
+>
+  <FileText className="h-5 w-5" />
+  Rapport TVA
+</Link>
               <button
                 type="button"
                 onClick={() => setIsDialogOpen(true)}
@@ -1017,6 +1037,84 @@ export default function FinancesPage() {
           </div>
         )}
       </div>
+
+      <section className="finance-print-report hidden print:block">
+        <div className="border-b border-black pb-4 text-center">
+          <h1 className="text-2xl font-black">{pharmacy.name}</h1>
+          <h2 className="mt-1 text-xl font-black">Rapport financier</h2>
+          <p className="mt-1 text-sm">Période : {formatDate(startDate)} au {formatDate(endDate)}</p>
+        </div>
+
+        <div className="mt-5 grid grid-cols-3 gap-3">
+          <PrintMetric label="Recettes" value={formatMoney(summary.totalSales, "CDF")} />
+          <PrintMetric label="Coût produits" value={formatMoney(summary.totalCost, "CDF")} />
+          <PrintMetric label="Marge brute" value={formatMoney(summary.grossMargin, "CDF")} />
+          <PrintMetric label="Dépenses" value={formatMoney(summary.totalExpenses, "CDF")} />
+          <PrintMetric label="Résultat estimé" value={formatMoney(summary.estimatedProfit, "CDF")} />
+          <PrintMetric label="Nombre de ventes" value={summary.salesCount.toString()} />
+        </div>
+
+        <h3 className="mt-6 text-base font-black">Ventes</h3>
+        <table className="mt-2 w-full border-collapse text-xs">
+          <thead>
+            <tr>
+              <th className="border p-2 text-left">Date</th>
+              <th className="border p-2 text-left">Facture</th>
+              <th className="border p-2 text-left">Client</th>
+              <th className="border p-2 text-left">Paiement</th>
+              <th className="border p-2 text-right">Total</th>
+              <th className="border p-2 text-right">Marge</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredSales.map((sale) => (
+              <tr key={`finance-print-sale-${sale.id}`}>
+                <td className="border p-2">{new Date(sale.created_at).toLocaleString("fr-CD")}</td>
+                <td className="border p-2">{sale.invoice_number}</td>
+                <td className="border p-2">{sale.customer_name || "Comptoir"}</td>
+                <td className="border p-2">{formatPaymentMethod(sale.payment_method)}</td>
+                <td className="border p-2 text-right">{formatMoney(Number(sale.total_amount || 0), sale.currency)}</td>
+                <td className="border p-2 text-right">{formatMoney(Number(sale.gross_margin || 0), sale.currency)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <h3 className="mt-6 text-base font-black">Dépenses</h3>
+        <table className="mt-2 w-full border-collapse text-xs">
+          <thead>
+            <tr>
+              <th className="border p-2 text-left">Date</th>
+              <th className="border p-2 text-left">Catégorie</th>
+              <th className="border p-2 text-left">Description</th>
+              <th className="border p-2 text-left">Paiement</th>
+              <th className="border p-2 text-right">Montant</th>
+            </tr>
+          </thead>
+          <tbody>
+            {expenses.map((expense) => (
+              <tr key={`finance-print-expense-${expense.id}`}>
+                <td className="border p-2">{formatDate(expense.expense_date)}</td>
+                <td className="border p-2">{expense.category}</td>
+                <td className="border p-2">{expense.description || "-"}</td>
+                <td className="border p-2">{formatPaymentMethod(expense.payment_method)}</td>
+                <td className="border p-2 text-right">{formatMoney(Number(expense.amount || 0), expense.currency)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <p className="mt-6 text-right text-xs">Imprimé le {new Date().toLocaleString("fr-CD")}</p>
+      </section>
+
+      <style jsx global>{`
+        @media print {
+          @page { size: A4 landscape; margin: 10mm; }
+          body * { visibility: hidden !important; }
+          .finance-print-report, .finance-print-report * { visibility: visible !important; }
+          .finance-print-report { display: block !important; position: absolute !important; inset: 0 !important; background: white !important; color: black !important; }
+        }
+      `}</style>
     </main>
   );
 }
@@ -1361,4 +1459,14 @@ function toCdf(value: number, currency: string, exchangeRate: number) {
   }
 
   return value;
+}
+
+
+function PrintMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border border-black p-3">
+      <p className="text-xs">{label}</p>
+      <p className="mt-1 text-lg font-black">{value}</p>
+    </div>
+  );
 }
