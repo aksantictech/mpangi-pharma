@@ -16,13 +16,19 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mpangi_Pharma",
+  title: "M Pharma",
   description:
     "Application de gestion multi-pharmacie pour produits, stock, ventes et factures.",
-  applicationName: "Mpangi_Pharma",
+  applicationName: "M Pharma",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icons/m-pharma.svg",
+    shortcut: "/icons/m-pharma.svg",
+    apple: "/icons/m-pharma.svg",
+  },
   appleWebApp: {
     capable: true,
-    title: "Mpangi_Pharma",
+    title: "M Pharma",
     statusBarStyle: "default",
   },
   formatDetection: {
@@ -31,7 +37,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1d4ed8",
+  themeColor: "#0b3b8f",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
