@@ -1,7 +1,5 @@
 "use client";
 
-import Image from "next/image";
-
 import type { PharmacyWithRole } from "@/types/pharmacy";
 import type { PaymentMethod, SaleItem, SaleWithItems } from "@/types/sale";
 
@@ -22,24 +20,27 @@ export default function InvoicePrintTicket({
   return (
     <section className="print-ticket hidden print:block">
       <div className="ticket-center">
-        {logoUrl && (
+        {logoUrl ? (
           <div className="ticket-logo-wrapper">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={logoUrl}
               alt={`Logo ${pharmacy.name}`}
-              width={180}
-              height={90}
               className="ticket-logo"
-              unoptimized
             />
           </div>
-        )}
+        ) : null}
 
         <h1 className="ticket-title">{pharmacy.name}</h1>
-        {pharmacy.address && <p>{pharmacy.address}</p>}
-        {pharmacy.city && <p>{pharmacy.city}</p>}
-        {pharmacy.phone && <p>Tél : {pharmacy.phone}</p>}
-        <p className="ticket-small">M Pharma</p>
+
+        {[pharmacy.address, pharmacy.commune, pharmacy.city]
+          .filter(Boolean)
+          .map((line) => (
+            <p key={String(line)}>{line}</p>
+          ))}
+
+        {pharmacy.phone ? <p>Tél : {pharmacy.phone}</p> : null}
+        <p className="ticket-small">Mpangi Pharma</p>
       </div>
 
       <div className="ticket-separator" />
@@ -75,20 +76,31 @@ export default function InvoicePrintTicket({
             <div className="ticket-row">
               <span>
                 {getItemQuantity(item)} x{" "}
-                {formatMoney(getItemUnitPriceTtc(item), invoice.currency)}
+                {formatMoney(
+                  getItemUnitPriceTtc(item),
+                  invoice.currency
+                )}
               </span>
 
               <strong>
-                {formatMoney(getItemLineTotalTtc(item), invoice.currency)}
+                {formatMoney(
+                  getItemLineTotalTtc(item),
+                  invoice.currency
+                )}
               </strong>
             </div>
 
-            {getItemVatRate(item) > 0 && (
+            {getItemVatRate(item) > 0 ? (
               <div className="ticket-row ticket-tax-line">
                 <span>TVA {getItemVatRate(item)} %</span>
-                <span>{formatMoney(getItemLineVat(item), invoice.currency)}</span>
+                <span>
+                  {formatMoney(
+                    getItemLineVat(item),
+                    invoice.currency
+                  )}
+                </span>
               </div>
-            )}
+            ) : null}
           </div>
         ))}
       </div>
@@ -102,63 +114,149 @@ export default function InvoicePrintTicket({
 
       <div className="ticket-row">
         <span>Remise</span>
-        <span>{formatMoney(getInvoiceDiscount(invoice), invoice.currency)}</span>
+        <span>
+          {formatMoney(
+            getInvoiceDiscount(invoice),
+            invoice.currency
+          )}
+        </span>
       </div>
 
       <div className="ticket-row">
         <span>Sous-total HT</span>
-        <span>{formatMoney(totals.subtotalHt, invoice.currency)}</span>
+        <span>
+          {formatMoney(totals.subtotalHt, invoice.currency)}
+        </span>
       </div>
 
-      {totals.vat5 > 0 && (
+      {totals.vat5 > 0 ? (
         <div className="ticket-row">
           <span>TVA 5 %</span>
-          <span>{formatMoney(totals.vat5, invoice.currency)}</span>
+          <span>
+            {formatMoney(totals.vat5, invoice.currency)}
+          </span>
         </div>
-      )}
+      ) : null}
 
-      {totals.vat16 > 0 && (
+      {totals.vat16 > 0 ? (
         <div className="ticket-row">
           <span>TVA 16 %</span>
-          <span>{formatMoney(totals.vat16, invoice.currency)}</span>
+          <span>
+            {formatMoney(totals.vat16, invoice.currency)}
+          </span>
         </div>
-      )}
+      ) : null}
 
       <div className="ticket-row">
         <span>Total TVA</span>
-        <span>{formatMoney(totals.vatTotal, invoice.currency)}</span>
+        <span>
+          {formatMoney(totals.vatTotal, invoice.currency)}
+        </span>
       </div>
 
       <div className="ticket-row ticket-total">
         <span>Total TTC</span>
-        <strong>{formatMoney(totals.totalTtc, invoice.currency)}</strong>
+        <strong>
+          {formatMoney(totals.totalTtc, invoice.currency)}
+        </strong>
       </div>
 
       <div className="ticket-separator" />
 
       <div className="ticket-center ticket-footer">
-        <p>Merci pour votre achat.</p>
+        <p>
+          {pharmacy.invoice_footer ||
+            "Merci pour votre achat."}
+        </p>
         <p>Gardez ce ticket pour toute réclamation.</p>
-        <p className="ticket-small">Aksantic Technology © 2026</p>
+        <p className="ticket-small">
+          Aksantic Technology © 2026
+        </p>
       </div>
 
       <style jsx>{`
+        .print-ticket {
+          color: #000;
+          background: #fff;
+        }
+
+        .ticket-center {
+          text-align: center;
+        }
+
         .ticket-logo-wrapper {
           display: flex;
           justify-content: center;
-          margin-bottom: 6px;
+          margin-bottom: 5px;
         }
 
         .ticket-logo {
+          display: block;
           width: auto;
-          max-width: 120px;
-          max-height: 65px;
+          max-width: 26mm;
+          max-height: 16mm;
           object-fit: contain;
         }
 
+        .ticket-title {
+          margin: 0 0 3px;
+          font-size: 13pt;
+          font-weight: 800;
+          line-height: 1.1;
+        }
+
+        .ticket-center p,
+        .ticket-item p {
+          margin: 2px 0;
+        }
+
+        .ticket-small {
+          font-size: 8pt;
+        }
+
+        .ticket-separator {
+          margin: 7px 0;
+          border-top: 1px dashed #000;
+        }
+
+        .ticket-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          align-items: flex-start;
+        }
+
+        .ticket-row > :last-child {
+          text-align: right;
+        }
+
+        .ticket-item {
+          margin-bottom: 8px;
+          break-inside: avoid;
+        }
+
+        .ticket-product {
+          font-weight: 800;
+        }
+
+        .ticket-detail {
+          font-size: 8.5pt;
+        }
+
         .ticket-tax-line {
-          font-size: 10px;
-          opacity: 0.85;
+          font-size: 8.5pt;
+        }
+
+        .ticket-total {
+          margin-top: 5px;
+          border-top: 1px solid #000;
+          padding-top: 6px;
+          font-size: 12pt;
+          font-weight: 800;
+        }
+
+        .ticket-footer {
+          font-size: 8.5pt;
         }
       `}</style>
     </section>
@@ -183,12 +281,22 @@ function getPharmacyLogoUrl(pharmacy: PharmacyWithRole) {
 
 function getItemKey(item: SaleItem) {
   const row = asRecord(item);
-  return String(row.id ?? row.product_id ?? row.product_name ?? "item");
+  return String(
+    row.id ??
+      row.product_id ??
+      row.product_name ??
+      "item"
+  );
 }
 
 function getItemName(item: SaleItem) {
   const row = asRecord(item);
-  return String(row.product_name ?? row.name ?? row.product?.name ?? "Produit");
+  return String(
+    row.product_name ??
+      row.name ??
+      row.product?.name ??
+      "Produit"
+  );
 }
 
 function getItemDetails(item: SaleItem) {
@@ -200,7 +308,9 @@ function getItemDetails(item: SaleItem) {
       row.dosage,
       row.form,
       row.unit,
-      row.batch_number ? `Lot ${row.batch_number}` : null,
+      row.batch_number
+        ? `Lot ${row.batch_number}`
+        : null,
     ]
       .filter(Boolean)
       .join(" · ") || "-"
@@ -245,11 +355,13 @@ function getItemLineTotalHt(item: SaleItem) {
 
   return saved > 0
     ? saved
-    : getItemQuantity(item) * getItemUnitPriceHt(item);
+    : getItemQuantity(item) *
+        getItemUnitPriceHt(item);
 }
 
 function getItemLineTotalTtc(item: SaleItem) {
   const row = asRecord(item);
+
   const saved = Number(
     row.line_total_ttc ??
       row.total_price ??
@@ -259,16 +371,25 @@ function getItemLineTotalTtc(item: SaleItem) {
 
   return saved > 0
     ? saved
-    : getItemQuantity(item) * getItemUnitPriceTtc(item);
+    : getItemQuantity(item) *
+        getItemUnitPriceTtc(item);
 }
 
 function getItemLineVat(item: SaleItem) {
   const row = asRecord(item);
-  const saved = Number(row.line_total_vat ?? row.vat_amount ?? 0);
+  const saved = Number(
+    row.line_total_vat ??
+      row.vat_amount ??
+      0
+  );
 
   return saved > 0
     ? saved
-    : Math.max(getItemLineTotalTtc(item) - getItemLineTotalHt(item), 0);
+    : Math.max(
+        getItemLineTotalTtc(item) -
+          getItemLineTotalHt(item),
+        0
+      );
 }
 
 function getInvoiceDiscount(invoice: SaleWithItems) {
@@ -288,23 +409,42 @@ function getInvoiceVatTotals(invoice: SaleWithItems) {
 
   const vat5 = invoice.items
     .filter((item) => getItemVatRate(item) === 5)
-    .reduce((sum, item) => sum + getItemLineVat(item), 0);
+    .reduce(
+      (sum, item) =>
+        sum + getItemLineVat(item),
+      0
+    );
 
   const vat16 = invoice.items
     .filter((item) => getItemVatRate(item) === 16)
-    .reduce((sum, item) => sum + getItemLineVat(item), 0);
+    .reduce(
+      (sum, item) =>
+        sum + getItemLineVat(item),
+      0
+    );
 
   const subtotalHt =
     Number(row.subtotal_ht ?? 0) ||
-    invoice.items.reduce((sum, item) => sum + getItemLineTotalHt(item), 0);
+    invoice.items.reduce(
+      (sum, item) =>
+        sum + getItemLineTotalHt(item),
+      0
+    );
 
   const vatTotal =
     Number(row.vat_total ?? 0) ||
-    invoice.items.reduce((sum, item) => sum + getItemLineVat(item), 0);
+    invoice.items.reduce(
+      (sum, item) =>
+        sum + getItemLineVat(item),
+      0
+    );
 
   const totalTtc =
-    Number(row.total_ttc ?? row.total_amount ?? 0) ||
-    subtotalHt + vatTotal;
+    Number(
+      row.total_ttc ??
+        row.total_amount ??
+        0
+    ) || subtotalHt + vatTotal;
 
   return {
     subtotalHt,
@@ -328,8 +468,14 @@ function formatPaymentMethod(method: PaymentMethod) {
   return labels[method] ?? method;
 }
 
-function formatMoney(value: number, currency: string) {
-  return `${Number(value || 0).toLocaleString("fr-CD", {
-    maximumFractionDigits: 2,
-  })} ${currency}`;
+function formatMoney(
+  value: number,
+  currency: string
+) {
+  return `${Number(value || 0).toLocaleString(
+    "fr-CD",
+    {
+      maximumFractionDigits: 2,
+    }
+  )} ${currency}`;
 }

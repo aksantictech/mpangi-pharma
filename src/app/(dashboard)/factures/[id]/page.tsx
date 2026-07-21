@@ -3,19 +3,23 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Building2,
   CalendarDays,
+  FileText,
   Printer,
   Receipt,
   RefreshCcw,
 } from "lucide-react";
 
+import InvoicePrintA4 from "@/components/invoices/InvoicePrintA4";
 import InvoicePrintTicket from "@/components/invoices/InvoicePrintTicket";
 import { getInvoiceById } from "@/services/invoices.service";
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
+import { printElementInIsolatedFrame } from "@/lib/print-invoice";
 
 import type { PharmacyWithRole } from "@/types/pharmacy";
 import type { PaymentMethod, SaleItem, SaleWithItems } from "@/types/sale";
@@ -28,6 +32,7 @@ type InvoiceTotals = {
   vatTotal: number;
   totalTtc: number;
 };
+
 
 export default function InvoiceDetailsPage() {
   const params = useParams();
@@ -80,18 +85,6 @@ export default function InvoiceDetailsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceId]);
 
-  useEffect(() => {
-    function handleAfterPrint() {
-      setIsPreparingPrint(false);
-    }
-
-    window.addEventListener("afterprint", handleAfterPrint);
-
-    return () => {
-      window.removeEventListener("afterprint", handleAfterPrint);
-    };
-  }, []);
-
   const invoiceTotals = useMemo<InvoiceTotals>(() => {
     if (!invoice) {
       return {
@@ -125,10 +118,12 @@ export default function InvoiceDetailsPage() {
     );
 
     const subtotalHt =
-      Number(invoiceRecord.subtotal_ht ?? 0) || calculatedSubtotalHt;
+      Number(invoiceRecord.subtotal_ht ?? 0) ||
+      calculatedSubtotalHt;
 
     const vatTotal =
-      Number(invoiceRecord.vat_total ?? 0) || calculatedVatTotal;
+      Number(invoiceRecord.vat_total ?? 0) ||
+      calculatedVatTotal;
 
     const totalTtc =
       Number(
@@ -150,19 +145,44 @@ export default function InvoiceDetailsPage() {
     };
   }, [invoice]);
 
-  function handlePrint() {
-    if (isPreparingPrint) return;
+  async function handlePrint(
+  mode: "thermal" | "a4"
+) {
+  if (isPreparingPrint) return;
 
-    setIsPreparingPrint(true);
-
-    window.setTimeout(() => {
-      window.print();
-
-      window.setTimeout(() => {
-        setIsPreparingPrint(false);
-      }, 3000);
-    }, 300);
+  if (!invoice) {
+    setErrorMessage(
+      "La facture n’est pas encore disponible pour l’impression."
+    );
+    return;
   }
+
+  setIsPreparingPrint(true);
+  setErrorMessage("");
+
+  try {
+    const invoiceNumber = invoice.invoice_number;
+
+    await printElementInIsolatedFrame({
+      selector:
+        mode === "a4"
+          ? ".print-invoice-a4"
+          : ".print-ticket",
+      target: mode,
+      documentTitle: `Facture ${invoiceNumber}`,
+    });
+  } catch (error) {
+    setErrorMessage(
+      error instanceof Error
+        ? error.message
+        : "Impossible de préparer l’impression."
+    );
+  } finally {
+    window.setTimeout(() => {
+      setIsPreparingPrint(false);
+    }, 1000);
+  }
+}
 
   if (isLoading) {
     return (
@@ -246,7 +266,7 @@ export default function InvoiceDetailsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <button
                   type="button"
                   onClick={() => void loadData()}
@@ -259,16 +279,22 @@ export default function InvoiceDetailsPage() {
 
                 <button
                   type="button"
-                  onClick={handlePrint}
+                  onClick={() => handlePrint("thermal")}
                   disabled={isPreparingPrint}
-                  className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-blue-700 px-5 py-4 text-sm font-black text-white shadow-lg shadow-blue-100 hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-black text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <Printer
-                    className={`h-5 w-5 ${
-                      isPreparingPrint ? "animate-pulse" : ""
-                    }`}
-                  />
-                  {isPreparingPrint ? "Préparation..." : "Imprimer ticket"}
+                  <Printer className="h-5 w-5" />
+                  Ticket thermique
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handlePrint("a4")}
+                  disabled={isPreparingPrint}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-100 hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  <FileText className="h-5 w-5" />
+                  Facture A4
                 </button>
               </div>
             </div>
@@ -507,62 +533,12 @@ export default function InvoiceDetailsPage() {
         subtotal={invoiceTotals.subtotalBeforeDiscount}
       />
 
-      <style jsx global>{`
-        @media print {
-          @page {
-            size: 80mm 297mm;
-            margin: 0;
-          }
+      <InvoicePrintA4
+        pharmacy={pharmacy}
+        invoice={invoice}
+        subtotal={invoiceTotals.subtotalBeforeDiscount}
+      />
 
-          html,
-          body {
-            width: 80mm !important;
-            min-width: 80mm !important;
-            max-width: 80mm !important;
-            background: #ffffff !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: visible !important;
-          }
-
-          body * {
-            visibility: hidden !important;
-          }
-
-          .print-ticket,
-          .print-ticket * {
-            visibility: visible !important;
-          }
-
-          .print-ticket {
-            display: block !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 72mm !important;
-            max-width: 72mm !important;
-            background: #ffffff !important;
-            color: #000000 !important;
-            padding: 2mm 3mm !important;
-            margin: 0 !important;
-            font-family: "Courier New", Courier, monospace !important;
-            font-size: 12px !important;
-            font-weight: 700 !important;
-            line-height: 1.25 !important;
-          }
-
-          .print-ticket img {
-            max-width: 28mm !important;
-            max-height: 18mm !important;
-            object-fit: contain !important;
-            filter: grayscale(1) contrast(2.2) !important;
-          }
-
-          .no-print {
-            display: none !important;
-          }
-        }
-      `}</style>
     </>
   );
 }
