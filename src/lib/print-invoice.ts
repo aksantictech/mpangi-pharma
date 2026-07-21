@@ -21,14 +21,34 @@ export async function printElementInIsolatedFrame({
 
   await waitForImages(sourceElement);
 
+  const printableClone = sourceElement.cloneNode(true) as HTMLElement;
+
+  printableClone.classList.remove("hidden");
+  printableClone.classList.remove("print:block");
+  printableClone.removeAttribute("aria-hidden");
+
+  printableClone.style.display = "block";
+  printableClone.style.visibility = "visible";
+  printableClone.style.position = "static";
+  printableClone.style.opacity = "1";
+  printableClone.style.transform = "none";
+
+  printableClone
+    .querySelectorAll<HTMLElement>("*")
+    .forEach((element) => {
+      element.classList.remove("hidden");
+      element.style.visibility = "visible";
+      element.style.opacity = "1";
+    });
+
   const iframe = document.createElement("iframe");
 
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.position = "fixed";
   iframe.style.right = "0";
   iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
+  iframe.style.width = "1px";
+  iframe.style.height = "1px";
   iframe.style.border = "0";
   iframe.style.opacity = "0";
   iframe.style.pointerEvents = "none";
@@ -63,19 +83,28 @@ export async function printElementInIsolatedFrame({
 
         html,
         body {
-          width: 100%;
-          min-height: 0;
-          margin: 0;
-          padding: 0;
-          background: #fff;
+          width: 100% !important;
+          min-height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          background: #ffffff !important;
         }
 
         .print-invoice-a4 {
           display: block !important;
+          visibility: visible !important;
+          position: static !important;
           width: 100% !important;
           max-width: none !important;
           margin: 0 !important;
           padding: 0 !important;
+          opacity: 1 !important;
+          transform: none !important;
+        }
+
+        .print-invoice-a4,
+        .print-invoice-a4 * {
+          visibility: visible !important;
         }
 
         .print-ticket {
@@ -93,20 +122,22 @@ export async function printElementInIsolatedFrame({
           width: 80mm !important;
           min-width: 80mm !important;
           max-width: 80mm !important;
-          min-height: 0;
+          min-height: 0 !important;
           margin: 0 !important;
           padding: 0 !important;
-          background: #fff !important;
+          background: #ffffff !important;
         }
 
         .print-ticket {
           display: block !important;
+          visibility: visible !important;
+          position: static !important;
           width: 76mm !important;
           max-width: 76mm !important;
           margin: 0 !important;
           padding: 2mm !important;
-          color: #000 !important;
-          background: #fff !important;
+          color: #000000 !important;
+          background: #ffffff !important;
           font-family: Arial, Helvetica, sans-serif !important;
           font-size: 10pt !important;
           font-weight: 600 !important;
@@ -114,6 +145,13 @@ export async function printElementInIsolatedFrame({
           box-sizing: border-box !important;
           text-rendering: geometricPrecision !important;
           -webkit-font-smoothing: antialiased !important;
+          opacity: 1 !important;
+          transform: none !important;
+        }
+
+        .print-ticket,
+        .print-ticket * {
+          visibility: visible !important;
         }
 
         .print-ticket img {
@@ -156,30 +194,35 @@ export async function printElementInIsolatedFrame({
             print-color-adjust: exact !important;
           }
 
-          .hidden {
-            display: none !important;
+          body {
+            color: #0f172a !important;
+            background: #ffffff !important;
           }
 
           ${pageCss}
         </style>
       </head>
 
-      <body>
-        ${sourceElement.outerHTML}
-      </body>
+      <body></body>
     </html>
   `);
   printDocument.close();
 
+  printDocument.body.appendChild(
+    printDocument.importNode(printableClone, true)
+  );
+
   await waitForFrameImages(printDocument);
   await waitForFonts(printDocument);
+  await nextAnimationFrame(iframe.contentWindow);
+  await nextAnimationFrame(iframe.contentWindow);
 
   iframe.contentWindow.focus();
   iframe.contentWindow.print();
 
   window.setTimeout(() => {
     iframe.remove();
-  }, 1500);
+  }, 2000);
 }
 
 async function waitForImages(
@@ -226,8 +269,16 @@ async function waitForFonts(
   try {
     await fonts.ready;
   } catch {
-    // L’impression peut continuer avec les polices disponibles.
+    // L’impression continue avec les polices disponibles.
   }
+}
+
+function nextAnimationFrame(
+  targetWindow: Window
+): Promise<void> {
+  return new Promise((resolve) => {
+    targetWindow.requestAnimationFrame(() => resolve());
+  });
 }
 
 function escapeHtml(value: string) {
