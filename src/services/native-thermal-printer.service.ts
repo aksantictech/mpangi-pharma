@@ -67,8 +67,9 @@ export async function printNativeThermalReceipt(
 
   if (!bridge || typeof bridge.printReceipt !== "function") {
     throw new Error(
-      "Pont d’impression native indisponible. Installez la version Android Mpangi Pharma compatible SUNMI/Telpo."
-    );
+  "Le pont d’impression native n’est pas disponible sur cet appareil. " +
+    "Utilisez l’application Android Mpangi Pharma installée sur le terminal H10."
+);
   }
 
   const payload = JSON.stringify({

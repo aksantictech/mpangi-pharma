@@ -169,9 +169,9 @@ export default function InvoiceDetailsPage() {
 
       if (!available) {
         throw new Error(
-          "Le pont d’impression native n’est pas installé sur ce terminal. " +
-            "Le bouton est prêt pour le test SUNMI/Telpo, mais l’APK Android " +
-            "ou le plugin constructeur doit encore être installé."
+          "Le pont d’impression native H10 n’est pas disponible sur cet appareil. " +
+  "Vérifiez que l’application Android Mpangi Pharma est installée et que " +
+  "l’imprimante interne du terminal est accessible."
         );
       }
 
