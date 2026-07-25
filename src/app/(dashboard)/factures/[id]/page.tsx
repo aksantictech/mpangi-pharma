@@ -13,6 +13,7 @@ import {
   Printer,
   Receipt,
   RefreshCcw,
+  Smartphone,
 } from "lucide-react";
 
 import InvoicePrintA4 from "@/components/invoices/InvoicePrintA4";
@@ -20,6 +21,10 @@ import InvoicePrintTicket from "@/components/invoices/InvoicePrintTicket";
 import { getInvoiceById } from "@/services/invoices.service";
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
 import { printElementInIsolatedFrame } from "@/lib/print-invoice";
+import {
+  isNativeThermalPrinterAvailable,
+  printNativeThermalReceipt,
+} from "../../../../services/native-thermal-printer.service";
 
 import type { PharmacyWithRole } from "@/types/pharmacy";
 import type { PaymentMethod, SaleItem, SaleWithItems } from "@/types/sale";
@@ -145,6 +150,73 @@ export default function InvoiceDetailsPage() {
     };
   }, [invoice]);
 
+  async function handleNativeThermalPrint() {
+    if (isPreparingPrint) return;
+
+    if (!invoice || !pharmacy) {
+      setErrorMessage(
+        "La facture n’est pas encore disponible pour l’impression native."
+      );
+      return;
+    }
+
+    setIsPreparingPrint(true);
+    setErrorMessage("");
+
+    try {
+      const available =
+        await isNativeThermalPrinterAvailable();
+
+      if (!available) {
+        throw new Error(
+          "Le pont d’impression native n’est pas installé sur ce terminal. " +
+            "Le bouton est prêt pour le test SUNMI/Telpo, mais l’APK Android " +
+            "ou le plugin constructeur doit encore être installé."
+        );
+      }
+
+      await printNativeThermalReceipt({
+        pharmacyName: pharmacy.name,
+        pharmacyAddress: String(
+          asRecord(pharmacy).address ?? ""
+        ),
+        pharmacyPhone: String(
+          asRecord(pharmacy).phone ?? ""
+        ),
+        invoiceNumber: invoice.invoice_number,
+        date: invoice.created_at,
+        customerName:
+          invoice.customer_name || "Client comptoir",
+        paymentMethod: formatPaymentMethod(
+          invoice.payment_method
+        ),
+        currency: invoice.currency,
+        items: invoice.items.map((item) => ({
+          name: getItemName(item),
+          details: getItemDetails(item),
+          quantity: getItemQuantity(item),
+          unitPrice: getItemUnitPriceTtc(item),
+          total: getItemTotalTtc(item),
+        })),
+        subtotal: invoiceTotals.subtotalBeforeDiscount,
+        discount: getInvoiceDiscount(invoice),
+        subtotalHt: invoiceTotals.subtotalHt,
+        vatTotal: invoiceTotals.vatTotal,
+        totalTtc: invoiceTotals.totalTtc,
+      });
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’imprimer le ticket natif."
+      );
+    } finally {
+      window.setTimeout(() => {
+        setIsPreparingPrint(false);
+      }, 1000);
+    }
+  }
+
   async function handlePrint(
   mode: "thermal" | "a4"
 ) {
@@ -266,7 +338,7 @@ export default function InvoiceDetailsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <button
                   type="button"
                   onClick={() => void loadData()}
@@ -285,6 +357,18 @@ export default function InvoiceDetailsPage() {
                 >
                   <Printer className="h-5 w-5" />
                   Ticket thermique
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void handleNativeThermalPrint()
+                  }
+                  disabled={isPreparingPrint}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Smartphone className="h-5 w-5" />
+                  Ticket natif — Test
                 </button>
 
                 <button

@@ -175,90 +175,130 @@ export default function InvoicePrintTicket({
       </div>
 
       <style jsx>{`
-        .print-ticket {
-          color: #000;
-          background: #fff;
-        }
+  .print-ticket {
+    width: 76mm;
+    max-width: 76mm;
+    margin: 0;
+    padding: 2mm;
 
-        .ticket-center {
-          text-align: center;
-        }
+    color: #000;
+    background: #fff;
 
-        .ticket-logo-wrapper {
-          display: flex;
-          justify-content: center;
-          margin-bottom: 5px;
-        }
+    font-family:
+      "Courier New",
+      Courier,
+      monospace;
 
-        .ticket-logo {
-          display: block;
-          width: auto;
-          max-width: 26mm;
-          max-height: 16mm;
-          object-fit: contain;
-        }
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.3;
 
-        .ticket-title {
-          margin: 0 0 3px;
-          font-size: 13pt;
-          font-weight: 800;
-          line-height: 1.1;
-        }
+    letter-spacing: 0;
+    word-spacing: 0;
 
-        .ticket-center p,
-        .ticket-item p {
-          margin: 2px 0;
-        }
+    text-rendering: optimizeSpeed;
+    -webkit-font-smoothing: none;
+    -moz-osx-font-smoothing: grayscale;
 
-        .ticket-small {
-          font-size: 8pt;
-        }
+    transform: none;
+    zoom: 1;
+    filter: none;
+    text-shadow: none;
 
-        .ticket-separator {
-          margin: 7px 0;
-          border-top: 1px dashed #000;
-        }
+    box-sizing: border-box;
+  }
 
-        .ticket-row {
-          display: flex;
-          justify-content: space-between;
-          gap: 8px;
-          align-items: flex-start;
-        }
+  .print-ticket * {
+    box-sizing: border-box;
 
-        .ticket-row > :last-child {
-          text-align: right;
-        }
+    letter-spacing: 0;
+    text-shadow: none;
+    filter: none;
+    transform: none;
 
-        .ticket-item {
-          margin-bottom: 8px;
-          break-inside: avoid;
-        }
+    -webkit-font-smoothing: none;
+  }
 
-        .ticket-product {
-          font-weight: 800;
-        }
+  .ticket-pharmacy-name {
+    font-size: 15px;
+    font-weight: 900;
+    line-height: 1.15;
+  }
 
-        .ticket-detail {
-          font-size: 8.5pt;
-        }
+  .ticket-title {
+    font-size: 14px;
+    font-weight: 900;
+  }
 
-        .ticket-tax-line {
-          font-size: 8.5pt;
-        }
+  .ticket-product-name {
+    font-size: 12px;
+    font-weight: 900;
+  }
 
-        .ticket-total {
-          margin-top: 5px;
-          border-top: 1px solid #000;
-          padding-top: 6px;
-          font-size: 12pt;
-          font-weight: 800;
-        }
+  .ticket-line,
+  .ticket-value,
+  .ticket-total {
+    font-size: 12px;
+    font-weight: 800;
+  }
 
-        .ticket-footer {
-          font-size: 8.5pt;
-        }
-      `}</style>
+  .ticket-total {
+    font-size: 15px;
+    font-weight: 900;
+  }
+
+  .ticket-muted {
+    color: #000;
+    font-weight: 700;
+  }
+
+  .ticket-separator {
+    border-top: 1px dashed #000;
+  }
+
+  img {
+    image-rendering: auto;
+    filter: none;
+    opacity: 1;
+  }
+
+  @media print {
+    .print-ticket {
+      display: block !important;
+      width: 76mm !important;
+      max-width: 76mm !important;
+      margin: 0 !important;
+      padding: 2mm !important;
+
+      color: #000 !important;
+      background: #fff !important;
+
+      font-family:
+        "Courier New",
+        Courier,
+        monospace !important;
+
+      font-size: 12px !important;
+      font-weight: 700 !important;
+      line-height: 1.3 !important;
+
+      transform: none !important;
+      zoom: 1 !important;
+      filter: none !important;
+      text-shadow: none !important;
+
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .print-ticket * {
+      color: #000 !important;
+      text-shadow: none !important;
+      filter: none !important;
+      transform: none !important;
+    }
+  }
+`}</style>
     </section>
   );
 }
