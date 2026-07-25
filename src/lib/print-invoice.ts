@@ -6,12 +6,16 @@ type PrintElementOptions = {
   documentTitle?: string;
 };
 
+const THERMAL_PAGE_WIDTH_MM = 58;
+const THERMAL_CONTENT_WIDTH_MM = 54;
+
 export async function printElementInIsolatedFrame({
   selector,
   target,
   documentTitle = "Facture",
 }: PrintElementOptions): Promise<void> {
-  const sourceElement = document.querySelector<HTMLElement>(selector);
+  const sourceElement =
+    document.querySelector<HTMLElement>(selector);
 
   if (!sourceElement) {
     throw new Error(
@@ -21,44 +25,25 @@ export async function printElementInIsolatedFrame({
 
   await waitForImages(sourceElement);
 
-  const printableClone = sourceElement.cloneNode(true) as HTMLElement;
-
-  printableClone.classList.remove("hidden");
-  printableClone.classList.remove("print:block");
-  printableClone.removeAttribute("aria-hidden");
-
-  printableClone.style.display = "block";
-  printableClone.style.visibility = "visible";
-  printableClone.style.position = "static";
-  printableClone.style.opacity = "1";
-  printableClone.style.transform = "none";
-
-  printableClone
-    .querySelectorAll<HTMLElement>("*")
-    .forEach((element) => {
-      element.classList.remove("hidden");
-      element.style.visibility = "visible";
-      element.style.opacity = "1";
-    });
-
   const iframe = document.createElement("iframe");
 
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.position = "fixed";
   iframe.style.right = "0";
   iframe.style.bottom = "0";
-  iframe.style.width = "1px";
-  iframe.style.height = "1px";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
   iframe.style.border = "0";
   iframe.style.opacity = "0";
   iframe.style.pointerEvents = "none";
 
   document.body.appendChild(iframe);
 
+  const frameWindow = iframe.contentWindow;
   const printDocument =
-    iframe.contentDocument ?? iframe.contentWindow?.document;
+    iframe.contentDocument ?? frameWindow?.document;
 
-  if (!printDocument || !iframe.contentWindow) {
+  if (!printDocument || !frameWindow) {
     iframe.remove();
     throw new Error(
       "Impossible de préparer la fenêtre d’impression."
@@ -66,105 +51,15 @@ export async function printElementInIsolatedFrame({
   }
 
   const copiedStyles = Array.from(
-    document.querySelectorAll(
-      'link[rel="stylesheet"], style'
-    )
+    document.querySelectorAll('link[rel="stylesheet"], style')
   )
     .map((node) => node.outerHTML)
     .join("\n");
 
   const pageCss =
     target === "a4"
-      ? `
-        @page {
-          size: A4 portrait;
-          margin: 12mm;
-        }
-
-        html,
-        body {
-          width: 100% !important;
-          min-height: 0 !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          background: #ffffff !important;
-        }
-
-        .print-invoice-a4 {
-          display: block !important;
-          visibility: visible !important;
-          position: static !important;
-          width: 100% !important;
-          max-width: none !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          opacity: 1 !important;
-          transform: none !important;
-        }
-
-        .print-invoice-a4,
-        .print-invoice-a4 * {
-          visibility: visible !important;
-        }
-
-        .print-ticket {
-          display: none !important;
-        }
-      `
-      : `
-        @page {
-          size: 80mm auto;
-          margin: 0;
-        }
-
-        html,
-        body {
-          width: 80mm !important;
-          min-width: 80mm !important;
-          max-width: 80mm !important;
-          min-height: 0 !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          background: #ffffff !important;
-        }
-
-        .print-ticket {
-          display: block !important;
-          visibility: visible !important;
-          position: static !important;
-          width: 76mm !important;
-          max-width: 76mm !important;
-          margin: 0 !important;
-          padding: 2mm !important;
-          color: #000000 !important;
-          background: #ffffff !important;
-          font-family: Arial, Helvetica, sans-serif !important;
-          font-size: 10pt !important;
-          font-weight: 600 !important;
-          line-height: 1.25 !important;
-          box-sizing: border-box !important;
-          text-rendering: geometricPrecision !important;
-          -webkit-font-smoothing: antialiased !important;
-          opacity: 1 !important;
-          transform: none !important;
-        }
-
-        .print-ticket,
-        .print-ticket * {
-          visibility: visible !important;
-        }
-
-        .print-ticket img {
-          max-width: 26mm !important;
-          max-height: 16mm !important;
-          object-fit: contain !important;
-          filter: none !important;
-        }
-
-        .print-invoice-a4 {
-          display: none !important;
-        }
-      `;
+      ? getA4PrintCss()
+      : getThermalPrintCss();
 
   printDocument.open();
   printDocument.write(`
@@ -184,45 +79,197 @@ export async function printElementInIsolatedFrame({
           *,
           *::before,
           *::after {
-            box-sizing: border-box;
+            box-sizing: border-box !important;
           }
 
           html,
           body {
+            min-height: 0 !important;
             overflow: visible !important;
+            background: #ffffff !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
 
-          body {
-            color: #0f172a !important;
-            background: #ffffff !important;
+          .hidden {
+            display: none !important;
           }
 
           ${pageCss}
         </style>
       </head>
 
-      <body></body>
+      <body>
+        ${sourceElement.outerHTML}
+      </body>
     </html>
   `);
   printDocument.close();
 
-  printDocument.body.appendChild(
-    printDocument.importNode(printableClone, true)
-  );
+  await waitForFrameReady(printDocument);
 
-  await waitForFrameImages(printDocument);
-  await waitForFonts(printDocument);
-  await nextAnimationFrame(iframe.contentWindow);
-  await nextAnimationFrame(iframe.contentWindow);
+  frameWindow.focus();
 
-  iframe.contentWindow.focus();
-  iframe.contentWindow.print();
+  window.setTimeout(() => {
+    frameWindow.print();
+  }, target === "thermal" ? 250 : 150);
 
   window.setTimeout(() => {
     iframe.remove();
-  }, 2000);
+  }, 2500);
+}
+
+function getA4PrintCss() {
+  return `
+    @page {
+      size: A4 portrait;
+      margin: 12mm;
+    }
+
+    html,
+    body {
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    .print-invoice-a4 {
+      display: block !important;
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    .print-ticket {
+      display: none !important;
+    }
+  `;
+}
+
+function getThermalPrintCss() {
+  return `
+    @page {
+      size: ${THERMAL_PAGE_WIDTH_MM}mm auto;
+      margin: 0;
+    }
+
+    html,
+    body {
+      width: ${THERMAL_PAGE_WIDTH_MM}mm !important;
+      min-width: ${THERMAL_PAGE_WIDTH_MM}mm !important;
+      max-width: ${THERMAL_PAGE_WIDTH_MM}mm !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      color: #000000 !important;
+      background: #ffffff !important;
+      font-family: "Courier New", Courier, monospace !important;
+      font-size: 11.5pt !important;
+      font-weight: 400 !important;
+      line-height: 1.35 !important;
+      letter-spacing: 0 !important;
+      word-spacing: 0 !important;
+      transform: none !important;
+      zoom: 1 !important;
+      filter: none !important;
+      text-shadow: none !important;
+      text-rendering: optimizeSpeed !important;
+      -webkit-font-smoothing: none !important;
+    }
+
+    body {
+      display: block !important;
+    }
+
+    .print-ticket {
+      display: block !important;
+      width: ${THERMAL_CONTENT_WIDTH_MM}mm !important;
+      min-width: ${THERMAL_CONTENT_WIDTH_MM}mm !important;
+      max-width: ${THERMAL_CONTENT_WIDTH_MM}mm !important;
+      margin: 0 !important;
+      padding: 2mm !important;
+      color: #000000 !important;
+      background: #ffffff !important;
+      font-family: "Courier New", Courier, monospace !important;
+      font-size: 11.5pt !important;
+      font-weight: 400 !important;
+      line-height: 1.35 !important;
+      letter-spacing: 0 !important;
+      word-spacing: 0 !important;
+      transform: none !important;
+      zoom: 1 !important;
+      filter: none !important;
+      text-shadow: none !important;
+      text-rendering: optimizeSpeed !important;
+      -webkit-font-smoothing: none !important;
+    }
+
+    .print-ticket,
+    .print-ticket * {
+      font-family: "Courier New", Courier, monospace !important;
+      font-weight: 400 !important;
+      color: #000000 !important;
+      opacity: 1 !important;
+      transform: none !important;
+      zoom: 1 !important;
+      filter: none !important;
+      text-shadow: none !important;
+    }
+
+    .print-ticket .ticket-title {
+      font-size: 15pt !important;
+      font-weight: 400 !important;
+      line-height: 1.2 !important;
+    }
+
+    .print-ticket .ticket-product {
+      font-size: 12pt !important;
+      font-weight: 400 !important;
+      line-height: 1.3 !important;
+    }
+
+    .print-ticket .ticket-detail,
+    .print-ticket .ticket-tax-line,
+    .print-ticket .ticket-footer {
+      font-size: 10.5pt !important;
+      font-weight: 400 !important;
+    }
+
+    .print-ticket .ticket-total {
+      font-size: 14pt !important;
+      font-weight: 400 !important;
+    }
+
+    .print-ticket img {
+      display: block !important;
+      width: auto !important;
+      max-width: 22mm !important;
+      max-height: 13mm !important;
+      object-fit: contain !important;
+      opacity: 1 !important;
+      filter: none !important;
+      transform: none !important;
+    }
+
+    .print-invoice-a4 {
+      display: none !important;
+    }
+  `;
+}
+
+async function waitForFrameReady(
+  frameDocument: Document
+): Promise<void> {
+  await waitForFrameImages(frameDocument);
+  await waitForFonts(frameDocument);
+
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        resolve();
+      });
+    });
+  });
 }
 
 async function waitForImages(
@@ -271,14 +318,6 @@ async function waitForFonts(
   } catch {
     // L’impression continue avec les polices disponibles.
   }
-}
-
-function nextAnimationFrame(
-  targetWindow: Window
-): Promise<void> {
-  return new Promise((resolve) => {
-    targetWindow.requestAnimationFrame(() => resolve());
-  });
 }
 
 function escapeHtml(value: string) {
