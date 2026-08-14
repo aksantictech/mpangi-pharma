@@ -41,7 +41,7 @@ const initialForm: UserForm = {
   fullName: "",
   email: "",
   phone: "",
-  password: "ChangeMe@2026!",
+  password: "",
   role: "cashier",
 };
 
@@ -100,8 +100,8 @@ export default function UsersSettingsPage() {
         throw new Error("Le nom complet et l’email sont obligatoires.");
       }
 
-      if (form.password.length < 8) {
-        throw new Error("Le mot de passe doit contenir au moins 8 caractères.");
+      if (form.password.length < 12) {
+        throw new Error("Le mot de passe doit contenir au moins 12 caractères.");
       }
 
       await createPharmacyMember({
@@ -173,14 +173,13 @@ export default function UsersSettingsPage() {
     if (!pharmacy || member.role === "owner") return;
 
     const password = window.prompt(
-      "Nouveau mot de passe temporaire (minimum 8 caractères) :",
-      "ChangeMe@2026!"
+      "Nouveau mot de passe temporaire (minimum 12 caractères) :"
     );
 
     if (!password) return;
 
-    if (password.length < 8) {
-      setErrorMessage("Le mot de passe doit contenir au moins 8 caractères.");
+    if (password.length < 12) {
+      setErrorMessage("Le mot de passe doit contenir au moins 12 caractères.");
       return;
     }
 

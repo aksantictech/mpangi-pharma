@@ -7,8 +7,8 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const adminEmail = process.env.ADMIN_EMAIL || "admin@mpangi-pharma.cd";
-const adminPassword = process.env.ADMIN_PASSWORD || "ChangeMe@2026!";
+const adminEmail = process.env.ADMIN_EMAIL ?? "";
+const adminPassword = process.env.ADMIN_PASSWORD ?? "";
 const adminFullName =
   process.env.ADMIN_FULL_NAME || "Administrateur Mpangi_Pharma";
 
@@ -26,6 +26,16 @@ if (!supabaseUrl) {
 
 if (!serviceRoleKey) {
   throw new Error("SUPABASE_SERVICE_ROLE_KEY est manquant dans .env.local");
+}
+
+if (!adminEmail) {
+  throw new Error("ADMIN_EMAIL est manquant dans .env.local");
+}
+
+if (!adminPassword || adminPassword.length < 12) {
+  throw new Error(
+    "ADMIN_PASSWORD est manquant ou contient moins de 12 caractères."
+  );
 }
 
 const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {

@@ -36,6 +36,10 @@ import {
   canAccessPath,
   type AppModule,
 } from "@/lib/permissions";
+import {
+  bindOfflineDataToUser,
+  clearOfflinePharmacyData,
+} from "@/lib/offline/db";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import { mustCurrentUserChangePassword } from "@/services/account.service";
 import {
@@ -331,6 +335,29 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   }, [pathname, router]);
 
   useEffect(() => {
+    let isMounted = true;
+
+    async function protectOfflineData() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (isMounted && user) {
+        await bindOfflineDataToUser(user.id);
+      }
+    }
+
+    void protectOfflineData();
+
+    return () => {
+      isMounted = false;
+    };
+    // Le client Supabase est recréé par le composant ; l'identité utilisateur
+    // ne doit être vérifiée qu'au montage de la session du tableau de bord.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
@@ -376,6 +403,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
     clearStoredActivePharmacyId();
 
     try {
+      await clearOfflinePharmacyData();
       await supabase.auth.signOut();
     } finally {
       router.push("/connexion");

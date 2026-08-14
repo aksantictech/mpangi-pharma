@@ -7,10 +7,10 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const ownerEmail = "owner.santeplus@test.cd";
-const ownerPassword = "ChangeMe@2026!";
-const ownerFullName = "Daniel KAYEMBE";
-const pharmacySlug = "pharmacie-sante-plus";
+const ownerEmail = process.env.OWNER_EMAIL ?? "";
+const ownerPassword = process.env.OWNER_PASSWORD ?? "";
+const ownerFullName = process.env.OWNER_FULL_NAME ?? "";
+const pharmacySlug = process.env.OWNER_PHARMACY_SLUG ?? "";
 
 if (!supabaseUrl) {
   throw new Error("NEXT_PUBLIC_SUPABASE_URL manquant.");
@@ -18,6 +18,18 @@ if (!supabaseUrl) {
 
 if (!serviceRoleKey) {
   throw new Error("SUPABASE_SERVICE_ROLE_KEY manquant.");
+}
+
+if (!ownerEmail || !ownerFullName || !pharmacySlug) {
+  throw new Error(
+    "OWNER_EMAIL, OWNER_FULL_NAME et OWNER_PHARMACY_SLUG sont obligatoires."
+  );
+}
+
+if (!ownerPassword || ownerPassword.length < 12) {
+  throw new Error(
+    "OWNER_PASSWORD est manquant ou contient moins de 12 caractères."
+  );
 }
 
 const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
@@ -141,7 +153,7 @@ async function main() {
   console.log("Accès owner réparé avec succès.");
   console.log(`Pharmacie : ${pharmacy.name}`);
   console.log(`Email : ${ownerEmail}`);
-  console.log(`Mot de passe : ${ownerPassword}`);
+  console.log("Mot de passe : défini depuis OWNER_PASSWORD (non affiché)");
 }
 
 main().catch((error) => {

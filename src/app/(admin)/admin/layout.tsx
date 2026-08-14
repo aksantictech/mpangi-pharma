@@ -1,10 +1,19 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
-export default function AdminLayout({
+import { requirePlatformAdmin } from "@/lib/admin/require-platform-admin";
+
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  try {
+    await requirePlatformAdmin();
+  } catch {
+    redirect("/dashboard");
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 text-white">
       <header className="border-b border-white/10 bg-slate-950/90 px-6 py-5 backdrop-blur">

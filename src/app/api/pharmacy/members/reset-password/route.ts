@@ -24,8 +24,8 @@ export async function POST(request: Request) {
       throw new Error("Le mot de passe temporaire est obligatoire.");
     }
 
-    if (body.temporaryPassword.length < 8) {
-      throw new Error("Le mot de passe doit contenir au moins 8 caractères.");
+    if (body.temporaryPassword.length < 12) {
+      throw new Error("Le mot de passe doit contenir au moins 12 caractères.");
     }
 
     const { supabaseAdmin, user, role, isPlatformAdmin } =

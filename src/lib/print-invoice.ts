@@ -217,12 +217,27 @@ export async function printElementInIsolatedFrame({
   await nextAnimationFrame(iframe.contentWindow);
   await nextAnimationFrame(iframe.contentWindow);
 
-  iframe.contentWindow.focus();
-  iframe.contentWindow.print();
+  const frameWindow = iframe.contentWindow;
+  let cleanedUp = false;
 
-  window.setTimeout(() => {
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    frameWindow.removeEventListener("afterprint", cleanup);
     iframe.remove();
-  }, 2000);
+  };
+
+  frameWindow.addEventListener("afterprint", cleanup, {
+    once: true,
+  });
+
+  frameWindow.focus();
+  frameWindow.print();
+
+  // Sur plusieurs WebView et versions de Chrome Android, `afterprint`
+  // n'est jamais émis. On garde donc le document assez longtemps pour que
+  // le service d'impression Android puisse réellement le rasteriser.
+  window.setTimeout(cleanup, 120_000);
 }
 
 async function waitForImages(

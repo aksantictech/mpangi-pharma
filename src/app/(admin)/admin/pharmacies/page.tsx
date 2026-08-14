@@ -61,7 +61,7 @@ const initialForm: FormState = {
   exchangeRate: "2800",
   ownerFullName: "",
   ownerEmail: "",
-  ownerPassword: "ChangeMe@2026!",
+  ownerPassword: "",
 };
 
 function generateSlug(value: string) {

@@ -110,6 +110,44 @@ class MpangiOfflineDatabase extends Dexie {
 export const offlineDb = new MpangiOfflineDatabase();
 
 const DEVICE_ID_KEY = "mpangi_pharma_device_id";
+const OFFLINE_OWNER_KEY = "mpangi_pharma_offline_owner";
+
+export async function clearOfflinePharmacyData() {
+  await offlineDb.transaction(
+    "rw",
+    offlineDb.sellableProducts,
+    offlineDb.offlineSales,
+    offlineDb.offlineSaleItems,
+    offlineDb.syncState,
+    offlineDb.syncLogs,
+    async () => {
+      await Promise.all([
+        offlineDb.sellableProducts.clear(),
+        offlineDb.offlineSales.clear(),
+        offlineDb.offlineSaleItems.clear(),
+        offlineDb.syncState.clear(),
+        offlineDb.syncLogs.clear(),
+      ]);
+    }
+  );
+
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(OFFLINE_OWNER_KEY);
+    window.dispatchEvent(new CustomEvent("mpangi-offline-cache-updated"));
+  }
+}
+
+export async function bindOfflineDataToUser(userId: string) {
+  if (typeof window === "undefined") return;
+
+  const currentOwner = window.localStorage.getItem(OFFLINE_OWNER_KEY);
+
+  if (currentOwner && currentOwner !== userId) {
+    await clearOfflinePharmacyData();
+  }
+
+  window.localStorage.setItem(OFFLINE_OWNER_KEY, userId);
+}
 
 export function createOfflineId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {

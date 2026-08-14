@@ -63,8 +63,8 @@ export async function POST(request: Request) {
       throw new Error("Le mot de passe est obligatoire.");
     }
 
-    if (body.password.length < 8) {
-      throw new Error("Le mot de passe doit contenir au moins 8 caractères.");
+    if (body.password.length < 12) {
+      throw new Error("Le mot de passe doit contenir au moins 12 caractères.");
     }
 
     if (!allowedRoles.includes(body.role)) {
@@ -78,56 +78,46 @@ export async function POST(request: Request) {
       body.email.trim()
     );
 
-    let userId: string;
-
     if (existingUser) {
-      userId = existingUser.id;
-
-      const { error: updateError } =
-        await supabaseAdmin.auth.admin.updateUserById(userId, {
-          password: body.password,
-          email_confirm: true,
-user_metadata: {
-  full_name: body.fullName.trim(),
-  phone: emptyToNull(body.phone),
-  must_change_password: true,
-},
-        });
-
-      if (updateError) {
-        throw new Error(updateError.message);
-      }
-    } else {
-      const { data: createdUser, error: createError } =
-        await supabaseAdmin.auth.admin.createUser({
-          email: body.email.trim(),
-          password: body.password,
-          email_confirm: true,
-          user_metadata: {
-            full_name: body.fullName.trim(),
-            phone: emptyToNull(body.phone),
-          },
-        });
-
-      if (createError) {
-        throw new Error(createError.message);
-      }
-
-      if (!createdUser.user) {
-        throw new Error("Utilisateur non créé.");
-      }
-
-      userId = createdUser.user.id;
+      // Ne jamais réinitialiser ici le mot de passe d'un compte existant :
+      // il peut appartenir à une autre pharmacie. La réinitialisation est
+      // réservée à la route dédiée qui vérifie l'appartenance du membre.
+      throw new Error(
+        "Un compte utilise déjà cette adresse. Utilisez un autre email ou " +
+          "demandez au Super Admin d’associer le compte existant."
+      );
     }
+
+    const { data: createdUser, error: createError } =
+      await supabaseAdmin.auth.admin.createUser({
+        email: body.email.trim(),
+        password: body.password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: body.fullName.trim(),
+          phone: emptyToNull(body.phone),
+          must_change_password: true,
+        },
+      });
+
+    if (createError) {
+      throw new Error(createError.message);
+    }
+
+    if (!createdUser.user) {
+      throw new Error("Utilisateur non créé.");
+    }
+
+    const userId = createdUser.user.id;
 
     const { error: profileError } = await supabaseAdmin.from("profiles").upsert(
       {
-    id: userId,
-    full_name: body.fullName.trim(),
-    email: body.email.trim(),
-    phone: emptyToNull(body.phone),
-    must_change_password: true,
-    updated_at: new Date().toISOString(),
+        id: userId,
+        full_name: body.fullName.trim(),
+        email: body.email.trim(),
+        phone: emptyToNull(body.phone),
+        must_change_password: true,
+        updated_at: new Date().toISOString(),
       },
       {
         onConflict: "id",

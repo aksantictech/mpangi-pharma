@@ -13,7 +13,7 @@ import {
   Printer,
   Receipt,
   RefreshCcw,
-  Smartphone,
+  Share2,
 } from "lucide-react";
 
 import InvoicePrintA4 from "@/components/invoices/InvoicePrintA4";
@@ -24,7 +24,9 @@ import { printElementInIsolatedFrame } from "@/lib/print-invoice";
 import {
   isNativeThermalPrinterAvailable,
   printNativeThermalReceipt,
-} from "../../../../services/native-thermal-printer.service";
+  shareThermalReceipt,
+  type NativeThermalReceipt,
+} from "@/services/native-thermal-printer.service";
 
 import type { PharmacyWithRole } from "@/types/pharmacy";
 import type { PaymentMethod, SaleItem, SaleWithItems } from "@/types/sale";
@@ -50,6 +52,7 @@ export default function InvoiceDetailsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [printMessage, setPrintMessage] = useState("");
 
   async function loadData() {
     setIsLoading(true);
@@ -150,70 +153,123 @@ export default function InvoiceDetailsPage() {
     };
   }, [invoice]);
 
-  async function handleNativeThermalPrint() {
+  function buildThermalReceipt(): NativeThermalReceipt {
+    if (!invoice || !pharmacy) {
+      throw new Error(
+        "La facture n’est pas encore disponible pour l’impression."
+      );
+    }
+
+    return {
+      pharmacyName: pharmacy.name,
+      pharmacyAddress: String(asRecord(pharmacy).address ?? ""),
+      pharmacyPhone: String(asRecord(pharmacy).phone ?? ""),
+      invoiceNumber: invoice.invoice_number,
+      date: invoice.created_at,
+      customerName: invoice.customer_name || "Client comptoir",
+      paymentMethod: formatPaymentMethod(invoice.payment_method),
+      currency: invoice.currency,
+      items: invoice.items.map((item) => ({
+        name: getItemName(item),
+        details: getItemDetails(item),
+        quantity: getItemQuantity(item),
+        unitPrice: getItemUnitPriceTtc(item),
+        total: getItemTotalTtc(item),
+      })),
+      subtotal: invoiceTotals.subtotalBeforeDiscount,
+      discount: getInvoiceDiscount(invoice),
+      subtotalHt: invoiceTotals.subtotalHt,
+      vatTotal: invoiceTotals.vatTotal,
+      totalTtc: invoiceTotals.totalTtc,
+    };
+  }
+
+  async function handleSmartThermalPrint() {
     if (isPreparingPrint) return;
 
     if (!invoice || !pharmacy) {
       setErrorMessage(
-        "La facture n’est pas encore disponible pour l’impression native."
+        "La facture n’est pas encore disponible pour l’impression."
       );
       return;
     }
 
     setIsPreparingPrint(true);
     setErrorMessage("");
+    setPrintMessage("");
 
     try {
-      const available =
+      const receipt = buildThermalReceipt();
+      const nativeAvailable =
         await isNativeThermalPrinterAvailable();
 
-      if (!available) {
-        throw new Error(
-          "Le pont d’impression native H10 n’est pas disponible sur cet appareil. " +
-  "Vérifiez que l’application Android Mpangi Pharma est installée et que " +
-  "l’imprimante interne du terminal est accessible."
-        );
+      if (nativeAvailable) {
+        try {
+          await printNativeThermalReceipt(receipt);
+          setPrintMessage(
+            "Ticket envoyé directement à l’imprimante du terminal."
+          );
+          return;
+        } catch {
+          // Un pont natif présent mais défaillant ne doit jamais bloquer la
+          // vente : on ouvre automatiquement le service d'impression système.
+        }
       }
 
-      await printNativeThermalReceipt({
-        pharmacyName: pharmacy.name,
-        pharmacyAddress: String(
-          asRecord(pharmacy).address ?? ""
-        ),
-        pharmacyPhone: String(
-          asRecord(pharmacy).phone ?? ""
-        ),
-        invoiceNumber: invoice.invoice_number,
-        date: invoice.created_at,
-        customerName:
-          invoice.customer_name || "Client comptoir",
-        paymentMethod: formatPaymentMethod(
-          invoice.payment_method
-        ),
-        currency: invoice.currency,
-        items: invoice.items.map((item) => ({
-          name: getItemName(item),
-          details: getItemDetails(item),
-          quantity: getItemQuantity(item),
-          unitPrice: getItemUnitPriceTtc(item),
-          total: getItemTotalTtc(item),
-        })),
-        subtotal: invoiceTotals.subtotalBeforeDiscount,
-        discount: getInvoiceDiscount(invoice),
-        subtotalHt: invoiceTotals.subtotalHt,
-        vatTotal: invoiceTotals.vatTotal,
-        totalTtc: invoiceTotals.totalTtc,
+      await printElementInIsolatedFrame({
+        selector: ".print-ticket",
+        target: "thermal",
+        documentTitle: `Ticket ${invoice.invoice_number}`,
       });
+
+      setPrintMessage(
+        "Menu d’impression ouvert. Sélectionnez l’imprimante interne, Bluetooth, USB ou réseau configurée sur l’appareil."
+      );
     } catch (error) {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Impossible d’imprimer le ticket natif."
+          : "Impossible de préparer le ticket."
       );
     } finally {
       window.setTimeout(() => {
         setIsPreparingPrint(false);
-      }, 1000);
+      }, 800);
+    }
+  }
+
+  async function handleShareThermalReceipt() {
+    if (isPreparingPrint) return;
+
+    setIsPreparingPrint(true);
+    setErrorMessage("");
+    setPrintMessage("");
+
+    try {
+      const result = await shareThermalReceipt(
+        buildThermalReceipt(),
+        58
+      );
+
+      setPrintMessage(
+        result === "share"
+          ? "Ticket envoyé vers l’application sélectionnée."
+          : "Ticket texte téléchargé : ouvrez-le avec l’application de votre imprimante."
+      );
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible de partager le ticket."
+      );
+    } finally {
+      window.setTimeout(() => {
+        setIsPreparingPrint(false);
+      }, 500);
     }
   }
 
@@ -231,6 +287,7 @@ export default function InvoiceDetailsPage() {
 
   setIsPreparingPrint(true);
   setErrorMessage("");
+  setPrintMessage("");
 
   try {
     const invoiceNumber = invoice.invoice_number;
@@ -351,24 +408,22 @@ export default function InvoiceDetailsPage() {
 
                 <button
                   type="button"
-                  onClick={() => handlePrint("thermal")}
+                  onClick={() => void handleSmartThermalPrint()}
                   disabled={isPreparingPrint}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-black text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Printer className="h-5 w-5" />
-                  Ticket thermique
+                  Imprimer le ticket
                 </button>
 
                 <button
                   type="button"
-                  onClick={() =>
-                    void handleNativeThermalPrint()
-                  }
+                  onClick={() => void handleShareThermalReceipt()}
                   disabled={isPreparingPrint}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-black text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-black text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <Smartphone className="h-5 w-5" />
-                  Ticket natif — Test
+                  <Share2 className="h-5 w-5" />
+                  Autre application
                 </button>
 
                 <button
@@ -389,6 +444,19 @@ export default function InvoiceDetailsPage() {
               {errorMessage}
             </div>
           )}
+
+          {printMessage && (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
+              {printMessage}
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-semibold leading-5 text-blue-900 md:text-sm">
+            Sur Android ou iPhone, « Imprimer le ticket » utilise le service
+            d’impression installé sur l’appareil. Si l’imprimante intégrée
+            n’apparaît pas, choisissez « Autre application » puis l’application
+            fournie avec le terminal ou l’imprimante ESC/POS.
+          </div>
 
           <section className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
             <InfoMetric
