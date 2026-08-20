@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { requirePharmacyManager } from "@/lib/auth/require-pharmacy-manager";
+import {
+  ApiRequestError,
+  assertStringLength,
+  assertUuid,
+  getApiErrorStatus,
+  readProtectedJson,
+} from "@/lib/http/request-security";
 
 type ResetPasswordBody = {
   pharmacyId: string;
@@ -10,15 +17,22 @@ type ResetPasswordBody = {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as ResetPasswordBody;
+    const body = await readProtectedJson<ResetPasswordBody>(request, {
+      maxBytes: 16_384,
+    });
 
     if (!body.pharmacyId) {
       throw new Error("La pharmacie est obligatoire.");
     }
 
+    assertUuid(body.pharmacyId, "La pharmacie");
+
     if (!body.memberId) {
       throw new Error("L’utilisateur est obligatoire.");
     }
+
+    assertUuid(body.memberId, "L’utilisateur");
+    assertStringLength(body.temporaryPassword, "Le mot de passe", 128);
 
     if (!body.temporaryPassword?.trim()) {
       throw new Error("Le mot de passe temporaire est obligatoire.");
@@ -52,6 +66,13 @@ export async function POST(request: Request) {
 
     if (!isPlatformAdmin && role === "manager" && member.role === "owner") {
       throw new Error("Un gérant ne peut pas réinitialiser le propriétaire.");
+    }
+
+    if (!isPlatformAdmin && role === "manager" && member.role === "manager") {
+      throw new ApiRequestError(
+        "Un gérant ne peut pas réinitialiser le mot de passe d’un autre gérant.",
+        403
+      );
     }
 
     const { data: authUserData, error: authUserError } =
@@ -114,7 +135,7 @@ export async function POST(request: Request) {
             : "Impossible de réinitialiser le mot de passe.",
       },
       {
-        status: 400,
+        status: getApiErrorStatus(error),
       }
     );
   }

@@ -1,9 +1,14 @@
+import "server-only";
+
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { ApiRequestError, assertUuid } from "@/lib/http/request-security";
 
 const allowedManagerRoles = ["owner", "manager"];
 
 export async function requirePharmacyManager(pharmacyId: string) {
+  assertUuid(pharmacyId, "La pharmacie");
+
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -12,7 +17,7 @@ export async function requirePharmacyManager(pharmacyId: string) {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    throw new Error("Utilisateur non authentifié.");
+    throw new ApiRequestError("Utilisateur non authentifié.", 401);
   }
 
   const supabaseAdmin = createSupabaseAdminClient();
@@ -42,11 +47,17 @@ export async function requirePharmacyManager(pharmacyId: string) {
     .maybeSingle();
 
   if (memberError) {
-    throw new Error(memberError.message);
+    throw new ApiRequestError(
+      "Impossible de vérifier les autorisations de la pharmacie.",
+      500
+    );
   }
 
   if (!member || !allowedManagerRoles.includes(member.role)) {
-    throw new Error("Accès réservé au propriétaire ou au gérant.");
+    throw new ApiRequestError(
+      "Accès réservé au propriétaire ou au gérant.",
+      403
+    );
   }
 
   return {

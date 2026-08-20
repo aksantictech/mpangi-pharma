@@ -453,7 +453,7 @@ export type UpdatePharmacyMemberStatusPayload = {
 export async function updatePharmacyMemberStatus(
   payload: UpdatePharmacyMemberStatusPayload
 ) {
-  const response = await fetch("/api/pharmacy/members/status", {
+  const response = await fetch("/api/pharmacy/members/statuts", {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",

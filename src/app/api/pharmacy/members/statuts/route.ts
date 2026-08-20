@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { requirePharmacyManager } from "@/lib/auth/require-pharmacy-manager";
+import {
+  assertUuid,
+  getApiErrorStatus,
+  readProtectedJson,
+} from "@/lib/http/request-security";
 
 type UpdateMemberStatusBody = {
   pharmacyId: string;
@@ -10,15 +15,21 @@ type UpdateMemberStatusBody = {
 
 export async function PATCH(request: Request) {
   try {
-    const body = (await request.json()) as UpdateMemberStatusBody;
+    const body = await readProtectedJson<UpdateMemberStatusBody>(request, {
+      maxBytes: 16_384,
+    });
 
     if (!body.pharmacyId) {
       throw new Error("La pharmacie est obligatoire.");
     }
 
+    assertUuid(body.pharmacyId, "La pharmacie");
+
     if (!body.memberId) {
       throw new Error("L’utilisateur est obligatoire.");
     }
+
+    assertUuid(body.memberId, "L’utilisateur");
 
     if (typeof body.isActive !== "boolean") {
       throw new Error("Le statut est obligatoire.");
@@ -101,7 +112,7 @@ export async function PATCH(request: Request) {
             : "Impossible de modifier le statut de l’utilisateur.",
       },
       {
-        status: 400,
+        status: getApiErrorStatus(error),
       }
     );
   }

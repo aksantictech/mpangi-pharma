@@ -20,7 +20,7 @@ import AppLogo from "@/components/branding/AppLogo";
 import AksanticFooter from "@/components/branding/AksanticFooter";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
-const APK_DOWNLOAD_HREF = "/downloads/Mpangi-Pharma.apk";
+const APK_DOWNLOAD_HREF = "/download/Mpangi-Pharma.apk";
 
 export default function LoginPage() {
   const router = useRouter();

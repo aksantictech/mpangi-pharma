@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { requirePharmacyManager } from "@/lib/auth/require-pharmacy-manager";
+import {
+  ApiRequestError,
+  assertUuid,
+  getApiErrorStatus,
+  readProtectedJson,
+} from "@/lib/http/request-security";
 
 type ProductImportRow = {
   rowNumber: number;
@@ -26,6 +32,15 @@ type ProductImportBody = {
   rows: ProductImportRow[];
 };
 
+const MAX_IMPORT_ROWS = 2_000;
+const MAX_TEXT_LENGTH = 500;
+const MAX_QUANTITY = 10_000_000;
+const MAX_PRICE = 1_000_000_000_000;
+
+type SupabaseAdminClient = Awaited<
+  ReturnType<typeof requirePharmacyManager>
+>["supabaseAdmin"];
+
 function emptyToNull(value?: string) {
   const trimmed = String(value ?? "").trim();
 
@@ -39,7 +54,7 @@ function cleanName(value: string | null | undefined, fallback: string) {
 }
 
 async function getOrCreateCategory(
-  supabaseAdmin: any,
+  supabaseAdmin: SupabaseAdminClient,
   pharmacyId: string,
   categoryName: string
 ) {
@@ -77,7 +92,7 @@ async function getOrCreateCategory(
 }
 
 async function getOrCreateSupplier(
-  supabaseAdmin: any,
+  supabaseAdmin: SupabaseAdminClient,
   pharmacyId: string,
   supplierName: string
 ) {
@@ -117,27 +132,88 @@ async function getOrCreateSupplier(
 }
 
 function validateRow(row: ProductImportRow) {
+  if (!row || typeof row !== "object") return "Ligne invalide.";
+  if (!Number.isInteger(row.rowNumber) || row.rowNumber < 1) {
+    return "Numéro de ligne invalide.";
+  }
+
+  const textValues = [
+    row.name,
+    row.genericName,
+    row.form,
+    row.dosage,
+    row.unit,
+    row.categoryName,
+    row.supplierName,
+    row.barcode,
+    row.batchNumber,
+    row.expirationDate,
+    row.description,
+  ];
+
+  if (textValues.some((value) => String(value ?? "").length > MAX_TEXT_LENGTH)) {
+    return "Une valeur texte est trop longue.";
+  }
+
   if (!row.name?.trim()) return "Nom produit obligatoire.";
   if (!row.unit?.trim()) return "Unité obligatoire.";
   if (!row.batchNumber?.trim()) return "Lot initial obligatoire.";
-  if (!row.quantity || row.quantity <= 0) return "Quantité initiale invalide.";
-  if (row.purchasePrice < 0) return "Prix achat invalide.";
-  if (!row.salePrice || row.salePrice <= 0) return "Prix vente invalide.";
-  if (!row.expirationDate) return "Date expiration obligatoire.";
+  if (
+    !Number.isFinite(row.quantity) ||
+    row.quantity <= 0 ||
+    row.quantity > MAX_QUANTITY
+  ) {
+    return "Quantité initiale invalide.";
+  }
+  if (
+    !Number.isFinite(row.purchasePrice) ||
+    row.purchasePrice < 0 ||
+    row.purchasePrice > MAX_PRICE
+  ) {
+    return "Prix achat invalide.";
+  }
+  if (
+    !Number.isFinite(row.salePrice) ||
+    row.salePrice <= 0 ||
+    row.salePrice > MAX_PRICE
+  ) {
+    return "Prix vente invalide.";
+  }
+  if (
+    !Number.isFinite(row.minStockThreshold) ||
+    row.minStockThreshold < 0 ||
+    row.minStockThreshold > MAX_QUANTITY
+  ) {
+    return "Seuil de stock invalide.";
+  }
+  if (!row.expirationDate || Number.isNaN(Date.parse(row.expirationDate))) {
+    return "Date expiration invalide.";
+  }
 
   return null;
 }
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as ProductImportBody;
+    const body = await readProtectedJson<ProductImportBody>(request, {
+      maxBytes: 4 * 1024 * 1024,
+    });
 
     if (!body.pharmacyId) {
       throw new Error("La pharmacie est obligatoire.");
     }
 
+    assertUuid(body.pharmacyId, "La pharmacie");
+
     if (!Array.isArray(body.rows) || body.rows.length === 0) {
       throw new Error("Aucun produit à importer.");
+    }
+
+    if (body.rows.length > MAX_IMPORT_ROWS) {
+      throw new ApiRequestError(
+        `L’import est limité à ${MAX_IMPORT_ROWS} lignes par opération.`,
+        413
+      );
     }
 
     const { supabaseAdmin } = await requirePharmacyManager(body.pharmacyId);
@@ -218,7 +294,7 @@ export async function POST(request: Request) {
             : "Impossible d’importer les produits.",
       },
       {
-        status: 400,
+        status: getApiErrorStatus(error),
       }
     );
   }

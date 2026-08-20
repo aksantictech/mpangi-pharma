@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { requirePlatformAdmin } from "@/lib/admin/require-platform-admin";
+import {
+  ApiRequestError,
+  getApiErrorStatus,
+  readProtectedJson,
+} from "@/lib/http/request-security";
 
 type ImportRow = {
   rowNumber: number;
@@ -29,6 +34,8 @@ type ImportBody = {
   rows: ImportRow[];
   replaceExisting?: boolean;
 };
+
+const MAX_IMPORT_ROWS = 5_000;
 
 type NationalProductPayload = {
   import_key: string;
@@ -153,10 +160,19 @@ function chunkArray<T>(items: T[], size: number) {
 export async function POST(request: Request) {
   try {
     const { supabaseAdmin } = await requirePlatformAdmin();
-    const body = (await request.json()) as ImportBody;
+    const body = await readProtectedJson<ImportBody>(request, {
+      maxBytes: 16 * 1024 * 1024,
+    });
 
     if (!Array.isArray(body.rows) || body.rows.length === 0) {
       throw new Error("Aucun produit ACOREP à importer.");
+    }
+
+    if (body.rows.length > MAX_IMPORT_ROWS) {
+      throw new ApiRequestError(
+        `L’import est limité à ${MAX_IMPORT_ROWS} lignes.`,
+        413
+      );
     }
 
     const errors: string[] = [];
@@ -279,7 +295,7 @@ export async function POST(request: Request) {
             ? error.message
             : "Impossible d’importer le catalogue ACOREP 2026.",
       },
-      { status: 400 }
+      { status: getApiErrorStatus(error) }
     );
   }
 }

@@ -22,7 +22,8 @@ import { getInvoiceById } from "@/services/invoices.service";
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
 import { printElementInIsolatedFrame } from "@/lib/print-invoice";
 import {
-  isNativeThermalPrinterAvailable,
+  hasNativeThermalPrinterBridge,
+  isAndroidPrintingDevice,
   printNativeThermalReceipt,
   shareThermalReceipt,
   type NativeThermalReceipt,
@@ -89,6 +90,9 @@ export default function InvoiceDetailsPage() {
   useEffect(() => {
     if (!invoiceId) return;
 
+    // Le chargement de la facture est volontairement déclenché au changement
+    // de route dynamique.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceId]);
@@ -200,8 +204,7 @@ export default function InvoiceDetailsPage() {
 
     try {
       const receipt = buildThermalReceipt();
-      const nativeAvailable =
-        await isNativeThermalPrinterAvailable();
+      const nativeAvailable = hasNativeThermalPrinterBridge();
 
       if (nativeAvailable) {
         try {
@@ -214,6 +217,13 @@ export default function InvoiceDetailsPage() {
           // Un pont natif présent mais défaillant ne doit jamais bloquer la
           // vente : on ouvre automatiquement le service d'impression système.
         }
+      }
+
+      if (isAndroidPrintingDevice()) {
+        const result = await shareThermalReceipt(receipt, 58);
+
+        setPrintMessage(getThermalShareMessage(result));
+        return;
       }
 
       await printElementInIsolatedFrame({
@@ -251,11 +261,7 @@ export default function InvoiceDetailsPage() {
         58
       );
 
-      setPrintMessage(
-        result === "share"
-          ? "Ticket envoyé vers l’application sélectionnée."
-          : "Ticket texte téléchargé : ouvrez-le avec l’application de votre imprimante."
-      );
+      setPrintMessage(getThermalShareMessage(result));
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         return;
@@ -423,7 +429,7 @@ export default function InvoiceDetailsPage() {
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-black text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Share2 className="h-5 w-5" />
-                  Autre application
+                  Ticket PNG Android
                 </button>
 
                 <button
@@ -452,10 +458,11 @@ export default function InvoiceDetailsPage() {
           )}
 
           <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs font-semibold leading-5 text-blue-900 md:text-sm">
-            Sur Android ou iPhone, « Imprimer le ticket » utilise le service
-            d’impression installé sur l’appareil. Si l’imprimante intégrée
-            n’apparaît pas, choisissez « Autre application » puis l’application
-            fournie avec le terminal ou l’imprimante ESC/POS.
+            Sur un terminal Android, « Imprimer le ticket » génère maintenant
+            une image thermique 58 mm. Dans la fenêtre Android, choisissez
+            l’application « Printer », l’application du fabricant ou votre
+            application ESC/POS. Sur ordinateur, le dialogue d’impression
+            classique reste utilisé.
           </div>
 
           <section className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
@@ -784,8 +791,16 @@ function TableHead({
   );
 }
 
-function asRecord(value: unknown) {
-  return value as Record<string, any>;
+type LooseRecord = Record<string, unknown> & {
+  product?: Record<string, unknown>;
+};
+
+function asRecord(value: unknown): LooseRecord {
+  if (value && typeof value === "object") {
+    return value as LooseRecord;
+  }
+
+  return {};
 }
 
 function getPharmacyLogoUrl(
@@ -957,6 +972,29 @@ function formatPaymentMethod(
   };
 
   return labels[method] ?? method;
+}
+
+function getThermalShareMessage(
+  result: Awaited<ReturnType<typeof shareThermalReceipt>>
+) {
+  if (result === "share-image") {
+    return (
+      "Ticket PNG 58 mm transmis à Android. Sélectionnez maintenant " +
+      "l’application Printer ou l’application d’impression du terminal."
+    );
+  }
+
+  if (result === "share-text") {
+    return (
+      "Le terminal ne partage pas les images. Le ticket texte a été " +
+      "transmis à l’application sélectionnée."
+    );
+  }
+
+  return (
+    "Ticket PNG téléchargé. Ouvrez-le depuis Téléchargements avec " +
+    "l’application d’impression du terminal."
+  );
 }
 
 function formatMoney(

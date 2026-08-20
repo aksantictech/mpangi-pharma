@@ -1,5 +1,8 @@
+import "server-only";
+
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { ApiRequestError } from "@/lib/http/request-security";
 
 export async function requirePlatformAdmin() {
   const supabase = await createSupabaseServerClient();
@@ -10,7 +13,7 @@ export async function requirePlatformAdmin() {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    throw new Error("Non authentifié.");
+    throw new ApiRequestError("Non authentifié.", 401);
   }
 
   const supabaseAdmin = createSupabaseAdminClient();
@@ -23,11 +26,14 @@ export async function requirePlatformAdmin() {
     .maybeSingle();
 
   if (adminError) {
-    throw new Error(adminError.message);
+    throw new ApiRequestError(
+      "Impossible de vérifier les autorisations administrateur.",
+      500
+    );
   }
 
   if (!platformAdmin) {
-    throw new Error("Accès réservé au Super Admin.");
+    throw new ApiRequestError("Accès réservé au Super Admin.", 403);
   }
 
   return {

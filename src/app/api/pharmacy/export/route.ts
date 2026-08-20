@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { requirePharmacyManager } from "@/lib/auth/require-pharmacy-manager";
+import {
+  assertUuid,
+  getApiErrorStatus,
+  readProtectedJson,
+} from "@/lib/http/request-security";
 
 type ExportRequestBody = {
   pharmacyId: string;
@@ -25,11 +30,15 @@ async function getTableData(
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as ExportRequestBody;
+    const body = await readProtectedJson<ExportRequestBody>(request, {
+      maxBytes: 16_384,
+    });
 
     if (!body.pharmacyId) {
       throw new Error("La pharmacie est obligatoire.");
     }
+
+    assertUuid(body.pharmacyId, "La pharmacie");
 
     const { supabaseAdmin, user, isPlatformAdmin, role } =
       await requirePharmacyManager(body.pharmacyId);
@@ -89,35 +98,42 @@ export async function POST(request: Request) {
 
     const exportedAt = new Date().toISOString();
 
-    return NextResponse.json({
-      exportedAt,
-      exportedBy: {
-        userId: user.id,
-        email: user.email ?? null,
-        role,
-        isPlatformAdmin,
+    return NextResponse.json(
+      {
+        exportedAt,
+        exportedBy: {
+          userId: user.id,
+          email: user.email ?? null,
+          role,
+          isPlatformAdmin,
+        },
+        pharmacy,
+        data: {
+          settings,
+          members,
+          categories,
+          suppliers,
+          products,
+          batches,
+          stockMovements,
+          customers,
+          sales,
+          saleItems,
+          expenses,
+          auditLogs,
+        },
+        metadata: {
+          version: "1.0",
+          app: "Mpangi_Pharma",
+          format: "json",
+        },
       },
-      pharmacy,
-      data: {
-        settings,
-        members,
-        categories,
-        suppliers,
-        products,
-        batches,
-        stockMovements,
-        customers,
-        sales,
-        saleItems,
-        expenses,
-        auditLogs,
-      },
-      metadata: {
-        version: "1.0",
-        app: "Mpangi_Pharma",
-        format: "json",
-      },
-    });
+      {
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0",
+        },
+      }
+    );
   } catch (error) {
     return NextResponse.json(
       {
@@ -127,7 +143,7 @@ export async function POST(request: Request) {
             : "Impossible d’exporter les données.",
       },
       {
-        status: 400,
+        status: getApiErrorStatus(error),
       }
     );
   }

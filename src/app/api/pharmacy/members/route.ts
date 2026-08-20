@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { requirePharmacyManager } from "@/lib/auth/require-pharmacy-manager";
+import {
+  ApiRequestError,
+  assertStringLength,
+  assertUuid,
+  getApiErrorStatus,
+  readProtectedJson,
+} from "@/lib/http/request-security";
 
 type CreateMemberBody = {
   pharmacyId: string;
@@ -19,6 +26,10 @@ const allowedRoles = [
   "accountant",
 ];
 
+type SupabaseAdminClient = Awaited<
+  ReturnType<typeof requirePharmacyManager>
+>["supabaseAdmin"];
+
 function emptyToNull(value?: string) {
   if (!value) return null;
 
@@ -27,7 +38,10 @@ function emptyToNull(value?: string) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-async function findUserByEmail(supabaseAdmin: any, email: string) {
+async function findUserByEmail(
+  supabaseAdmin: SupabaseAdminClient,
+  email: string
+) {
   const { data, error } = await supabaseAdmin.auth.admin.listUsers({
     page: 1,
     perPage: 1000,
@@ -45,11 +59,19 @@ async function findUserByEmail(supabaseAdmin: any, email: string) {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as CreateMemberBody;
+    const body = await readProtectedJson<CreateMemberBody>(request, {
+      maxBytes: 32_768,
+    });
 
     if (!body.pharmacyId) {
       throw new Error("La pharmacie est obligatoire.");
     }
+
+    assertUuid(body.pharmacyId, "La pharmacie");
+    assertStringLength(body.fullName, "Le nom complet", 120);
+    assertStringLength(body.email, "L’email", 254);
+    assertStringLength(body.password, "Le mot de passe", 128);
+    assertStringLength(body.phone, "Le téléphone", 40);
 
     if (!body.fullName?.trim()) {
       throw new Error("Le nom complet est obligatoire.");
@@ -71,7 +93,15 @@ export async function POST(request: Request) {
       throw new Error("Rôle invalide.");
     }
 
-    const { supabaseAdmin } = await requirePharmacyManager(body.pharmacyId);
+    const { supabaseAdmin, role, isPlatformAdmin } =
+      await requirePharmacyManager(body.pharmacyId);
+
+    if (!isPlatformAdmin && role === "manager" && body.role === "manager") {
+      throw new ApiRequestError(
+        "Seul le propriétaire peut nommer un autre gérant.",
+        403
+      );
+    }
 
     const existingUser = await findUserByEmail(
       supabaseAdmin,
@@ -161,7 +191,7 @@ export async function POST(request: Request) {
             : "Impossible d’ajouter l’utilisateur.",
       },
       {
-        status: 400,
+        status: getApiErrorStatus(error),
       }
     );
   }

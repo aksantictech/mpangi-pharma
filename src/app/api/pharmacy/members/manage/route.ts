@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { requirePharmacyManager } from "@/lib/auth/require-pharmacy-manager";
+import {
+  ApiRequestError,
+  assertStringLength,
+  assertUuid,
+  getApiErrorStatus,
+  readProtectedJson,
+} from "@/lib/http/request-security";
 
 type MemberRole =
   | "manager"
@@ -36,15 +43,23 @@ function emptyToNull(value?: string) {
 
 export async function PATCH(request: Request) {
   try {
-    const body = (await request.json()) as UpdateMemberBody;
+    const body = await readProtectedJson<UpdateMemberBody>(request, {
+      maxBytes: 32_768,
+    });
 
     if (!body.pharmacyId) {
       throw new Error("La pharmacie est obligatoire.");
     }
 
+    assertUuid(body.pharmacyId, "La pharmacie");
+    assertStringLength(body.fullName, "Le nom complet", 120);
+    assertStringLength(body.phone, "Le téléphone", 40);
+
     if (!body.memberId) {
       throw new Error("L’utilisateur est obligatoire.");
     }
+
+    assertUuid(body.memberId, "L’utilisateur");
 
     if (!body.fullName?.trim()) {
       throw new Error("Le nom complet est obligatoire.");
@@ -86,6 +101,13 @@ export async function PATCH(request: Request) {
 
     if (!isPlatformAdmin && role === "manager" && member.role === "manager") {
       throw new Error("Un gérant ne peut pas modifier un autre gérant.");
+    }
+
+    if (!isPlatformAdmin && role === "manager" && body.role === "manager") {
+      throw new ApiRequestError(
+        "Seul le propriétaire peut attribuer le rôle de gérant.",
+        403
+      );
     }
 
 const { data: authUserData, error: authUserError } =
@@ -176,7 +198,7 @@ const targetEmail = authUserData.user?.email ?? null;
             : "Impossible de modifier l’utilisateur.",
       },
       {
-        status: 400,
+        status: getApiErrorStatus(error),
       }
     );
   }

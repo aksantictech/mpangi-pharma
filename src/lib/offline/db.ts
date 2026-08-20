@@ -111,6 +111,8 @@ export const offlineDb = new MpangiOfflineDatabase();
 
 const DEVICE_ID_KEY = "mpangi_pharma_device_id";
 const OFFLINE_OWNER_KEY = "mpangi_pharma_offline_owner";
+const ACTIVE_PHARMACY_KEY = "mpangi_pharma_active_pharmacy_id";
+const CURRENT_PHARMACY_CACHE_KEY = "mpangi_pharma_current_pharmacy";
 
 export async function clearOfflinePharmacyData() {
   await offlineDb.transaction(
@@ -133,6 +135,8 @@ export async function clearOfflinePharmacyData() {
 
   if (typeof window !== "undefined") {
     window.localStorage.removeItem(OFFLINE_OWNER_KEY);
+    window.localStorage.removeItem(ACTIVE_PHARMACY_KEY);
+    window.localStorage.removeItem(CURRENT_PHARMACY_CACHE_KEY);
     window.dispatchEvent(new CustomEvent("mpangi-offline-cache-updated"));
   }
 }

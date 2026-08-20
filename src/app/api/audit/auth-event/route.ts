@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import {
+  assertUuid,
+  getApiErrorStatus,
+  readProtectedJson,
+} from "@/lib/http/request-security";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type Payload = {
@@ -37,18 +42,9 @@ const MAX_BODY_BYTES = 16_384;
 
 export async function POST(request: NextRequest) {
   try {
-    const contentLength = Number(
-      request.headers.get("content-length") ?? 0
-    );
-
-    if (contentLength > MAX_BODY_BYTES) {
-      return NextResponse.json(
-        { error: "Requête trop volumineuse." },
-        { status: 413 }
-      );
-    }
-
-    const payload = (await request.json()) as Payload;
+    const payload = await readProtectedJson<Payload>(request, {
+      maxBytes: MAX_BODY_BYTES,
+    });
 
     if (!allowedEventTypes.has(payload.eventType)) {
       return NextResponse.json(
@@ -70,6 +66,22 @@ export async function POST(request: NextRequest) {
     if ((payload.failureReason?.length ?? 0) > 500) {
       return NextResponse.json(
         { error: "Motif d’échec trop long." },
+        { status: 400 }
+      );
+    }
+
+    if (payload.pharmacyId) {
+      assertUuid(payload.pharmacyId, "La pharmacie");
+    }
+
+    if (
+      payload.metadata !== undefined &&
+      (payload.metadata === null ||
+        typeof payload.metadata !== "object" ||
+        Array.isArray(payload.metadata))
+    ) {
+      return NextResponse.json(
+        { error: "Métadonnées invalides." },
         { status: 400 }
       );
     }
@@ -105,7 +117,10 @@ export async function POST(request: NextRequest) {
     const { error } = await supabase.rpc("log_auth_event", {
       p_event_type: payload.eventType,
       p_email: user?.email ?? payload.email?.slice(0, 254) ?? null,
-      p_success: payload.success ?? true,
+      p_success:
+        payload.eventType === "login_failed"
+          ? false
+          : payload.success ?? true,
       p_failure_reason: payload.failureReason?.slice(0, 500) ?? null,
       p_pharmacy_id: payload.pharmacyId ?? null,
       p_ip_address: ipAddress,
@@ -132,7 +147,7 @@ export async function POST(request: NextRequest) {
             ? error.message
             : "Impossible d’enregistrer l’événement.",
       },
-      { status: 500 }
+      { status: getApiErrorStatus(error, 500) }
     );
   }
 }

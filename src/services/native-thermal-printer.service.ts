@@ -3,6 +3,10 @@ import {
   type ThermalPaperWidth,
   type ThermalReceipt,
 } from "@/lib/printing/receipt";
+import {
+  createThermalReceiptPngs,
+  type ThermalReceiptPng,
+} from "@/lib/printing/receipt-image";
 
 export type NativeThermalReceipt = ThermalReceipt;
 
@@ -11,6 +15,7 @@ export type NativePrinterCapabilities = {
   bridge: boolean;
   systemPrint: boolean;
   share: boolean;
+  fileShare: boolean;
   platform: "android" | "ios" | "desktop" | "unknown";
 };
 
@@ -53,6 +58,20 @@ export async function isNativeThermalPrinterAvailable() {
   }
 }
 
+export function hasNativeThermalPrinterBridge() {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.MpangiNativePrinter?.printReceipt === "function"
+  );
+}
+
+export function isAndroidPrintingDevice() {
+  return (
+    typeof navigator !== "undefined" &&
+    /Android/i.test(navigator.userAgent)
+  );
+}
+
 export async function getNativePrinterCapabilities(): Promise<NativePrinterCapabilities> {
   const userAgent =
     typeof navigator === "undefined" ? "" : navigator.userAgent;
@@ -66,6 +85,7 @@ export async function getNativePrinterCapabilities(): Promise<NativePrinterCapab
         : "unknown";
 
   const bridge = await isNativeThermalPrinterAvailable();
+  const fileShare = canShareThermalReceiptFiles();
 
   return {
     available: bridge || typeof window !== "undefined",
@@ -74,6 +94,7 @@ export async function getNativePrinterCapabilities(): Promise<NativePrinterCapab
     share:
       typeof navigator !== "undefined" &&
       typeof navigator.share === "function",
+    fileShare,
     platform,
   };
 }
@@ -141,8 +162,23 @@ export async function shareThermalReceipt(
     throw new Error("Le partage du ticket est indisponible sur le serveur.");
   }
 
-  const text = renderReceiptAsPlainText(receipt, paperWidth);
   const title = `Ticket ${receipt.invoiceNumber}`;
+  const images = createThermalReceiptPngs(receipt, paperWidth);
+  const files = createShareableFiles(images);
+
+  if (files.length > 0 && canShareFiles(files)) {
+    // Cette invocation doit rester dans le même geste utilisateur. Ne pas
+    // ajouter d'attente asynchrone avant navigator.share sur Android.
+    await navigator.share({
+      title,
+      text: "Ticket de vente Mpangi Pharma",
+      files,
+    });
+
+    return "share-image" as const;
+  }
+
+  const text = renderReceiptAsPlainText(receipt, paperWidth);
 
   if (typeof navigator.share === "function") {
     await navigator.share({
@@ -150,33 +186,83 @@ export async function shareThermalReceipt(
       text,
     });
 
-    return "share" as const;
+    return "share-text" as const;
   }
 
-  const blob = new Blob([text], {
-    type: "text/plain;charset=utf-8",
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
+  downloadThermalReceiptImages(images);
 
-  link.href = url;
-  link.download = `${safeFileName(receipt.invoiceNumber)}.txt`;
-  link.rel = "noopener";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-
-  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-
-  return "download" as const;
+  return "download-image" as const;
 }
 
-function safeFileName(value: string) {
-  const normalized = value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+function canShareThermalReceiptFiles() {
+  if (
+    typeof navigator === "undefined" ||
+    typeof navigator.share !== "function" ||
+    typeof navigator.canShare !== "function" ||
+    typeof File === "undefined"
+  ) {
+    return false;
+  }
 
-  return normalized || "ticket";
+  try {
+    const sample = new File(["ticket"], "ticket.png", {
+      type: "image/png",
+    });
+
+    return navigator.canShare({ files: [sample] });
+  } catch {
+    return false;
+  }
+}
+
+function createShareableFiles(images: ThermalReceiptPng[]) {
+  if (typeof File === "undefined") return [];
+
+  return images.map(
+    (image) =>
+      new File([image.blob], image.fileName, {
+        type: "image/png",
+        lastModified: Date.now(),
+      })
+  );
+}
+
+function canShareFiles(files: File[]) {
+  if (
+    typeof navigator.canShare !== "function" ||
+    typeof navigator.share !== "function"
+  ) {
+    return false;
+  }
+
+  try {
+    return navigator.canShare({ files });
+  } catch {
+    return false;
+  }
+}
+
+function downloadThermalReceiptImages(images: ThermalReceiptPng[]) {
+  images.forEach((image, index) => {
+    const url = URL.createObjectURL(image.blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = image.fileName;
+    link.rel = "noopener";
+    document.body.appendChild(link);
+
+    const triggerDownload = () => {
+      link.click();
+      link.remove();
+    };
+
+    if (index === 0) {
+      triggerDownload();
+    } else {
+      window.setTimeout(triggerDownload, index * 150);
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  });
 }

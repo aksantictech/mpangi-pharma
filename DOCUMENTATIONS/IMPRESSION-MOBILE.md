@@ -1,82 +1,107 @@
-# Impression mobile — architecture et validation
+# Impression Android et mobile — architecture v2
 
-Date de référence : 14 août 2026
+Date de référence : 20 août 2026
 
-## Décision d’architecture
+## Diagnostic confirmé
 
-Une PWA ne peut pas piloter de façon universelle l’imprimante intégrée de
-chaque terminal Android. Les constructeurs exposent des SDK, services AIDL,
-ports série ou applications d’impression différents. Mpangi Pharma utilise
-donc trois niveaux, dans cet ordre :
+L'APK actuellement publié dans `public/download/Mpangi-Pharma.apk` est une
+enveloppe WebAPK/Trusted Web Activity lancée par Chrome ou Samsung Internet.
+Il ne contient ni pilote d'imprimante, ni SDK SUNMI/H10, ni implémentation du
+pont JavaScript `window.MpangiNativePrinter` attendu par l'application web.
 
-1. **Connecteur natif Mpangi** quand l’application Android du terminal expose
-   `window.MpangiNativePrinter` ;
-2. **service d’impression du système** pour Android Print Framework, AirPrint,
-   Mopria et les pilotes installés par le constructeur ;
-3. **partage d’un ticket texte ESC/POS de 32 colonnes** vers l’application du
-   fabricant ou une application d’impression compatible.
+Le résultat observé est donc cohérent : l'impression du navigateur fonctionne
+sur ordinateur, mais le terminal Android ne peut pas piloter silencieusement
+son imprimante intégrée. Une TWA affiche le site dans le navigateur Android ;
+elle n'ajoute pas automatiquement les API natives du constructeur.
 
-Une panne du connecteur natif déclenche automatiquement le niveau 2. Le reçu
-reste également disponible en A4/PDF.
+## Solution déployée dans le code web
 
-## Correctifs intégrés
+Le bouton **Imprimer le ticket** suit désormais cet ordre :
 
-- suppression du bouton expérimental spécifique H10 ;
-- détection du connecteur natif sans exception bloquante ;
-- protocole de reçu natif version 2 ;
-- ticket texte déterministe en 58 mm (32 colonnes) et 80 mm (48 colonnes) ;
-- partage Android/iOS, avec téléchargement `.txt` de secours ;
-- conservation de l’iframe jusqu’à `afterprint` ou 120 secondes au lieu de la
-  supprimer après 2 secondes ;
-- repli automatique vers le menu d’impression du système ;
-- messages d’aide directement sur la facture.
+1. pont natif Mpangi, uniquement s'il existe réellement sur l'appareil ;
+2. sur Android sans pont natif, génération locale et synchrone d'un ticket PNG
+   noir sur blanc, puis partage immédiat vers le sélecteur Android ;
+3. sur ordinateur, dialogue d'impression isolé existant ;
+4. si le partage de fichiers n'est pas supporté, partage texte puis
+   téléchargement PNG de secours.
 
-## Mise en service sur le terminal H10
+Le PNG est généré sans serveur et sans transfert de données à un service tiers.
+Les dimensions sont déterministes :
 
-1. Dans l’application **Printer** livrée avec le terminal, lancer le test
-   matériel. Si ce test échoue, il s’agit d’un défaut matériel, papier ou
-   firmware, pas de Mpangi Pharma.
-2. Vérifier dans Android **Paramètres > Connexion/Impression** si un service
-   d’impression du constructeur est présent et activé.
-3. Dans Mpangi Pharma, ouvrir une facture puis toucher **Imprimer le ticket**.
-4. Si l’imprimante interne est proposée, la sélectionner et conserver ce choix
-   comme imprimante par défaut.
-5. Si elle n’est pas proposée, toucher **Autre application** et sélectionner
-   l’application d’impression du terminal.
+| Papier | Largeur raster | Ticket texte |
+|---|---:|---:|
+| 58 mm | 384 px | 32 caractères |
+| 80 mm | 576 px | 48 caractères |
 
-Pour une impression directe silencieuse sur ce H10, il faut obtenir auprès du
-vendeur le **SDK exact correspondant au firmware installé** : fichier AAR/JAR,
-documentation AIDL ou port série, application de démonstration et APK du
-service d’impression. Le modèle H10 est commercialisé avec un SDK, mais ce SDK
-n’est ni standardisé ni présent dans ce dépôt. Le connecteur natif Mpangi est
-prêt à recevoir cet adaptateur sans modifier le moteur de reçu.
+Les tickets de plus de 160 lignes sont découpés en plusieurs images afin
+d'éviter les limites de hauteur ou de mémoire des applications Android.
 
-## Matrice de compatibilité
+## Ce que « universel » signifie réellement
 
-| Appareil / imprimante | Méthode recommandée | Secours |
-|---|---|---|
-| Android + imprimante interne avec Print Service | Imprimer le ticket | Autre application |
-| Android + imprimante interne avec SDK seulement | Connecteur natif Mpangi | Autre application |
-| Android + Bluetooth/USB/réseau ESC/POS | Print Service/Mopria | Partage vers l’app du fabricant |
-| iPhone/iPad + AirPrint | Imprimer le ticket | Partage |
-| PC + imprimante 58/80 mm | Dialogue système | A4/PDF |
+Aucune API web standard ne permet d'envoyer des commandes ESC/POS à toutes les
+imprimantes intégrées Android. Les terminaux utilisent selon les modèles un SDK
+Java/Kotlin, un service AIDL, un port série, USB, Bluetooth ou une application
+constructeur.
+
+La solution PNG + partage Android est le meilleur repli indépendant du modèle :
+elle fonctionne si l'application **Printer** du constructeur accepte les images
+partagées ou si un service/app ESC/POS compatible est installé.
+
+Pour obtenir une impression directe, automatique et sans sélecteur sur un H10,
+SUNMI ou autre terminal, il faut construire un véritable APK Android Mpangi et
+y intégrer un adaptateur par famille :
+
+| Adaptateur | Usage |
+|---|---|
+| Android Print Framework | Imprimantes exposées comme Print Service |
+| SDK SUNMI | Imprimantes SUNMI via leur service natif |
+| SDK/AIDL H10 | Imprimante intégrée du firmware H10 exact |
+| ESC/POS Bluetooth/USB/TCP | Imprimantes externes compatibles |
+
+Le moteur de reçu TypeScript et le protocole `printerMode: thermal-native`
+restent réutilisables par ce futur APK.
+
+## Test immédiat sur le terminal
+
+1. Dans l'application **Printer** du terminal, lancer son auto-test matériel.
+2. Mettre à jour Chrome/Samsung Internet et l'application Printer.
+3. Ouvrir une facture Mpangi, toucher **Imprimer le ticket**.
+4. Dans le sélecteur Android, choisir **Printer**, l'application constructeur
+   ou l'application ESC/POS installée, puis imprimer l'image à 100 %, sans marge.
+5. Si aucune application d'impression n'apparaît dans le sélecteur, installer
+   le plugin constructeur ou récupérer son SDK : le navigateur ne peut pas
+   créer ce pilote manquant.
+
+Le bouton **Ticket PNG Android** permet de tester explicitement le même chemin.
 
 ## Recette matérielle obligatoire
 
 | ID | Test | Résultat attendu |
 |---|---|---|
-| IMP-01 | Ticket d’un seul produit | Ticket complet, une seule impression |
+| IMP-01 | Ticket d'un seul produit | Ticket complet, une seule impression |
 | IMP-02 | Nom de produit très long | Retour à la ligne, aucun texte coupé |
 | IMP-03 | 25 produits | Toutes les lignes et le total sont présents |
-| IMP-04 | Accents français | Texte lisible ou repli texte accepté |
-| IMP-05 | Imprimante éteinte | Erreur du pilote, facture et vente conservées |
-| IMP-06 | Annulation du dialogue | Aucun blocage de l’écran |
-| IMP-07 | Deux impressions successives | Deux tickets identiques, pas de page blanche |
-| IMP-08 | Réseau indisponible après chargement | Réimpression de la facture déjà affichée |
+| IMP-04 | Accents français | Texte raster lisible |
+| IMP-05 | Ticket de plus de 160 lignes | Plusieurs PNG ordonnés sont proposés |
+| IMP-06 | Imprimante éteinte | Facture et vente restent conservées |
+| IMP-07 | Annulation du partage | Aucun blocage de l'écran |
+| IMP-08 | Deux impressions successives | Deux tickets identiques, pas de page blanche |
+| IMP-09 | Réseau coupé après affichage | Ticket déjà chargé encore partageable |
+| IMP-10 | Android sans partage de fichiers | Partage texte ou PNG téléchargé |
 
-## Références techniques
+## Sécurité du futur connecteur natif
 
-- Android Print Framework : https://developer.android.com/training/printing/custom-docs
-- Installation SheetJS corrigée : https://docs.sheetjs.com/docs/getting-started/installation/nodejs/
-- Fiche H10 avec imprimante 58 mm :
-  https://www.coresmart-equipment.com/pos-terminal/pos-terminal-machine/h10-pos-terminal.html
+Ne pas exposer `addJavascriptInterface` à des pages ou iframes arbitraires.
+L'APK natif devra limiter la navigation au domaine Mpangi attendu, refuser les
+origines inconnues et n'accepter qu'un schéma de reçu validé. Les données du
+ticket ne doivent jamais contenir de commande brute fournie par l'utilisateur.
+
+## Références techniques officielles
+
+- Trusted Web Activity : https://developer.chrome.com/docs/android/trusted-web-activity
+- Impression d'un document WebView : https://developer.android.com/training/printing/html-docs
+- Partage Android `ACTION_SEND` : https://developer.android.com/develop/ui/compose/sharing/send
+- Web Share avec fichiers : https://web.dev/articles/web-share
+- Sécurité des ponts WebView : https://developer.android.com/privacy-and-security/risks/insecure-webview-native-bridges
+- Démonstration SDK d'impression SUNMI : https://github.com/shangmisunmi/SunmiPrinterDemo
+- Fiche H10 : https://www.coresmart-equipment.com/pos-terminal/pos-terminal-machine/h10-pos-terminal.html

@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requirePlatformAdmin } from "@/lib/admin/require-platform-admin";
+import {
+  assertStringLength,
+  getApiErrorStatus,
+  readProtectedJson,
+} from "@/lib/http/request-security";
 
 type CreatePharmacyBody = {
   name: string;
@@ -65,7 +70,17 @@ export async function POST(request: Request) {
   try {
     await requirePlatformAdmin();
 
-    const body = (await request.json()) as CreatePharmacyBody;
+    const body = await readProtectedJson<CreatePharmacyBody>(request, {
+      maxBytes: 32_768,
+    });
+
+    assertStringLength(body.name, "Le nom", 160);
+    assertStringLength(body.slug, "Le slug", 120);
+    assertStringLength(body.address, "L’adresse", 300);
+    assertStringLength(body.city, "La ville", 120);
+    assertStringLength(body.province, "La province", 120);
+    assertStringLength(body.phone, "Le téléphone", 40);
+    assertStringLength(body.email, "L’email", 254);
 
     if (!body.name?.trim()) {
       throw new Error("Le nom de la pharmacie est obligatoire.");
@@ -121,7 +136,7 @@ export async function POST(request: Request) {
             : "Impossible de créer la pharmacie.",
       },
       {
-        status: 400,
+        status: getApiErrorStatus(error),
       }
     );
   }
