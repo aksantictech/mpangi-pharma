@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { requirePlatformAdmin } from "@/lib/admin/require-platform-admin";
+import {
+  assertSameOriginRead,
+  getApiErrorStatus,
+} from "@/lib/http/request-security";
 
 function getCleanParam(url: URL, name: string) {
   const value = url.searchParams.get(name)?.trim();
@@ -17,11 +21,23 @@ function getPositiveNumber(value: string | null, fallback: number) {
 }
 
 function escapeFilterValue(value: string) {
-  return value.replaceAll("%", "\\%").replaceAll("_", "\\_").replaceAll(",", " ");
+  // La valeur est interpolée dans un filtre PostgREST `or=(...)`. On échappe
+  // les jokers `ilike` et on retire les caractères qui ont un sens dans la
+  // syntaxe PostgREST (`, ( ) * : \`) pour empêcher toute réécriture du
+  // filtre. On borne aussi la longueur.
+  return value
+    .replace(/[,()*:\\]/g, " ")
+    .replaceAll("%", "\\%")
+    .replaceAll("_", "\\_")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
 }
 
 export async function GET(request: Request) {
   try {
+    assertSameOriginRead(request);
+
     const { supabaseAdmin } = await requirePlatformAdmin();
 
     const url = new URL(request.url);
@@ -114,7 +130,7 @@ export async function GET(request: Request) {
             ? error.message
             : "Impossible de charger le catalogue ACOREP 2026.",
       },
-      { status: 400 }
+      { status: getApiErrorStatus(error, 400) }
     );
   }
 }

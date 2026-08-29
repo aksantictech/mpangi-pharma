@@ -1,5 +1,127 @@
 export type InvoicePrintTarget = "thermal" | "a4";
 
+type PrintImagesOptions = {
+  images: Array<{ dataUrl: string; width: number; height: number }>;
+  paperWidthMm?: number;
+  documentTitle?: string;
+};
+
+/**
+ * Imprime un ou plusieurs bitmaps de ticket via un iframe isolé.
+ *
+ * On n'injecte aucune feuille de style de l'application : le rendu HTML/CSS
+ * fluide est la cause des tickets déformés sur les WebView Android. Un bitmap
+ * plein cadre à la largeur exacte du papier s'imprime de façon identique sur
+ * ordinateur et sur terminal.
+ */
+export async function printThermalImagesInIsolatedFrame({
+  images,
+  paperWidthMm = 58,
+  documentTitle = "Ticket",
+}: PrintImagesOptions): Promise<void> {
+  if (images.length === 0) {
+    throw new Error("Aucune image de ticket à imprimer.");
+  }
+
+  const iframe = document.createElement("iframe");
+
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "1px";
+  iframe.style.height = "1px";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.style.pointerEvents = "none";
+
+  document.body.appendChild(iframe);
+
+  const printDocument =
+    iframe.contentDocument ?? iframe.contentWindow?.document;
+
+  if (!printDocument || !iframe.contentWindow) {
+    iframe.remove();
+    throw new Error("Impossible de préparer la fenêtre d’impression.");
+  }
+
+  const imgTags = images
+    .map(
+      (image) =>
+        `<img src="${image.dataUrl}" alt="" width="${image.width}" height="${image.height}" />`
+    )
+    .join("");
+
+  printDocument.open();
+  printDocument.write(`
+    <!doctype html>
+    <html lang="fr">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>${escapeHtml(documentTitle)}</title>
+        <style>
+          @page {
+            size: ${paperWidthMm}mm auto;
+            margin: 0;
+          }
+
+          html,
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            width: ${paperWidthMm}mm !important;
+          }
+
+          img {
+            display: block;
+            width: ${paperWidthMm}mm;
+            height: auto;
+            margin: 0;
+            padding: 0;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          img + img {
+            break-before: page;
+            page-break-before: always;
+          }
+        </style>
+      </head>
+      <body>${imgTags}</body>
+    </html>
+  `);
+  printDocument.close();
+
+  const frameWindow = iframe.contentWindow;
+
+  await waitForFrameImages(printDocument);
+  await nextAnimationFrame(frameWindow);
+  await nextAnimationFrame(frameWindow);
+
+  let cleanedUp = false;
+
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    frameWindow.removeEventListener("afterprint", cleanup);
+    iframe.remove();
+  };
+
+  frameWindow.addEventListener("afterprint", cleanup, { once: true });
+
+  frameWindow.focus();
+  frameWindow.print();
+
+  // `afterprint` n'est pas fiable sur les WebView Android : on garde le
+  // document assez longtemps pour la rastérisation par le service d'impression.
+  window.setTimeout(cleanup, 120_000);
+}
+
 type PrintElementOptions = {
   selector: string;
   target: InvoicePrintTarget;

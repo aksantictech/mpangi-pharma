@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requirePharmacyManager } from "@/lib/auth/require-pharmacy-manager";
+import { assertSameOriginRead } from "@/lib/http/request-security";
 
 function getCleanParam(url: URL, name: string) {
   const value = url.searchParams.get(name)?.trim();
@@ -8,8 +9,21 @@ function getCleanParam(url: URL, name: string) {
   return value && value !== "all" ? value : "";
 }
 
+function escapeFilterValue(value: string) {
+  // Voir api/admin/national-products : neutralise la syntaxe PostgREST `or=(...)`.
+  return value
+    .replace(/[,()*:\\]/g, " ")
+    .replaceAll("%", "\\%")
+    .replaceAll("_", "\\_")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+}
+
 export async function GET(request: Request) {
   try {
+    assertSameOriginRead(request);
+
     const url = new URL(request.url);
     const pharmacyId = url.searchParams.get("pharmacyId");
     const search = getCleanParam(url, "search");
@@ -43,16 +57,20 @@ export async function GET(request: Request) {
     }
 
     if (search) {
-      query = query.or(
-        [
-          `name.ilike.%${search}%`,
-          `generic_name.ilike.%${search}%`,
-          `category_name.ilike.%${search}%`,
-          `type_name.ilike.%${search}%`,
-          `dosage.ilike.%${search}%`,
-          `form.ilike.%${search}%`,
-        ].join(",")
-      );
+      const value = escapeFilterValue(search);
+
+      if (value) {
+        query = query.or(
+          [
+            `name.ilike.%${value}%`,
+            `generic_name.ilike.%${value}%`,
+            `category_name.ilike.%${value}%`,
+            `type_name.ilike.%${value}%`,
+            `dosage.ilike.%${value}%`,
+            `form.ilike.%${value}%`,
+          ].join(",")
+        );
+      }
     }
 
     const { data, error } = await query;

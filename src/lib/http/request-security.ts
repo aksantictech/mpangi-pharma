@@ -59,9 +59,50 @@ export function assertSameOriginRequest(request: Request) {
   const origin = request.headers.get("origin");
   const fetchSite = request.headers.get("sec-fetch-site");
 
-  if (fetchSite === "cross-site") {
+  // `Sec-Fetch-Site` est envoyé par tous les navigateurs modernes. On
+  // n'autorise que les appels de la même origine (ou déclenchés hors contexte
+  // web, ex. barre d'adresse : `none`). `same-site` et `cross-site` sont
+  // refusés : l'application n'a pas de sous-domaine de confiance.
+  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
     throw new ApiRequestError("Requête intersite refusée.", 403);
   }
+
+  if (origin && origin !== requestUrl.origin) {
+    throw new ApiRequestError("Origine de la requête refusée.", 403);
+  }
+
+  // Repli pour les navigateurs sans `Sec-Fetch-Site` : sur une méthode de
+  // mutation, l'absence totale d'`Origin` et de `Referer` cohérents est
+  // traitée comme suspecte.
+  if (!fetchSite && !origin) {
+    const referer = request.headers.get("referer");
+
+    if (referer) {
+      try {
+        if (new URL(referer).origin !== requestUrl.origin) {
+          throw new ApiRequestError("Référent de la requête refusé.", 403);
+        }
+      } catch {
+        throw new ApiRequestError("Référent de la requête invalide.", 403);
+      }
+    }
+  }
+}
+
+/**
+ * Contrôle d'origine pour les routes GET qui exposent des données sensibles
+ * (exports, catalogues). Empêche qu'un autre site déclenche la requête via une
+ * simple balise ou un `fetch` et en lise le résultat.
+ */
+export function assertSameOriginRead(request: Request) {
+  const fetchSite = request.headers.get("sec-fetch-site");
+
+  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
+    throw new ApiRequestError("Requête intersite refusée.", 403);
+  }
+
+  const origin = request.headers.get("origin");
+  const requestUrl = new URL(request.url);
 
   if (origin && origin !== requestUrl.origin) {
     throw new ApiRequestError("Origine de la requête refusée.", 403);

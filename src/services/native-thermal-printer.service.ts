@@ -7,6 +7,10 @@ import {
   createThermalReceiptPngs,
   type ThermalReceiptPng,
 } from "@/lib/printing/receipt-image";
+import {
+  buildEscPosReceipt,
+  encodeBytesToBase64,
+} from "@/lib/printing/escpos-receipt";
 
 export type NativeThermalReceipt = ThermalReceipt;
 
@@ -151,6 +155,76 @@ export async function printNativeThermalReceipt(
     }
 
     throw error;
+  }
+}
+
+export type ThermalReceiptImage = {
+  dataUrl: string;
+  width: number;
+  height: number;
+};
+
+/**
+ * Bitmaps déterministes du ticket, prêts pour l'impression via iframe isolé.
+ * Utilisé sur Android où le rendu HTML/CSS fluide déforme le ticket.
+ */
+export function createThermalReceiptImages(
+  receipt: NativeThermalReceipt,
+  paperWidth: ThermalPaperWidth = 58
+): ThermalReceiptImage[] {
+  return createThermalReceiptPngs(receipt, paperWidth).map((page) => ({
+    dataUrl: page.dataUrl,
+    width: page.width,
+    height: page.height,
+  }));
+}
+
+/**
+ * Indique si RawBT (service d'impression ESC/POS le plus courant sur les
+ * terminaux Android sans SDK constructeur) est probablement exploitable.
+ * Aucune API ne permet de le détecter avec certitude : on se base sur la
+ * plateforme et sur l'absence de pont natif Mpangi.
+ */
+export function canUseRawBtPrinting() {
+  return (
+    typeof window !== "undefined" &&
+    isAndroidPrintingDevice() &&
+    !hasNativeThermalPrinterBridge()
+  );
+}
+
+/**
+ * Envoie le ticket à RawBT via son schéma d'URL. Si l'application est
+ * installée et configurée, l'impression est directe et silencieuse. Sinon,
+ * rien ne se passe (le schéma inconnu ne fait pas naviguer Chrome) et
+ * l'appelant doit proposer un repli.
+ */
+export async function printThermalReceiptViaRawBt(
+  receipt: NativeThermalReceipt,
+  paperWidth: ThermalPaperWidth = 58
+): Promise<void> {
+  if (typeof window === "undefined") {
+    throw new Error(
+      "L’impression RawBT est disponible uniquement sur le terminal Android."
+    );
+  }
+
+  const payload = encodeBytesToBase64(
+    buildEscPosReceipt(receipt, paperWidth)
+  );
+
+  const target = `rawbt:base64,${payload}`;
+
+  const anchor = document.createElement("a");
+  anchor.href = target;
+  anchor.rel = "noopener";
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+
+  try {
+    anchor.click();
+  } finally {
+    window.setTimeout(() => anchor.remove(), 1_000);
   }
 }
 

@@ -20,11 +20,17 @@ import InvoicePrintA4 from "@/components/invoices/InvoicePrintA4";
 import InvoicePrintTicket from "@/components/invoices/InvoicePrintTicket";
 import { getInvoiceById } from "@/services/invoices.service";
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
-import { printElementInIsolatedFrame } from "@/lib/print-invoice";
 import {
+  printElementInIsolatedFrame,
+  printThermalImagesInIsolatedFrame,
+} from "@/lib/print-invoice";
+import {
+  canUseRawBtPrinting,
+  createThermalReceiptImages,
   hasNativeThermalPrinterBridge,
   isAndroidPrintingDevice,
   printNativeThermalReceipt,
+  printThermalReceiptViaRawBt,
   shareThermalReceipt,
   type NativeThermalReceipt,
 } from "@/services/native-thermal-printer.service";
@@ -54,6 +60,7 @@ export default function InvoiceDetailsPage() {
   const [isPreparingPrint, setIsPreparingPrint] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [printMessage, setPrintMessage] = useState("");
+  const [canRawBt, setCanRawBt] = useState(false);
 
   async function loadData() {
     setIsLoading(true);
@@ -96,6 +103,11 @@ export default function InvoiceDetailsPage() {
     void loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invoiceId]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCanRawBt(canUseRawBtPrinting());
+  }, []);
 
   const invoiceTotals = useMemo<InvoiceTotals>(() => {
     if (!invoice) {
@@ -219,21 +231,21 @@ export default function InvoiceDetailsPage() {
         }
       }
 
-      if (isAndroidPrintingDevice()) {
-        const result = await shareThermalReceipt(receipt, 58);
+      // Terminal Android comme ordinateur : on imprime un bitmap plein cadre
+      // 58 mm via un iframe isolé. Le rendu HTML/CSS fluide était la cause des
+      // tickets déformés sur les WebView Android.
+      const images = createThermalReceiptImages(receipt, 58);
 
-        setPrintMessage(getThermalShareMessage(result));
-        return;
-      }
-
-      await printElementInIsolatedFrame({
-        selector: ".print-ticket",
-        target: "thermal",
+      await printThermalImagesInIsolatedFrame({
+        images,
+        paperWidthMm: 58,
         documentTitle: `Ticket ${invoice.invoice_number}`,
       });
 
       setPrintMessage(
-        "Menu d’impression ouvert. Sélectionnez l’imprimante interne, Bluetooth, USB ou réseau configurée sur l’appareil."
+        isAndroidPrintingDevice()
+          ? "Fenêtre d’impression Android ouverte. Choisissez l’imprimante interne, RawBT, Bluetooth ou USB, puis imprimez à 100 % sans marge."
+          : "Menu d’impression ouvert. Sélectionnez l’imprimante interne, Bluetooth, USB ou réseau configurée sur l’appareil."
       );
     } catch (error) {
       setErrorMessage(
@@ -271,6 +283,41 @@ export default function InvoiceDetailsPage() {
         error instanceof Error
           ? error.message
           : "Impossible de partager le ticket."
+      );
+    } finally {
+      window.setTimeout(() => {
+        setIsPreparingPrint(false);
+      }, 500);
+    }
+  }
+
+  async function handleRawBtPrint() {
+    if (isPreparingPrint) return;
+
+    if (!invoice || !pharmacy) {
+      setErrorMessage(
+        "La facture n’est pas encore disponible pour l’impression."
+      );
+      return;
+    }
+
+    setIsPreparingPrint(true);
+    setErrorMessage("");
+    setPrintMessage("");
+
+    try {
+      await printThermalReceiptViaRawBt(buildThermalReceipt(), 58);
+
+      setPrintMessage(
+        "Ticket envoyé à RawBT. S’il ne s’imprime pas, installez l’application " +
+          "RawBT depuis le Play Store, configurez l’imprimante interne du " +
+          "terminal, puis réessayez. Sinon utilisez « Imprimer le ticket »."
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’envoyer le ticket à RawBT."
       );
     } finally {
       window.setTimeout(() => {
@@ -421,6 +468,18 @@ export default function InvoiceDetailsPage() {
                   <Printer className="h-5 w-5" />
                   Imprimer le ticket
                 </button>
+
+                {canRawBt && (
+                  <button
+                    type="button"
+                    onClick={() => void handleRawBtPrint()}
+                    disabled={isPreparingPrint}
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-300 bg-emerald-600 px-5 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Printer className="h-5 w-5" />
+                    Impression directe (RawBT)
+                  </button>
+                )}
 
                 <button
                   type="button"

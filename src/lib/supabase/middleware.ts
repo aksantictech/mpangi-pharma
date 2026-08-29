@@ -68,6 +68,20 @@ export async function updateSession(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
+    // Fail-closed : sans configuration Supabase, on ne peut pas vérifier la
+    // session. On laisse passer les pages publiques et d'authentification,
+    // mais toute route protégée est bloquée plutôt qu'ouverte.
+    const pathname = request.nextUrl.pathname;
+
+    if (isProtectedRoute(pathname) && !isPublicRoute(pathname)) {
+      const redirectUrl = request.nextUrl.clone();
+
+      redirectUrl.pathname = "/connexion";
+      redirectUrl.search = "";
+
+      return NextResponse.redirect(redirectUrl);
+    }
+
     return response;
   }
 

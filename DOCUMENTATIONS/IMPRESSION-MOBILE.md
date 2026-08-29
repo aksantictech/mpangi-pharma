@@ -61,6 +61,32 @@ y intégrer un adaptateur par famille :
 Le moteur de reçu TypeScript et le protocole `printerMode: thermal-native`
 restent réutilisables par ce futur APK.
 
+## Mise à jour du 29 août 2026 — ticket bitmap + RawBT
+
+Deux causes distinctes étaient confondues :
+
+1. **Ticket illisible / colonnes décalées** : le chemin d'impression envoyait du
+   HTML/CSS fluide au service d'impression Android, qui le rastérisait mal
+   (mise à l'échelle A4, police substituée, `@page` en conflit dans
+   `globals.css` : A4 puis 80 mm). Corrigé en imprimant désormais un **bitmap
+   plein cadre 58 mm** (384 px, noir pur binarisé, police à chasse fixe non
+   grasse) via `printThermalImagesInIsolatedFrame`. Rendu identique ordinateur
+   et terminal. `globals.css` unifié sur 58 mm / `Courier New`.
+
+2. **Absence d'impression directe et silencieuse** : sans APK natif, ajout du
+   support **RawBT** (`src/lib/printing/escpos-receipt.ts` +
+   `printThermalReceiptViaRawBt`). RawBT est le service d'impression ESC/POS le
+   plus répandu sur ces terminaux : une fois installé et l'imprimante interne
+   configurée, le bouton « Impression directe (RawBT) » envoie le flux ESC/POS
+   par le schéma d'URL `rawbt:base64,…` sans sélecteur. Le bouton n'apparaît
+   que sur Android et sans pont natif Mpangi.
+
+Ordre du bouton « Imprimer le ticket » :
+
+1. pont natif Mpangi s'il existe ;
+2. sinon, bitmap 58 mm via iframe isolé (ordinateur **et** Android) ;
+3. boutons dédiés : « Impression directe (RawBT) » et « Ticket PNG Android ».
+
 ## Test immédiat sur le terminal
 
 1. Dans l'application **Printer** du terminal, lancer son auto-test matériel.

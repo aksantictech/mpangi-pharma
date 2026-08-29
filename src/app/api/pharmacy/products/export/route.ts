@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { requirePharmacyManager } from "@/lib/auth/require-pharmacy-manager";
+import {
+  assertSameOriginRead,
+  getApiErrorStatus,
+} from "@/lib/http/request-security";
+
+const PRIVATE_HEADERS = {
+  "Cache-Control": "private, no-store, max-age=0",
+} as const;
 
 function buildFileName() {
   const today = new Date().toISOString().slice(0, 10);
@@ -10,6 +18,8 @@ function buildFileName() {
 
 export async function GET(request: Request) {
   try {
+    assertSameOriginRead(request);
+
     const url = new URL(request.url);
     const pharmacyId = url.searchParams.get("pharmacyId");
 
@@ -25,10 +35,13 @@ export async function GET(request: Request) {
       .eq("pharmacy_id", pharmacyId);
 
     if (!stockError) {
-      return NextResponse.json({
-        products: stockRows ?? [],
-        fileName: buildFileName(),
-      });
+      return NextResponse.json(
+        {
+          products: stockRows ?? [],
+          fileName: buildFileName(),
+        },
+        { headers: PRIVATE_HEADERS }
+      );
     }
 
     const { data: productRows, error: productError } = await supabaseAdmin
@@ -46,10 +59,13 @@ export async function GET(request: Request) {
       throw new Error(productError.message);
     }
 
-    return NextResponse.json({
-      products: productRows ?? [],
-      fileName: buildFileName(),
-    });
+    return NextResponse.json(
+      {
+        products: productRows ?? [],
+        fileName: buildFileName(),
+      },
+      { headers: PRIVATE_HEADERS }
+    );
   } catch (error) {
     return NextResponse.json(
       {
@@ -59,7 +75,8 @@ export async function GET(request: Request) {
             : "Impossible d’exporter les produits.",
       },
       {
-        status: 400,
+        status: getApiErrorStatus(error, 400),
+        headers: PRIVATE_HEADERS,
       }
     );
   }

@@ -9,11 +9,16 @@ const RASTER_WIDTH_BY_PAPER: Record<ThermalPaperWidth, number> = {
   80: 576,
 };
 
-const FONT_SIZE_PX = 18;
+// Rendu calibré pour une tête thermique 203 dpi. Une police monospace non
+// grasse, sans lissage et binarisée en noir pur évite les pixels gris que
+// l'imprimante restitue en gris pâle ou en trous.
+const FONT_SIZE_PX = 20;
 const LINE_HEIGHT_PX = 26;
-const HORIZONTAL_PADDING_PX = 16;
-const VERTICAL_PADDING_PX = 20;
+const HORIZONTAL_PADDING_PX = 6;
+const VERTICAL_PADDING_PX = 16;
 const MAX_LINES_PER_PAGE = 160;
+// Seuil de binarisation : tout pixel plus clair devient blanc, sinon noir.
+const BLACK_THRESHOLD = 176;
 
 export type ThermalReceiptRasterPage = {
   width: number;
@@ -27,7 +32,10 @@ export type ThermalReceiptRasterPage = {
 
 export type ThermalReceiptPng = {
   blob: Blob;
+  dataUrl: string;
   fileName: string;
+  width: number;
+  height: number;
 };
 
 export function buildThermalReceiptRasterPages(
@@ -77,6 +85,7 @@ export function createThermalReceiptPngs(
 
     const context = canvas.getContext("2d", {
       alpha: false,
+      willReadFrequently: true,
     });
 
     if (!context) {
@@ -85,10 +94,12 @@ export function createThermalReceiptPngs(
       );
     }
 
+    context.imageSmoothingEnabled = false;
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, page.width, page.height);
     context.fillStyle = "#000000";
-    context.font = `bold ${page.fontSize}px monospace`;
+    // Police non grasse : le gras sur une tête 58 mm produit des pâtés.
+    context.font = `${page.fontSize}px "Courier New", "DejaVu Sans Mono", monospace`;
     context.textAlign = "left";
     context.textBaseline = "top";
 
@@ -100,15 +111,50 @@ export function createThermalReceiptPngs(
       );
     });
 
+    binarizeCanvas(context, page.width, page.height);
+
     const dataUrl = canvas.toDataURL("image/png");
     const blob = dataUrlToBlob(dataUrl);
     const suffix = pages.length > 1 ? `-page-${index + 1}` : "";
 
     return {
       blob,
+      dataUrl,
       fileName: `${baseName}${suffix}.png`,
+      width: page.width,
+      height: page.height,
     };
   });
+}
+
+/**
+ * Force chaque pixel à noir pur ou blanc pur. Les imprimantes thermiques ne
+ * gèrent pas les niveaux de gris : sans cette étape, le texte anticrénelé
+ * ressort pâle ou troué sur le terminal.
+ */
+function binarizeCanvas(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number
+) {
+  const image = context.getImageData(0, 0, width, height);
+  const data = image.data;
+
+  for (let index = 0; index < data.length; index += 4) {
+    const luminance =
+      0.299 * data[index] +
+      0.587 * data[index + 1] +
+      0.114 * data[index + 2];
+
+    const value = luminance < BLACK_THRESHOLD ? 0 : 255;
+
+    data[index] = value;
+    data[index + 1] = value;
+    data[index + 2] = value;
+    data[index + 3] = 255;
+  }
+
+  context.putImageData(image, 0, 0);
 }
 
 export function safeReceiptFileName(value: string) {

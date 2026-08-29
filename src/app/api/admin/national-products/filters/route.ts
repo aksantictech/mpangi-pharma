@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { requirePlatformAdmin } from "@/lib/admin/require-platform-admin";
+import {
+  assertSameOriginRead,
+  getApiErrorStatus,
+} from "@/lib/http/request-security";
 
 function uniqueSorted(values: Array<string | null>) {
   return Array.from(
@@ -12,8 +16,10 @@ function uniqueSorted(values: Array<string | null>) {
   ).sort((a, b) => a.localeCompare(b, "fr"));
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    assertSameOriginRead(request);
+
     const { supabaseAdmin } = await requirePlatformAdmin();
 
     const { data, error } = await supabaseAdmin
@@ -45,7 +51,7 @@ export async function GET() {
             ? error.message
             : "Impossible de charger les filtres ACOREP.",
       },
-      { status: 400 }
+      { status: getApiErrorStatus(error, 400) }
     );
   }
 }
