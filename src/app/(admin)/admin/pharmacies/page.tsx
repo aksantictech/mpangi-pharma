@@ -2,37 +2,32 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Activity,
   AlertTriangle,
+  Archive,
+  ArchiveRestore,
   Building2,
   CheckCircle2,
+  PackageSearch,
+  Pencil,
   Plus,
+  Power,
+  PowerOff,
   RefreshCcw,
   Save,
+  Trash2,
+  Users,
 } from "lucide-react";
 
-type AdminPharmacy = {
-  id: string;
-  name: string;
-  slug: string;
-  city: string | null;
-  province: string | null;
-  phone: string | null;
-  email: string | null;
-  pharmacist_name: string | null;
-  exchange_rate: number;
-  is_active: boolean;
-  created_at: string;
-  members?: {
-    id: string;
-    role: string;
-    is_active: boolean;
-    profile?: {
-      id: string;
-      full_name: string | null;
-      phone: string | null;
-    } | null;
-  }[];
-};
+import DeletePharmacyDialog from "@/components/admin/DeletePharmacyDialog";
+import PharmacyEditDialog from "@/components/admin/PharmacyEditDialog";
+import {
+  createAdminPharmacy,
+  getAdminPharmacies,
+  updateAdminPharmacy,
+} from "@/services/admin-pharmacies.service";
+
+import type { AdminPharmacy } from "@/types/admin";
 
 type FormState = {
   name: string;
@@ -42,11 +37,6 @@ type FormState = {
   province: string;
   phone: string;
   email: string;
-  pharmacistName: string;
-  exchangeRate: string;
-  ownerFullName: string;
-  ownerEmail: string;
-  ownerPassword: string;
 };
 
 const initialForm: FormState = {
@@ -57,11 +47,6 @@ const initialForm: FormState = {
   province: "",
   phone: "",
   email: "",
-  pharmacistName: "",
-  exchangeRate: "2800",
-  ownerFullName: "",
-  ownerEmail: "",
-  ownerPassword: "",
 };
 
 function generateSlug(value: string) {
@@ -73,6 +58,12 @@ function generateSlug(value: string) {
     .replace(/(^-|-$)+/g, "");
 }
 
+function getPharmacyStatus(pharmacy: AdminPharmacy) {
+  if (pharmacy.archived_at) return "archived" as const;
+  if (!pharmacy.is_active) return "inactive" as const;
+  return "active" as const;
+}
+
 export default function AdminPharmaciesPage() {
   const [pharmacies, setPharmacies] = useState<AdminPharmacy[]>([]);
   const [form, setForm] = useState<FormState>(initialForm);
@@ -80,6 +71,13 @@ export default function AdminPharmaciesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [busyPharmacyId, setBusyPharmacyId] = useState<string | null>(null);
+
+  const [editingPharmacy, setEditingPharmacy] = useState<AdminPharmacy | null>(
+    null
+  );
+  const [deletingPharmacy, setDeletingPharmacy] =
+    useState<AdminPharmacy | null>(null);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -89,17 +87,7 @@ export default function AdminPharmaciesPage() {
     setErrorMessage("");
 
     try {
-      const response = await fetch("/api/admin/pharmacies", {
-        method: "GET",
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || "Erreur chargement pharmacies.");
-      }
-
-      setPharmacies(result.pharmacies ?? []);
+      setPharmacies(await getAdminPharmacies());
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -112,13 +100,25 @@ export default function AdminPharmaciesPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadPharmacies();
   }, []);
 
-  const activeCount = useMemo(
-    () => pharmacies.filter((pharmacy) => pharmacy.is_active).length,
-    [pharmacies]
-  );
+  const stats = useMemo(() => {
+    let active = 0;
+    let inactive = 0;
+    let archived = 0;
+
+    for (const pharmacy of pharmacies) {
+      const status = getPharmacyStatus(pharmacy);
+
+      if (status === "active") active += 1;
+      else if (status === "inactive") inactive += 1;
+      else archived += 1;
+    }
+
+    return { active, inactive, archived, total: pharmacies.length };
+  }, [pharmacies]);
 
   function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((current) => {
@@ -130,10 +130,7 @@ export default function AdminPharmaciesPage() {
         };
       }
 
-      return {
-        ...current,
-        [field]: value,
-      };
+      return { ...current, [field]: value };
     });
   }
 
@@ -145,34 +142,11 @@ export default function AdminPharmaciesPage() {
     setSuccessMessage("");
 
     try {
-      const response = await fetch("/api/admin/pharmacies", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: form.name,
-          slug: form.slug,
-          address: form.address,
-          city: form.city,
-          province: form.province,
-          phone: form.phone,
-          email: form.email,
-          pharmacistName: form.pharmacistName,
-          exchangeRate: Number(form.exchangeRate || 2800),
-          ownerFullName: form.ownerFullName,
-          ownerEmail: form.ownerEmail,
-          ownerPassword: form.ownerPassword,
-        }),
-      });
+      await createAdminPharmacy(form);
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.message || "Erreur création pharmacie.");
-      }
-
-      setSuccessMessage("Pharmacie créée avec son responsable owner.");
+      setSuccessMessage(
+        "Pharmacie créée. Ajoutez son responsable depuis la fiche pharmacie."
+      );
       setForm(initialForm);
       setIsFormOpen(false);
 
@@ -188,6 +162,82 @@ export default function AdminPharmaciesPage() {
     }
   }
 
+  function replacePharmacy(updated: AdminPharmacy) {
+    setPharmacies((current) =>
+      current.map((pharmacy) =>
+        pharmacy.id === updated.id ? { ...pharmacy, ...updated } : pharmacy
+      )
+    );
+  }
+
+  async function handleToggleActive(pharmacy: AdminPharmacy) {
+    const nextIsActive = !pharmacy.is_active;
+
+    setBusyPharmacyId(pharmacy.id);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const result = await updateAdminPharmacy(pharmacy.id, {
+        isActive: nextIsActive,
+      });
+
+      replacePharmacy({ ...pharmacy, ...(result?.pharmacy ?? {}) });
+
+      setSuccessMessage(
+        nextIsActive
+          ? `« ${pharmacy.name} » réactivée.`
+          : `« ${pharmacy.name} » désactivée : ses équipes ne peuvent plus s’y connecter.`
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible de changer le statut de la pharmacie."
+      );
+    } finally {
+      setBusyPharmacyId(null);
+    }
+  }
+
+  async function handleToggleArchived(pharmacy: AdminPharmacy) {
+    const nextArchived = !pharmacy.archived_at;
+
+    setBusyPharmacyId(pharmacy.id);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const result = await updateAdminPharmacy(pharmacy.id, {
+        archived: nextArchived,
+      });
+
+      replacePharmacy({ ...pharmacy, ...(result?.pharmacy ?? {}) });
+
+      setSuccessMessage(
+        nextArchived
+          ? `« ${pharmacy.name} » archivée.`
+          : `« ${pharmacy.name} » désarchivée et réactivée.`
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’archiver la pharmacie."
+      );
+    } finally {
+      setBusyPharmacyId(null);
+    }
+  }
+
+  function handleDeleted(pharmacyId: string) {
+    setPharmacies((current) =>
+      current.filter((pharmacy) => pharmacy.id !== pharmacyId)
+    );
+    setDeletingPharmacy(null);
+    setSuccessMessage("Pharmacie et toutes ses données supprimées.");
+  }
+
   return (
     <section className="mx-auto max-w-7xl space-y-6 p-6">
       <header className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
@@ -200,7 +250,8 @@ export default function AdminPharmaciesPage() {
             <h2 className="mt-2 text-3xl font-black">Pharmacies clientes</h2>
 
             <p className="mt-2 text-sm text-white/60">
-              {pharmacies.length} pharmacie(s), dont {activeCount} active(s).
+              {stats.total} pharmacie(s) · {stats.active} active(s) ·{" "}
+              {stats.inactive} désactivée(s) · {stats.archived} archivée(s)
             </p>
           </div>
 
@@ -228,14 +279,14 @@ export default function AdminPharmaciesPage() {
 
       {errorMessage && (
         <div className="flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm font-bold text-red-200">
-          <AlertTriangle className="mt-0.5 h-5 w-5" />
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
           {errorMessage}
         </div>
       )}
 
       {successMessage && (
         <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-4 text-sm font-bold text-emerald-200">
-          <CheckCircle2 className="mt-0.5 h-5 w-5" />
+          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
           {successMessage}
         </div>
       )}
@@ -248,7 +299,8 @@ export default function AdminPharmaciesPage() {
           <h3 className="text-2xl font-black">Créer une pharmacie</h3>
 
           <p className="mt-1 text-sm text-slate-500">
-            La pharmacie sera créée avec un premier responsable owner.
+            Créez d’abord la fiche pharmacie, puis ajoutez son responsable
+            owner depuis « Modifier » ou la gestion des utilisateurs.
           </p>
 
           <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -312,71 +364,6 @@ export default function AdminPharmaciesPage() {
                 className="form-input"
               />
             </FormField>
-
-            <FormField label="Pharmacien responsable">
-              <input
-                value={form.pharmacistName}
-                onChange={(event) =>
-                  updateField("pharmacistName", event.target.value)
-                }
-                className="form-input"
-              />
-            </FormField>
-
-            <FormField label="Taux USD → CDF">
-              <input
-                type="number"
-                min="1"
-                step="0.01"
-                value={form.exchangeRate}
-                onChange={(event) =>
-                  updateField("exchangeRate", event.target.value)
-                }
-                className="form-input"
-              />
-            </FormField>
-          </div>
-
-          <div className="mt-8 rounded-3xl border border-slate-200 bg-slate-50 p-5">
-            <h4 className="font-black text-slate-950">
-              Responsable owner de la pharmacie
-            </h4>
-
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-              <FormField label="Nom responsable *">
-                <input
-                  value={form.ownerFullName}
-                  onChange={(event) =>
-                    updateField("ownerFullName", event.target.value)
-                  }
-                  className="form-input"
-                  required
-                />
-              </FormField>
-
-              <FormField label="Email responsable *">
-                <input
-                  type="email"
-                  value={form.ownerEmail}
-                  onChange={(event) =>
-                    updateField("ownerEmail", event.target.value)
-                  }
-                  className="form-input"
-                  required
-                />
-              </FormField>
-
-              <FormField label="Mot de passe initial *">
-                <input
-                  value={form.ownerPassword}
-                  onChange={(event) =>
-                    updateField("ownerPassword", event.target.value)
-                  }
-                  className="form-input"
-                  required
-                />
-              </FormField>
-            </div>
           </div>
 
           <div className="mt-6 flex justify-end">
@@ -402,73 +389,192 @@ export default function AdminPharmaciesPage() {
             Aucune pharmacie trouvée.
           </div>
         ) : (
-          pharmacies.map((pharmacy) => (
-            <article
-              key={pharmacy.id}
-              className="rounded-[2rem] border border-white/10 bg-white/5 p-6"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-blue-600">
-                  <Building2 className="h-7 w-7" />
+          pharmacies.map((pharmacy) => {
+            const status = getPharmacyStatus(pharmacy);
+            const isBusy = busyPharmacyId === pharmacy.id;
+
+            return (
+              <article
+                key={pharmacy.id}
+                className={`rounded-[2rem] border p-6 ${
+                  status === "archived"
+                    ? "border-white/5 bg-white/[0.02] opacity-70"
+                    : "border-white/10 bg-white/5"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-blue-600">
+                    <Building2 className="h-7 w-7" />
+                  </div>
+
+                  <StatusBadge status={status} />
                 </div>
 
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-black ${
-                    pharmacy.is_active
-                      ? "bg-emerald-500/10 text-emerald-300"
-                      : "bg-red-500/10 text-red-300"
-                  }`}
-                >
-                  {pharmacy.is_active ? "Active" : "Inactive"}
-                </span>
-              </div>
+                <h3 className="mt-5 text-xl font-black">{pharmacy.name}</h3>
+                <p className="mt-1 text-sm text-white/50">{pharmacy.slug}</p>
 
-              <h3 className="mt-5 text-xl font-black">{pharmacy.name}</h3>
+                <div className="mt-5 grid grid-cols-3 gap-2 rounded-2xl bg-white/5 p-3 text-center">
+                  <HealthTile
+                    icon={Users}
+                    value={pharmacy.health.activeMembers}
+                    label="membres"
+                  />
+                  <HealthTile
+                    icon={PackageSearch}
+                    value={pharmacy.health.productsCount}
+                    label="produits"
+                  />
+                  <HealthTile
+                    icon={Activity}
+                    value={pharmacy.health.salesLast30d}
+                    label="ventes 30j"
+                  />
+                </div>
 
-              <p className="mt-1 text-sm text-white/50">{pharmacy.slug}</p>
+                <div className="mt-5 space-y-2 text-sm text-white/70">
+                  <p>
+                    Ville :{" "}
+                    <span className="font-bold text-white">
+                      {pharmacy.city || "-"}
+                    </span>
+                  </p>
+                  <p>
+                    Pharmacien :{" "}
+                    <span className="font-bold text-white">
+                      {pharmacy.pharmacist_name || "-"}
+                    </span>
+                  </p>
+                  <p>
+                    Taux :{" "}
+                    <span className="font-bold text-white">
+                      1 USD ={" "}
+                      {Number(pharmacy.exchange_rate).toLocaleString("fr-CD")}{" "}
+                      CDF
+                    </span>
+                  </p>
+                </div>
 
-              <div className="mt-5 space-y-2 text-sm text-white/70">
-                <p>
-                  Ville :{" "}
-                  <span className="font-bold text-white">
-                    {pharmacy.city || "-"}
-                  </span>
-                </p>
+                <div className="mt-6 grid grid-cols-2 gap-2 border-t border-white/10 pt-5">
+                  <button
+                    type="button"
+                    onClick={() => setEditingPharmacy(pharmacy)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 px-3 py-2.5 text-xs font-black text-white/80 hover:bg-white/10"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Modifier
+                  </button>
 
-                <p>
-                  Province :{" "}
-                  <span className="font-bold text-white">
-                    {pharmacy.province || "-"}
-                  </span>
-                </p>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleActive(pharmacy)}
+                    disabled={isBusy}
+                    className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2.5 text-xs font-black disabled:cursor-not-allowed disabled:opacity-50 ${
+                      pharmacy.is_active
+                        ? "border-amber-500/20 text-amber-300 hover:bg-amber-500/10"
+                        : "border-emerald-500/20 text-emerald-300 hover:bg-emerald-500/10"
+                    }`}
+                  >
+                    {pharmacy.is_active ? (
+                      <PowerOff className="h-4 w-4" />
+                    ) : (
+                      <Power className="h-4 w-4" />
+                    )}
+                    {pharmacy.is_active ? "Désactiver" : "Réactiver"}
+                  </button>
 
-                <p>
-                  Pharmacien :{" "}
-                  <span className="font-bold text-white">
-                    {pharmacy.pharmacist_name || "-"}
-                  </span>
-                </p>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleArchived(pharmacy)}
+                    disabled={isBusy}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 px-3 py-2.5 text-xs font-black text-white/80 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {pharmacy.archived_at ? (
+                      <ArchiveRestore className="h-4 w-4" />
+                    ) : (
+                      <Archive className="h-4 w-4" />
+                    )}
+                    {pharmacy.archived_at ? "Désarchiver" : "Archiver"}
+                  </button>
 
-                <p>
-                  Taux :{" "}
-                  <span className="font-bold text-white">
-                    1 USD ={" "}
-                    {Number(pharmacy.exchange_rate).toLocaleString("fr-CD")} CDF
-                  </span>
-                </p>
-
-                <p>
-                  Membres :{" "}
-                  <span className="font-bold text-white">
-                    {pharmacy.members?.length || 0}
-                  </span>
-                </p>
-              </div>
-            </article>
-          ))
+                  <button
+                    type="button"
+                    onClick={() => setDeletingPharmacy(pharmacy)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-500/20 px-3 py-2.5 text-xs font-black text-red-300 hover:bg-red-500/10"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Supprimer
+                  </button>
+                </div>
+              </article>
+            );
+          })
         )}
       </section>
+
+      <PharmacyEditDialog
+        pharmacy={editingPharmacy}
+        onClose={() => setEditingPharmacy(null)}
+        onUpdated={(updated) => {
+          replacePharmacy(updated);
+          setEditingPharmacy(null);
+          setSuccessMessage(`« ${updated.name} » mise à jour.`);
+        }}
+      />
+
+      <DeletePharmacyDialog
+        pharmacy={deletingPharmacy}
+        onClose={() => setDeletingPharmacy(null)}
+        onDeleted={handleDeleted}
+      />
     </section>
+  );
+}
+
+function StatusBadge({
+  status,
+}: {
+  status: "active" | "inactive" | "archived";
+}) {
+  if (status === "archived") {
+    return (
+      <span className="rounded-full bg-slate-500/10 px-3 py-1 text-xs font-black text-slate-300">
+        Archivée
+      </span>
+    );
+  }
+
+  if (status === "inactive") {
+    return (
+      <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-black text-amber-300">
+        Désactivée
+      </span>
+    );
+  }
+
+  return (
+    <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-black text-emerald-300">
+      Active
+    </span>
+  );
+}
+
+function HealthTile({
+  icon: Icon,
+  value,
+  label,
+}: {
+  icon: typeof Users;
+  value: number;
+  label: string;
+}) {
+  return (
+    <div>
+      <Icon className="mx-auto h-4 w-4 text-white/40" />
+      <p className="mt-1 text-lg font-black text-white">{value}</p>
+      <p className="text-[10px] font-bold uppercase tracking-wide text-white/40">
+        {label}
+      </p>
+    </div>
   );
 }
 

@@ -80,11 +80,15 @@ export async function getMyPharmacies(): Promise<PharmacyWithRole[]> {
     .select(
       `
       role,
-      pharmacy:pharmacies(*)
+      pharmacy:pharmacies!inner(*)
     `
     )
     .eq("user_id", user.id)
     .eq("is_active", true)
+    // Une pharmacie désactivée ou archivée par le Super Admin doit
+    // disparaître immédiatement pour ses membres.
+    .eq("pharmacy.is_active", true)
+    .is("pharmacy.archived_at", null)
     .order("created_at", { ascending: true });
 
   if (error) {

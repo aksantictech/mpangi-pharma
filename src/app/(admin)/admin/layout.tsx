@@ -41,6 +41,27 @@ export default async function AdminLayout({
             </Link>
 
             <Link
+              href="/admin/catalogue-produits"
+              className="rounded-2xl border border-white/10 px-4 py-2 text-white/80 hover:bg-white/10"
+            >
+              Catalogue RDC
+            </Link>
+
+            <Link
+              href="/parametres/audit-securite"
+              className="rounded-2xl border border-white/10 px-4 py-2 text-white/80 hover:bg-white/10"
+            >
+              Sécurité
+            </Link>
+
+            <Link
+              href="/parametres/stabilite"
+              className="rounded-2xl border border-white/10 px-4 py-2 text-white/80 hover:bg-white/10"
+            >
+              Stabilité
+            </Link>
+
+            <Link
               href="/dashboard"
               className="rounded-2xl bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
             >

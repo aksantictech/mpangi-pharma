@@ -238,6 +238,7 @@ export default function AdminNationalProductsPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadProducts({ page: 1 });
     loadFilters();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -260,11 +261,11 @@ export default function AdminNationalProductsPage() {
           <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-center">
             <div>
               <Link
-                href="/dashboard"
+                href="/admin"
                 className="mb-4 inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Retour tableau de bord
+                Retour espace admin
               </Link>
 
               <p className="text-sm font-black uppercase tracking-[0.2em] text-blue-700">

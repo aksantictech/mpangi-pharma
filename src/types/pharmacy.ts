@@ -20,6 +20,7 @@ export type Pharmacy = {
   exchange_rate: number;
   invoice_footer: string | null;
   is_active: boolean;
+  archived_at?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
