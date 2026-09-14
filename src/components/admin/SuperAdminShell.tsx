@@ -2,31 +2,30 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Activity,
-  Bell,
   Building2,
-  ChevronDown,
   Database,
   DatabaseBackup,
-  KeyRound,
   LayoutDashboard,
   LogOut,
   Menu,
   ShieldCheck,
   Store,
-  UserCircle,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import NotificationsBell from "@/components/layout/NotificationsBell";
+import ProfileMenu, {
+  initialsFromName,
+} from "@/components/layout/ProfileMenu";
+import { getActiveHref } from "@/lib/nav-active";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import { getCurrentUserAccount } from "@/services/account.service";
 import { getAdminPharmacies } from "@/services/admin-pharmacies.service";
-import {
-  clearStoredActivePharmacyId,
-} from "@/services/pharmacies.service";
+import { clearStoredActivePharmacyId } from "@/services/pharmacies.service";
 import { clearOfflinePharmacyData } from "@/lib/offline/db";
 
 type NavItem = {
@@ -56,35 +55,6 @@ const navItems: NavItem[] = [
   },
 ];
 
-function isActivePath(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-/**
- * Un seul lien doit être actif à la fois. `/admin/pharmacies` commence par
- * `/admin/`, donc "Vue d'ensemble" (/admin) matchait aussi "Pharmacies"
- * (/admin/pharmacies) simultanément. On ne retient que le href le plus
- * spécifique (le plus long) parmi ceux qui correspondent.
- */
-function getActiveHref(pathname: string, hrefs: string[]) {
-  return hrefs
-    .filter((href) => isActivePath(pathname, href))
-    .sort((a, b) => b.length - a.length)[0];
-}
-
-function initialsFrom(name: string, email: string) {
-  const source = name.trim() || email;
-  const parts = source.split(/\s+/).filter(Boolean);
-
-  if (parts.length === 0) return "SA";
-
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-
-  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-}
-
 export default function SuperAdminShell({
   children,
 }: {
@@ -95,16 +65,11 @@ export default function SuperAdminShell({
   const supabase = createSupabaseClient();
 
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [alerts, setAlerts] = useState<string[]>([]);
-
-  const profileMenuRef = useRef<HTMLDivElement>(null);
-  const notificationsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -176,30 +141,6 @@ export default function SuperAdminShell({
     setIsMobileNavOpen(false);
   }, [pathname]);
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        profileMenuRef.current &&
-        !profileMenuRef.current.contains(event.target as Node)
-      ) {
-        setIsProfileMenuOpen(false);
-      }
-
-      if (
-        notificationsRef.current &&
-        !notificationsRef.current.contains(event.target as Node)
-      ) {
-        setIsNotificationsOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
   async function handleSignOut() {
     setIsSigningOut(true);
 
@@ -215,7 +156,7 @@ export default function SuperAdminShell({
     }
   }
 
-  const initials = initialsFrom(adminName, adminEmail);
+  const initials = initialsFromName(adminName, adminEmail);
   const displayName = adminName || adminEmail || "Super Admin";
   const activeHref = getActiveHref(
     pathname,
@@ -291,12 +232,7 @@ export default function SuperAdminShell({
         </div>
 
         <div className="flex items-center gap-2">
-          <BellButton
-            alerts={alerts}
-            isOpen={isNotificationsOpen}
-            onToggle={() => setIsNotificationsOpen((current) => !current)}
-            dark
-          />
+          <NotificationsBell alerts={alerts} dark />
 
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-xs font-black">
             {initials}
@@ -385,142 +321,21 @@ export default function SuperAdminShell({
           </div>
 
           <div className="flex items-center gap-3">
-            <BellButton
-              alerts={alerts}
-              isOpen={isNotificationsOpen}
-              onToggle={() => setIsNotificationsOpen((current) => !current)}
+            <NotificationsBell alerts={alerts} />
+
+            <ProfileMenu
+              displayName={displayName}
+              email={adminEmail}
+              greetingLabel="Bienvenue, Super Admin"
+              accountHref="/admin/compte"
+              isSigningOut={isSigningOut}
+              onSignOut={handleSignOut}
             />
-
-            <div className="relative" ref={profileMenuRef}>
-              <button
-                type="button"
-                onClick={() => setIsProfileMenuOpen((current) => !current)}
-                className="flex items-center gap-3 rounded-2xl border border-slate-200 py-2 pl-2 pr-3 hover:bg-slate-50"
-              >
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white">
-                  {initials}
-                </div>
-
-                <div className="text-left">
-                  <p className="text-xs font-medium text-slate-400">
-                    Bienvenue, Super Admin
-                  </p>
-                  <p className="text-sm font-black text-slate-950">
-                    {displayName}
-                  </p>
-                </div>
-
-                <ChevronDown className="h-4 w-4 text-slate-400" />
-              </button>
-
-              {isProfileMenuOpen && (
-                <div className="absolute right-0 z-50 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl">
-                  <div className="px-3 py-2">
-                    <p className="text-sm font-black text-slate-950">
-                      {displayName}
-                    </p>
-                    <p className="truncate text-xs text-slate-500">
-                      {adminEmail}
-                    </p>
-                  </div>
-
-                  <div className="my-1 border-t border-slate-100" />
-
-                  <Link
-                    href="/admin/compte"
-                    className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
-                  >
-                    <UserCircle className="h-4 w-4" />
-                    Modifier le profil
-                  </Link>
-
-                  <Link
-                    href="/admin/compte"
-                    className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
-                  >
-                    <KeyRound className="h-4 w-4" />
-                    Modifier le mot de passe
-                  </Link>
-
-                  <div className="my-1 border-t border-slate-100" />
-
-                  <button
-                    type="button"
-                    onClick={handleSignOut}
-                    disabled={isSigningOut}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-60"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    {isSigningOut ? "Déconnexion..." : "Déconnexion"}
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         </header>
 
         <main className="flex-1">{children}</main>
       </div>
-    </div>
-  );
-}
-
-function BellButton({
-  alerts,
-  isOpen,
-  onToggle,
-  dark = false,
-}: {
-  alerts: string[];
-  isOpen: boolean;
-  onToggle: () => void;
-  dark?: boolean;
-}) {
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-label="Notifications"
-        className={`relative rounded-xl border p-2.5 ${
-          dark
-            ? "border-white/10 text-white/80 hover:bg-white/10"
-            : "border-slate-200 text-slate-600 hover:bg-slate-50"
-        }`}
-      >
-        <Bell className="h-5 w-5" />
-
-        {alerts.length > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white">
-            {alerts.length}
-          </span>
-        )}
-      </button>
-
-      {isOpen && (
-        <div className="absolute right-0 z-50 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-3 text-slate-950 shadow-2xl">
-          <p className="px-1 py-1 text-xs font-black uppercase tracking-wide text-slate-400">
-            Notifications
-          </p>
-
-          {alerts.length === 0 ? (
-            <p className="px-1 py-3 text-sm text-slate-500">
-              Aucune alerte pour le moment.
-            </p>
-          ) : (
-            <ul className="space-y-1">
-              {alerts.map((alert) => (
-                <li
-                  key={alert}
-                  className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800"
-                >
-                  {alert}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
     </div>
   );
 }

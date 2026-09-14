@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  ArrowLeft,
   Bell,
   Boxes,
   Building2,
@@ -29,6 +30,8 @@ import {
 import AppLogo from "@/components/branding/AppLogo";
 import PharmacyOpeningStatusControl from "@/components/pharmacies/PharmacyOpeningStatusControl";
 import OfflineStatusBar from "@/components/offline/OfflineStatusBar";
+import NotificationsBell from "@/components/layout/NotificationsBell";
+import ProfileMenu from "@/components/layout/ProfileMenu";
 import {
   canAccessModule,
   canAccessPath,
@@ -38,8 +41,13 @@ import {
   bindOfflineDataToUser,
   clearOfflinePharmacyData,
 } from "@/lib/offline/db";
+import { getActiveHref } from "@/lib/nav-active";
 import { createSupabaseClient } from "@/lib/supabase/client";
-import { mustCurrentUserChangePassword } from "@/services/account.service";
+import {
+  getCurrentUserAccount,
+  mustCurrentUserChangePassword,
+} from "@/services/account.service";
+import { getExpirationAlertsList } from "@/services/expirations.service";
 import {
   clearStoredActivePharmacyId,
   getCurrentPharmacy,
@@ -152,10 +160,6 @@ function canStayWithoutActivePharmacy(pathname: string) {
   );
 }
 
-function isActivePath(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error ?? "");
 }
@@ -188,6 +192,10 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   const [accessWarning, setAccessWarning] = useState("");
   const [isCompactMode, setIsCompactMode] = useState(true);
 
+  const [accountName, setAccountName] = useState("");
+  const [accountEmail, setAccountEmail] = useState("");
+  const [alerts, setAlerts] = useState<string[]>([]);
+
   const visibleNavigationItems = navigationItems.filter((item) =>
     canAccessModule(pharmacy?.role, item.module, isPlatformAdmin)
   );
@@ -199,6 +207,17 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   const mobileMoreNavigationItems = visibleNavigationItems.filter(
     (item) => !mobileMainHrefs.includes(item.href)
   );
+
+  const activeHref = getActiveHref(
+    pathname,
+    visibleNavigationItems.map((item) => item.href)
+  );
+
+  const pageTitle =
+    visibleNavigationItems.find((item) => item.href === activeHref)?.label ??
+    "Mpangi_Pharma";
+
+  const isOnDashboard = pathname === "/dashboard";
 
   useEffect(() => {
     function updateCompactMode() {
@@ -351,6 +370,75 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+
+    async function loadAccount() {
+      try {
+        const account = await getCurrentUserAccount();
+
+        if (!isMounted) return;
+
+        setAccountName(account.fullName || "");
+        setAccountEmail(account.email);
+      } catch {
+        // L'en-tête reste sobre si le profil ne charge pas.
+      }
+    }
+
+    void loadAccount();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadAlerts() {
+      if (!pharmacy) {
+        if (isMounted) setAlerts([]);
+        return;
+      }
+
+      try {
+        const expirations = await getExpirationAlertsList(pharmacy.id);
+
+        if (!isMounted) return;
+
+        const critical = expirations.filter(
+          (item) => item.expiration_status === "expired"
+        ).length;
+        const soon = expirations.length - critical;
+
+        const nextAlerts: string[] = [];
+
+        if (critical > 0) {
+          nextAlerts.push(
+            `${critical} lot${critical > 1 ? "s" : ""} expiré${critical > 1 ? "s" : ""}`
+          );
+        }
+
+        if (soon > 0) {
+          nextAlerts.push(
+            `${soon} lot${soon > 1 ? "s" : ""} proche${soon > 1 ? "s" : ""} de l’expiration`
+          );
+        }
+
+        setAlerts(nextAlerts);
+      } catch {
+        // Silencieux : la cloche reste vide plutôt que de bloquer l'affichage.
+      }
+    }
+
+    void loadAlerts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pharmacy]);
+
+  useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobileMenuOpen(false);
   }, [pathname]);
@@ -463,7 +551,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
           <nav className="flex-1 space-y-1 overflow-y-auto p-4">
             {visibleNavigationItems.map((item) => {
               const Icon = item.icon;
-              const isActive = isActivePath(pathname, item.href);
+              const isActive = item.href === activeHref;
 
               return (
                 <Link
@@ -523,32 +611,44 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
       {isCompactMode && (
         <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 px-3 py-3 backdrop-blur">
           <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <AppLogo compact />
+            <div className="flex min-w-0 items-center gap-2">
+              {!isOnDashboard && (
+                <Link
+                  href="/dashboard"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700"
+                  aria-label="Retour au tableau de bord"
+                  title="Retour au tableau de bord"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Link>
+              )}
 
-              <div className="mt-2 max-w-[68vw] rounded-2xl bg-slate-50 px-3 py-2">
-                <p className="truncate text-xs font-black uppercase tracking-[0.15em] text-blue-700">
-                  {pharmacy?.name || "Aucune pharmacie"}
-                </p>
+              <div className="min-w-0">
+                <AppLogo compact />
 
-                <p className="truncate text-[11px] font-semibold text-slate-500">
-                  {formatRole(pharmacy?.role)}
-                </p>
+                <div className="mt-2 max-w-[50vw] rounded-2xl bg-slate-50 px-3 py-2">
+                  <p className="truncate text-xs font-black uppercase tracking-[0.15em] text-blue-700">
+                    {pharmacy?.name || "Aucune pharmacie"}
+                  </p>
+
+                  <p className="truncate text-[11px] font-semibold text-slate-500">
+                    {formatRole(pharmacy?.role)}
+                  </p>
+                </div>
               </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={handleSignOut}
-                disabled={isSigningOut}
-                className="inline-flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-3 py-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                aria-label="Déconnexion"
-                title="Déconnexion"
-              >
-                <LogOut className="h-5 w-5" />
-                <span>Sortir</span>
-              </button>
+              <NotificationsBell alerts={alerts} />
+
+              <ProfileMenu
+                displayName={accountName || accountEmail}
+                email={accountEmail}
+                greetingLabel={`Bienvenue, ${formatRole(pharmacy?.role)}`}
+                accountHref="/compte"
+                isSigningOut={isSigningOut}
+                onSignOut={handleSignOut}
+              />
 
               <button
                 type="button"
@@ -647,7 +747,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
                 <nav className="grid grid-cols-2 gap-3">
                   {mobileMoreNavigationItems.map((item) => {
                     const Icon = item.icon;
-                    const isActive = isActivePath(pathname, item.href);
+                    const isActive = item.href === activeHref;
 
                     return (
                       <Link
@@ -719,7 +819,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
           <div className="grid grid-cols-5 gap-1">
             {mobileMainNavigationItems.map((item) => {
               const Icon = item.icon;
-              const isActive = isActivePath(pathname, item.href);
+              const isActive = item.href === activeHref;
 
               return (
                 <Link
@@ -757,6 +857,44 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
       )}
 
       <div className={isCompactMode ? "pb-28" : "pl-72"}>
+        {!isCompactMode && (
+          <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
+            <div className="flex items-center gap-4">
+              {!isOnDashboard && (
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Tableau de bord
+                </Link>
+              )}
+
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+                  Espace pharmacie
+                </p>
+                <h2 className="text-lg font-black text-slate-950">
+                  {pageTitle}
+                </h2>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <NotificationsBell alerts={alerts} />
+
+              <ProfileMenu
+                displayName={accountName || accountEmail}
+                email={accountEmail}
+                greetingLabel={`Bienvenue, ${formatRole(pharmacy?.role)}`}
+                accountHref="/compte"
+                isSigningOut={isSigningOut}
+                onSignOut={handleSignOut}
+              />
+            </div>
+          </header>
+        )}
+
         <OfflineStatusBar pharmacyId={pharmacy?.id ?? null} />
         {children}
       </div>
