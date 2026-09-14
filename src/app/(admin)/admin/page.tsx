@@ -44,14 +44,14 @@ const modules: ModuleCard[] = [
     tone: "bg-emerald-50 text-emerald-700",
   },
   {
-    href: "/parametres/audit-securite",
+    href: "/admin/securite",
     icon: ShieldCheck,
     title: "Sécurité & audit",
     description: "Journal d’activité, connexions et événements sensibles.",
     tone: "bg-violet-50 text-violet-700",
   },
   {
-    href: "/parametres/stabilite",
+    href: "/admin/stabilite",
     icon: Activity,
     title: "Paramètres système",
     description: "Santé technique de la plateforme et diagnostics.",

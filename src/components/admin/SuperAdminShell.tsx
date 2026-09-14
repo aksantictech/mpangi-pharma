@@ -44,13 +44,13 @@ const navItems: NavItem[] = [
     icon: Database,
   },
   {
-    href: "/parametres/audit-securite",
+    href: "/admin/securite",
     label: "Sécurité & audit",
     icon: ShieldCheck,
   },
-  { href: "/sauvegardes", label: "Sauvegardes", icon: DatabaseBackup },
+  { href: "/admin/sauvegardes", label: "Sauvegardes", icon: DatabaseBackup },
   {
-    href: "/parametres/stabilite",
+    href: "/admin/stabilite",
     label: "Paramètres système",
     icon: Activity,
   },

@@ -7,36 +7,28 @@ import {
   Building2,
   ChevronLeft,
   ChevronRight,
-  Database,
   Download,
   Eye,
   LogIn,
   RefreshCcw,
   Search,
   ShieldAlert,
-  ShieldCheck,
   User,
   X,
 } from "lucide-react";
 
-import { canViewAudit } from "@/lib/permissions";
 import {
   calculateAuditMetrics,
   exportAuditCsv,
   getAuditActivities,
   getAuditPharmacies,
 } from "@/services/audit.service";
-import {
-  getCurrentPharmacy,
-  isCurrentUserPlatformAdmin,
-} from "@/services/pharmacies.service";
 
 import type {
   AuditActivity,
   AuditMetrics,
   AuditPharmacyOption,
 } from "@/types/audit";
-import type { PharmacyWithRole } from "@/types/pharmacy";
 
 const PAGE_SIZE = 50;
 
@@ -80,10 +72,6 @@ const MODULE_OPTIONS: Array<[string, string]> = [
 ];
 
 export default function AuditPage() {
-  const [pharmacy, setPharmacy] =
-    useState<PharmacyWithRole | null>(null);
-  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
-
   const [logs, setLogs] = useState<AuditActivity[]>([]);
   const [pharmacies, setPharmacies] = useState<
     AuditPharmacyOption[]
@@ -122,36 +110,14 @@ export default function AuditPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const canReadAudit = Boolean(
-    pharmacy &&
-      canViewAudit(pharmacy.role, isPlatformAdmin)
-  );
-
+  // L'accès à cette page est déjà réservé au Super Admin par
+  // requirePlatformAdmin() dans (admin)/admin/layout.tsx : pas besoin de
+  // revérifier un rôle ou une pharmacie active ici.
   async function initializeAuditPage() {
     setIsInitializing(true);
     setErrorMessage("");
 
     try {
-      const [currentPharmacy, platformAdminStatus] =
-        await Promise.all([
-          getCurrentPharmacy(),
-          isCurrentUserPlatformAdmin(),
-        ]);
-
-      setPharmacy(currentPharmacy);
-      setIsPlatformAdmin(platformAdminStatus);
-
-      if (
-        !currentPharmacy ||
-        !canViewAudit(
-          currentPharmacy.role,
-          platformAdminStatus
-        )
-      ) {
-        setLogs([]);
-        return;
-      }
-
       const pharmacyOptions = await getAuditPharmacies();
       setPharmacies(pharmacyOptions);
     } catch (error) {
@@ -162,8 +128,6 @@ export default function AuditPage() {
   }
 
   async function loadAuditLogs() {
-    if (!canReadAudit) return;
-
     setIsLoading(true);
     setErrorMessage("");
 
@@ -204,16 +168,15 @@ export default function AuditPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void initializeAuditPage();
   }, []);
 
   useEffect(() => {
-    if (!canReadAudit) return;
-
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadAuditLogs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    canReadAudit,
     pharmacyId,
     eventType,
     moduleName,
@@ -226,6 +189,7 @@ export default function AuditPage() {
   ]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
   }, [
     pharmacyId,
@@ -269,35 +233,18 @@ export default function AuditPage() {
 
   if (isInitializing) {
     return (
-      <main className="min-h-screen bg-slate-50 p-4 md:p-6">
-        <div className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+      <div className="mx-auto max-w-7xl p-4 md:p-6">
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
           <p className="font-semibold text-slate-500">
             Chargement du journal d’audit...
           </p>
         </div>
-      </main>
-    );
-  }
-
-  if (!pharmacy) {
-    return (
-      <main className="min-h-screen bg-slate-50 p-4 md:p-6">
-        <div className="mx-auto max-w-7xl rounded-[2rem] border border-amber-100 bg-amber-50 p-8">
-          <h1 className="text-2xl font-black text-amber-800">
-            Aucune pharmacie active
-          </h1>
-          <p className="mt-2 text-sm font-medium text-amber-700">
-            Sélectionnez une pharmacie pour consulter le journal
-            d’audit.
-          </p>
-        </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-4 md:p-6">
-      <div className="mx-auto max-w-[1600px] space-y-5">
+    <div className="mx-auto max-w-[1600px] space-y-5 p-4 md:p-6">
         <header className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm md:p-6">
           <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
             <div>
@@ -350,25 +297,7 @@ export default function AuditPage() {
           </div>
         )}
 
-        {!canReadAudit ? (
-          <section className="rounded-[2rem] border border-amber-100 bg-amber-50 p-8">
-            <div className="flex items-start gap-4">
-              <ShieldCheck className="h-8 w-8 text-amber-700" />
-
-              <div>
-                <h2 className="text-xl font-black text-amber-900">
-                  Accès limité
-                </h2>
-
-                <p className="mt-2 text-sm leading-6 text-amber-700">
-                  Le journal d’audit est réservé au super
-                  administrateur de la plateforme.
-                </p>
-              </div>
-            </div>
-          </section>
-        ) : (
-          <>
+        <>
             <section className="grid grid-cols-2 gap-3 xl:grid-cols-5">
               <AuditMetric
                 title="Événements"
@@ -681,9 +610,7 @@ export default function AuditPage() {
                 </button>
               </div>
             </section>
-          </>
-        )}
-      </div>
+        </>
 
       {selectedLog && (
         <AuditDetailsModal
@@ -691,7 +618,7 @@ export default function AuditPage() {
           onClose={() => setSelectedLog(null)}
         />
       )}
-    </main>
+    </div>
   );
 }
 

@@ -1,10 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   Activity,
-  ArrowLeft,
   CheckCircle2,
   Cloud,
   Database,
@@ -125,27 +123,23 @@ export default function StabilityPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void runChecks();
   }, []);
 
   const okCount = checks.filter((item) => item.state === "ok").length;
 
   return (
-    <main className="min-h-screen bg-slate-50 p-3 md:p-6">
-      <div className="mx-auto max-w-7xl space-y-4 md:space-y-6">
+    <div className="mx-auto max-w-7xl space-y-4 p-3 md:space-y-6 md:p-6">
         <header className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-6">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
             <div>
-              <Link
-                href="/parametres"
-                className="inline-flex items-center gap-2 text-sm font-black text-blue-700"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Retour aux paramètres
-              </Link>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">
+                Super Admin
+              </p>
 
-              <h1 className="mt-3 text-2xl font-black text-slate-950 md:text-3xl">
-                État de l’application
+              <h1 className="mt-1 text-2xl font-black text-slate-950 md:text-3xl">
+                Paramètres système
               </h1>
               <p className="mt-2 text-sm text-slate-500">
                 Contrôle local de la connectivité, de la PWA et des services essentiels.
@@ -218,7 +212,6 @@ export default function StabilityPage() {
             );
           })}
         </section>
-      </div>
-    </main>
+    </div>
   );
 }

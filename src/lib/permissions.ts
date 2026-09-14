@@ -147,17 +147,6 @@ export function getModuleFromPath(pathname: string): AppModule | null {
     return "parametres";
   }
 
-  if (pathname === "/audit" || pathname.startsWith("/audit/")) {
-    return "audit";
-  }
-
-  if (
-    pathname === "/sauvegardes" ||
-    pathname.startsWith("/sauvegardes/")
-  ) {
-    return "sauvegardes";
-  }
-
   if (pathname === "/compte" || pathname.startsWith("/compte/")) {
     return "compte";
   }
@@ -165,33 +154,19 @@ export function getModuleFromPath(pathname: string): AppModule | null {
   return null;
 }
 
-function isSuperAdminOnlyPath(pathname: string) {
-  return (
-    pathname === "/parametres/audit-securite" ||
-    pathname.startsWith("/parametres/audit-securite/") ||
-    pathname === "/parametres/stabilite" ||
-    pathname.startsWith("/parametres/stabilite/") ||
-    pathname === "/audit" ||
-    pathname.startsWith("/audit/") ||
-    pathname === "/sauvegardes" ||
-    pathname.startsWith("/sauvegardes/")
-  );
-}
-
+// "audit" et "sauvegardes" vivent désormais sous /admin/audit et
+// /admin/sauvegardes, protégés par requirePlatformAdmin() côté serveur
+// ((admin)/admin/layout.tsx) — plus besoin de garde spécifique ici.
 export function canAccessPath(
   role: string | null | undefined,
   pathname: string,
   isPlatformAdmin = false
 ) {
-  if (isSuperAdminOnlyPath(pathname)) {
-    return isPlatformAdmin;
-  }
+  const appModule = getModuleFromPath(pathname);
 
-  const module = getModuleFromPath(pathname);
+  if (!appModule) return true;
 
-  if (!module) return true;
-
-  return canAccessModule(role, module, isPlatformAdmin);
+  return canAccessModule(role, appModule, isPlatformAdmin);
 }
 
 export function canManageUsers(
