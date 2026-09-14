@@ -4,7 +4,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Lock, Mail, ShieldCheck, Store } from "lucide-react";
+import {
+  Download,
+  Eye,
+  EyeOff,
+  Lock,
+  Mail,
+  ShieldCheck,
+  Store,
+} from "lucide-react";
 
 import AksanticFooter from "@/components/branding/AksanticFooter";
 import { createSupabaseClient } from "@/lib/supabase/client";
@@ -20,6 +28,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -113,45 +122,62 @@ export default function LoginPage() {
               </div>
 
               <form onSubmit={handleLogin} className="mt-7 space-y-4 sm:mt-8 sm:space-y-5">
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
-                  Email
-                </label>
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    Adresse e-mail
+                  </label>
 
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 focus-within:border-blue-500">
-                  <Mail className="h-5 w-5 text-slate-400" />
+                  <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50">
+                    <Mail className="h-5 w-5 shrink-0 text-slate-400" />
 
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="exemple@pharmacie.cd"
-                    autoComplete="email"
-                    className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-                  />
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="nom@pharmacie.cd"
+                      autoComplete="email"
+                      className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
-                  Mot de passe
-                </label>
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    Mot de passe
+                  </label>
 
-                <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 focus-within:border-blue-500">
-                  <Lock className="h-5 w-5 text-slate-400" />
+                  <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 transition focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50">
+                    <Lock className="h-5 w-5 shrink-0 text-slate-400" />
 
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="••••••••••••"
-                    autoComplete="current-password"
-                    className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-                  />
+                    <input
+                      type={isPasswordVisible ? "text" : "password"}
+                      required
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="Votre mot de passe"
+                      autoComplete="current-password"
+                      className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setIsPasswordVisible((current) => !current)}
+                      className="shrink-0 text-slate-400 hover:text-slate-600"
+                      aria-label={
+                        isPasswordVisible
+                          ? "Masquer le mot de passe"
+                          : "Afficher le mot de passe"
+                      }
+                    >
+                      {isPasswordVisible ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
               {errorMessage && (
                 <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
