@@ -54,16 +54,19 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-slate-950">
-      {/* Photo pleine page, commune aux deux colonnes */}
+    <main className="relative min-h-screen overflow-hidden">
+      {/* Photo pleine page, commune aux deux colonnes. `absolute` (et non
+          `fixed`) pour rester dans le contexte d'empilement de <main> : un
+          `position:fixed` en z-index négatif finissait peint sous le fond
+          opaque de <main> sur certains moteurs de rendu. */}
       <div
-        className="fixed inset-0 -z-10 bg-slate-900 bg-cover bg-center"
+        className="absolute inset-0 bg-slate-900 bg-cover bg-center"
         style={{ backgroundImage: `url(${LOGIN_HERO_IMAGE})` }}
       />
-      <div className="fixed inset-0 -z-10 bg-gradient-to-t from-slate-950/85 via-slate-950/30 to-slate-950/10" />
-      <div className="fixed inset-0 -z-10 bg-gradient-to-br from-blue-950/35 via-transparent to-emerald-900/25" />
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/30 to-slate-950/10" />
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-950/35 via-transparent to-emerald-900/25" />
 
-      <div className="relative flex min-h-screen flex-col">
+      <div className="relative z-10 flex min-h-screen flex-col">
         <section className="grid flex-1 grid-cols-1 lg:grid-cols-[1.1fr_460px]">
           <div className="relative hidden flex-col items-center justify-center px-12 py-10 lg:flex">
             <div className="flex max-w-xl flex-col items-center text-center">
