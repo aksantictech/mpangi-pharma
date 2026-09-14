@@ -80,15 +80,11 @@ export async function getMyPharmacies(): Promise<PharmacyWithRole[]> {
     .select(
       `
       role,
-      pharmacy:pharmacies!inner(*)
+      pharmacy:pharmacies(*)
     `
     )
     .eq("user_id", user.id)
     .eq("is_active", true)
-    // Une pharmacie désactivée ou archivée par le Super Admin doit
-    // disparaître immédiatement pour ses membres.
-    .eq("pharmacy.is_active", true)
-    .is("pharmacy.archived_at", null)
     .order("created_at", { ascending: true });
 
   if (error) {
@@ -108,7 +104,13 @@ export async function getMyPharmacies(): Promise<PharmacyWithRole[]> {
         role: item.role,
       };
     })
-    .filter(Boolean) as PharmacyWithRole[];
+    // Une pharmacie désactivée ou archivée par le Super Admin doit
+    // disparaître immédiatement pour ses membres. Filtré côté client
+    // (plutôt que via un filtre PostgREST sur la ressource imbriquée) pour
+    // rester sur la forme de requête déjà éprouvée en production.
+    .filter(
+      (pharmacy) => Boolean(pharmacy?.is_active) && !pharmacy?.archived_at
+    ) as PharmacyWithRole[];
 
   return Array.from(
     new Map(pharmacies.map((pharmacy) => [pharmacy.id, pharmacy])).values()
