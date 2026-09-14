@@ -95,7 +95,23 @@ begin
     v_deleted := v_deleted || jsonb_build_object('stock_requests', v_count);
   end if;
 
-  delete from public.pharmacies where id = p_pharmacy_id;
+  -- Un trigger d'audit existant journalise la suppression de la pharmacie
+  -- elle-meme en referencant son id dans audit_logs.pharmacy_id (contrainte
+  -- de cle etrangere). Au moment ou ce trigger AFTER DELETE s'execute, la
+  -- ligne vient justement d'etre supprimee de pharmacies : l'insertion est
+  -- donc structurellement impossible et viole la contrainte. On desactive
+  -- les triggers utilisateur uniquement pour cette derniere etape, avec
+  -- reactivation garantie meme en cas d'erreur.
+  begin
+    alter table public.pharmacies disable trigger user;
+    delete from public.pharmacies where id = p_pharmacy_id;
+    alter table public.pharmacies enable trigger user;
+  exception
+    when others then
+      alter table public.pharmacies enable trigger user;
+      raise;
+  end;
+
   v_deleted := v_deleted || jsonb_build_object('pharmacies', 1);
 
   return v_deleted;

@@ -16,6 +16,7 @@ import {
 
 import AksanticFooter from "@/components/branding/AksanticFooter";
 import { createSupabaseClient } from "@/lib/supabase/client";
+import { isCurrentUserPlatformAdmin } from "@/services/pharmacies.service";
 
 const APK_DOWNLOAD_HREF = "/download/Mpangi-Pharma.apk";
 const LOGIN_HERO_IMAGE = "/branding/login-hero.jpg";
@@ -49,7 +50,14 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    // Un Super Admin est d'abord un administrateur de la plateforme : on
+    // l'amène directement dans sa console plutôt que dans l'espace d'une
+    // pharmacie qu'il gère parfois aussi à titre secondaire.
+    const isPlatformAdmin = await isCurrentUserPlatformAdmin().catch(
+      () => false
+    );
+
+    router.push(isPlatformAdmin ? "/admin" : "/dashboard");
     router.refresh();
   }
 
