@@ -8,6 +8,7 @@ import {
   ArchiveRestore,
   Building2,
   CheckCircle2,
+  Eye,
   PackageSearch,
   Pencil,
   Plus,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 
 import DeletePharmacyDialog from "@/components/admin/DeletePharmacyDialog";
+import PharmacyDetailsDialog from "@/components/admin/PharmacyDetailsDialog";
 import PharmacyEditDialog from "@/components/admin/PharmacyEditDialog";
 import {
   createAdminPharmacy,
@@ -73,6 +75,9 @@ export default function AdminPharmaciesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [busyPharmacyId, setBusyPharmacyId] = useState<string | null>(null);
 
+  const [viewingPharmacy, setViewingPharmacy] = useState<AdminPharmacy | null>(
+    null
+  );
   const [editingPharmacy, setEditingPharmacy] = useState<AdminPharmacy | null>(
     null
   );
@@ -239,17 +244,19 @@ export default function AdminPharmaciesPage() {
   }
 
   return (
-    <section className="mx-auto max-w-7xl space-y-6 p-6">
-      <header className="rounded-[2rem] border border-white/10 bg-white/5 p-6">
+    <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
+      <header className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm md:rounded-[2rem] md:p-6">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.25em] text-blue-400">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">
               Super Admin
             </p>
 
-            <h2 className="mt-2 text-3xl font-black">Pharmacies clientes</h2>
+            <h1 className="mt-1 text-2xl font-black text-slate-950 md:text-3xl">
+              Pharmacies clientes
+            </h1>
 
-            <p className="mt-2 text-sm text-white/60">
+            <p className="mt-2 text-sm text-slate-500">
               {stats.total} pharmacie(s) · {stats.active} active(s) ·{" "}
               {stats.inactive} désactivée(s) · {stats.archived} archivée(s)
             </p>
@@ -259,7 +266,7 @@ export default function AdminPharmaciesPage() {
             <button
               type="button"
               onClick={loadPharmacies}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 px-5 py-3 text-sm font-black text-white/80 hover:bg-white/10"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 px-5 py-3 text-sm font-black text-slate-600 hover:bg-slate-50"
             >
               <RefreshCcw className="h-5 w-5" />
               Actualiser
@@ -268,7 +275,7 @@ export default function AdminPharmaciesPage() {
             <button
               type="button"
               onClick={() => setIsFormOpen((current) => !current)}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white hover:bg-blue-800"
             >
               <Plus className="h-5 w-5" />
               Nouvelle pharmacie
@@ -278,14 +285,14 @@ export default function AdminPharmaciesPage() {
       </header>
 
       {errorMessage && (
-        <div className="flex items-start gap-3 rounded-2xl border border-red-500/20 bg-red-500/10 px-5 py-4 text-sm font-bold text-red-200">
+        <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
           {errorMessage}
         </div>
       )}
 
       {successMessage && (
-        <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-4 text-sm font-bold text-emerald-200">
+        <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-sm font-bold text-emerald-800">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
           {successMessage}
         </div>
@@ -294,9 +301,11 @@ export default function AdminPharmaciesPage() {
       {isFormOpen && (
         <form
           onSubmit={handleCreatePharmacy}
-          className="rounded-[2rem] border border-white/10 bg-white p-6 text-slate-950"
+          className="rounded-[1.5rem] border border-slate-200 bg-white p-6 md:rounded-[2rem]"
         >
-          <h3 className="text-2xl font-black">Créer une pharmacie</h3>
+          <h3 className="text-2xl font-black text-slate-950">
+            Créer une pharmacie
+          </h3>
 
           <p className="mt-1 text-sm text-slate-500">
             Créez d’abord la fiche pharmacie, puis ajoutez son responsable
@@ -370,7 +379,7 @@ export default function AdminPharmaciesPage() {
             <button
               type="submit"
               disabled={isCreating}
-              className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Save className="h-5 w-5" />
               {isCreating ? "Création..." : "Créer la pharmacie"}
@@ -381,11 +390,11 @@ export default function AdminPharmaciesPage() {
 
       <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
         {isLoading ? (
-          <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 text-white/60">
+          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-6 text-slate-400 md:rounded-[2rem]">
             Chargement...
           </div>
         ) : pharmacies.length === 0 ? (
-          <div className="rounded-[2rem] border border-white/10 bg-white/5 p-6 text-white/60">
+          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-6 text-slate-400 md:rounded-[2rem]">
             Aucune pharmacie trouvée.
           </div>
         ) : (
@@ -396,24 +405,26 @@ export default function AdminPharmaciesPage() {
             return (
               <article
                 key={pharmacy.id}
-                className={`rounded-[2rem] border p-6 ${
+                className={`rounded-[1.5rem] border bg-white p-5 shadow-sm md:rounded-[2rem] md:p-6 ${
                   status === "archived"
-                    ? "border-white/5 bg-white/[0.02] opacity-70"
-                    : "border-white/10 bg-white/5"
+                    ? "border-slate-100 opacity-70"
+                    : "border-slate-200"
                 }`}
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-blue-600">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-blue-50 text-blue-700">
                     <Building2 className="h-7 w-7" />
                   </div>
 
                   <StatusBadge status={status} />
                 </div>
 
-                <h3 className="mt-5 text-xl font-black">{pharmacy.name}</h3>
-                <p className="mt-1 text-sm text-white/50">{pharmacy.slug}</p>
+                <h3 className="mt-5 text-xl font-black text-slate-950">
+                  {pharmacy.name}
+                </h3>
+                <p className="mt-1 text-sm text-slate-400">{pharmacy.slug}</p>
 
-                <div className="mt-5 grid grid-cols-3 gap-2 rounded-2xl bg-white/5 p-3 text-center">
+                <div className="mt-5 grid grid-cols-3 gap-2 rounded-2xl bg-slate-50 p-3 text-center">
                   <HealthTile
                     icon={Users}
                     value={pharmacy.health.activeMembers}
@@ -431,22 +442,22 @@ export default function AdminPharmaciesPage() {
                   />
                 </div>
 
-                <div className="mt-5 space-y-2 text-sm text-white/70">
+                <div className="mt-5 space-y-2 text-sm text-slate-500">
                   <p>
                     Ville :{" "}
-                    <span className="font-bold text-white">
+                    <span className="font-bold text-slate-800">
                       {pharmacy.city || "-"}
                     </span>
                   </p>
                   <p>
                     Pharmacien :{" "}
-                    <span className="font-bold text-white">
+                    <span className="font-bold text-slate-800">
                       {pharmacy.pharmacist_name || "-"}
                     </span>
                   </p>
                   <p>
                     Taux :{" "}
-                    <span className="font-bold text-white">
+                    <span className="font-bold text-slate-800">
                       1 USD ={" "}
                       {Number(pharmacy.exchange_rate).toLocaleString("fr-CD")}{" "}
                       CDF
@@ -454,11 +465,20 @@ export default function AdminPharmaciesPage() {
                   </p>
                 </div>
 
-                <div className="mt-6 grid grid-cols-2 gap-2 border-t border-white/10 pt-5">
+                <div className="mt-6 grid grid-cols-2 gap-2 border-t border-slate-100 pt-5 sm:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={() => setViewingPharmacy(pharmacy)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 px-3 py-2.5 text-xs font-black text-slate-600 hover:bg-slate-50"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Voir
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setEditingPharmacy(pharmacy)}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 px-3 py-2.5 text-xs font-black text-white/80 hover:bg-white/10"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 px-3 py-2.5 text-xs font-black text-slate-600 hover:bg-slate-50"
                   >
                     <Pencil className="h-4 w-4" />
                     Modifier
@@ -470,8 +490,8 @@ export default function AdminPharmaciesPage() {
                     disabled={isBusy}
                     className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2.5 text-xs font-black disabled:cursor-not-allowed disabled:opacity-50 ${
                       pharmacy.is_active
-                        ? "border-amber-500/20 text-amber-300 hover:bg-amber-500/10"
-                        : "border-emerald-500/20 text-emerald-300 hover:bg-emerald-500/10"
+                        ? "border-amber-200 text-amber-700 hover:bg-amber-50"
+                        : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                     }`}
                   >
                     {pharmacy.is_active ? (
@@ -486,7 +506,7 @@ export default function AdminPharmaciesPage() {
                     type="button"
                     onClick={() => handleToggleArchived(pharmacy)}
                     disabled={isBusy}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 px-3 py-2.5 text-xs font-black text-white/80 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 px-3 py-2.5 text-xs font-black text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {pharmacy.archived_at ? (
                       <ArchiveRestore className="h-4 w-4" />
@@ -499,7 +519,7 @@ export default function AdminPharmaciesPage() {
                   <button
                     type="button"
                     onClick={() => setDeletingPharmacy(pharmacy)}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-500/20 px-3 py-2.5 text-xs font-black text-red-300 hover:bg-red-500/10"
+                    className="col-span-2 inline-flex items-center justify-center gap-2 rounded-2xl border border-red-200 px-3 py-2.5 text-xs font-black text-red-700 hover:bg-red-50 sm:col-span-1"
                   >
                     <Trash2 className="h-4 w-4" />
                     Supprimer
@@ -510,6 +530,11 @@ export default function AdminPharmaciesPage() {
           })
         )}
       </section>
+
+      <PharmacyDetailsDialog
+        pharmacy={viewingPharmacy}
+        onClose={() => setViewingPharmacy(null)}
+      />
 
       <PharmacyEditDialog
         pharmacy={editingPharmacy}
@@ -526,7 +551,7 @@ export default function AdminPharmaciesPage() {
         onClose={() => setDeletingPharmacy(null)}
         onDeleted={handleDeleted}
       />
-    </section>
+    </div>
   );
 }
 
@@ -537,7 +562,7 @@ function StatusBadge({
 }) {
   if (status === "archived") {
     return (
-      <span className="rounded-full bg-slate-500/10 px-3 py-1 text-xs font-black text-slate-300">
+      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
         Archivée
       </span>
     );
@@ -545,14 +570,14 @@ function StatusBadge({
 
   if (status === "inactive") {
     return (
-      <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-black text-amber-300">
+      <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">
         Désactivée
       </span>
     );
   }
 
   return (
-    <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-black text-emerald-300">
+    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
       Active
     </span>
   );
@@ -569,9 +594,9 @@ function HealthTile({
 }) {
   return (
     <div>
-      <Icon className="mx-auto h-4 w-4 text-white/40" />
-      <p className="mt-1 text-lg font-black text-white">{value}</p>
-      <p className="text-[10px] font-bold uppercase tracking-wide text-white/40">
+      <Icon className="mx-auto h-4 w-4 text-slate-400" />
+      <p className="mt-1 text-lg font-black text-slate-950">{value}</p>
+      <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
         {label}
       </p>
     </div>

@@ -3,6 +3,7 @@ import { createSupabaseClient } from "@/lib/supabase/client";
 export type CurrentUserAccount = {
   userId: string;
   email: string;
+  fullName: string | null;
   mustChangePassword: boolean;
 };
 
@@ -24,7 +25,7 @@ export async function getCurrentUserAccount(): Promise<CurrentUserAccount> {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("must_change_password")
+    .select("full_name, must_change_password")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -35,8 +36,42 @@ export async function getCurrentUserAccount(): Promise<CurrentUserAccount> {
   return {
     userId: user.id,
     email: user.email,
+    fullName: profile?.full_name ?? null,
     mustChangePassword: Boolean(profile?.must_change_password),
   };
+}
+
+export async function updateCurrentUserFullName(fullName: string) {
+  const supabase = createSupabaseClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    throw new Error("Utilisateur non connecté.");
+  }
+
+  const trimmed = fullName.trim();
+
+  if (!trimmed) {
+    throw new Error("Le nom complet est obligatoire.");
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      full_name: trimmed,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return trimmed;
 }
 
 export async function mustCurrentUserChangePassword() {

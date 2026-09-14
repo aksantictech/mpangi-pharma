@@ -3,13 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Activity,
   ArrowRight,
   Building2,
-  DatabaseBackup,
-  History,
+  LayoutDashboard,
   Settings,
-  ShieldCheck,
   Users,
 } from "lucide-react";
 
@@ -48,39 +45,12 @@ const cards: SettingsCard[] = [
     tone: "purple",
   },
   {
-    href: "/parametres/audit-securite",
-    title: "Audit & sécurité",
+    href: "/admin",
+    title: "Espace Super Admin",
     description:
-      "Contrôler les accès sensibles, la sécurité et les opérations administratives.",
-    icon: ShieldCheck,
-    tone: "amber",
-    superAdminOnly: true,
-  },
-  {
-    href: "/audit",
-    title: "Journal des modifications",
-    description:
-      "Consulter l’historique global des opérations et des changements sensibles.",
-    icon: History,
+      "Gestion des pharmacies clientes, catalogue national, sécurité et sauvegardes de la plateforme.",
+    icon: LayoutDashboard,
     tone: "slate",
-    superAdminOnly: true,
-  },
-  {
-    href: "/sauvegardes",
-    title: "Sauvegardes",
-    description:
-      "Exporter les données critiques et administrer la continuité de service.",
-    icon: DatabaseBackup,
-    tone: "emerald",
-    superAdminOnly: true,
-  },
-  {
-    href: "/parametres/stabilite",
-    title: "État de l’application",
-    description:
-      "Vérifier la PWA, le stockage local, le service worker et la connexion Supabase.",
-    icon: Activity,
-    tone: "rose",
     superAdminOnly: true,
   },
 ];

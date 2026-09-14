@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   KeyRound,
   RefreshCcw,
+  Save,
   ShieldCheck,
   UserCircle,
 } from "lucide-react";
@@ -13,16 +14,20 @@ import {
 import {
   changeCurrentUserPassword,
   getCurrentUserAccount,
+  updateCurrentUserFullName,
 } from "@/services/account.service";
 
 export default function AccountPage() {
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirmation, setNewPasswordConfirmation] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -34,11 +39,11 @@ export default function AccountPage() {
     setSuccessMessage("");
 
     try {
-const account = await getCurrentUserAccount();
+      const account = await getCurrentUserAccount();
 
-setEmail(account.email);
-setMustChangePassword(account.mustChangePassword);
-
+      setEmail(account.email);
+      setFullName(account.fullName ?? "");
+      setMustChangePassword(account.mustChangePassword);
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -51,13 +56,35 @@ setMustChangePassword(account.mustChangePassword);
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadAccount();
   }, []);
 
+  async function handleSaveProfile(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setIsSavingProfile(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      await updateCurrentUserFullName(fullName);
+
+      setSuccessMessage("Profil mis à jour.");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible de mettre à jour le profil."
+      );
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }
+
   async function handleChangePassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-setSuccessMessage("Mot de passe modifié avec succès.");
-setMustChangePassword(false);
+
     setIsSavingPassword(true);
     setErrorMessage("");
     setSuccessMessage("");
@@ -88,6 +115,7 @@ setMustChangePassword(false);
       setCurrentPassword("");
       setNewPassword("");
       setNewPasswordConfirmation("");
+      setMustChangePassword(false);
 
       setSuccessMessage("Mot de passe modifié avec succès.");
     } catch (error) {
@@ -128,7 +156,7 @@ setMustChangePassword(false);
               </h1>
 
               <p className="mt-2 text-sm text-slate-500">
-                Gérez vos informations de connexion.
+                Gérez votre profil et vos informations de connexion.
               </p>
             </div>
 
@@ -145,40 +173,80 @@ setMustChangePassword(false);
 
         {errorMessage && (
           <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
-{mustChangePassword && (
-  <div className="flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4 text-sm font-bold text-amber-800">
-    <ShieldCheck className="mt-0.5 h-5 w-5" />
-    <div>
-      <p>Mot de passe temporaire détecté.</p>
-      <p className="mt-1 text-xs leading-5 text-amber-700">
-        Pour continuer à utiliser l’application, vous devez définir un nouveau
-        mot de passe personnel.
-      </p>
-    </div>
-  </div>
-)}
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+            {errorMessage}
           </div>
         )}
 
         {successMessage && (
           <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4 text-sm font-bold text-emerald-700">
-            <CheckCircle2 className="mt-0.5 h-5 w-5" />
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
             {successMessage}
           </div>
         )}
 
         {mustChangePassword && (
-  <div className="flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4 text-sm font-bold text-amber-800">
-    <ShieldCheck className="mt-0.5 h-5 w-5" />
-    <div>
-      <p>Mot de passe temporaire détecté.</p>
-      <p className="mt-1 text-xs leading-5 text-amber-700">
-        Pour continuer à utiliser l’application, vous devez définir un nouveau
-        mot de passe personnel.
-      </p>
-    </div>
-  </div>
-)}
+          <div className="flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4 text-sm font-bold text-amber-800">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
+            <div>
+              <p>Mot de passe temporaire détecté.</p>
+              <p className="mt-1 text-xs leading-5 text-amber-700">
+                Pour continuer à utiliser l’application, vous devez définir un
+                nouveau mot de passe personnel.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <form onSubmit={handleSaveProfile}>
+            <div className="mb-6 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                <UserCircle className="h-6 w-6" />
+              </div>
+
+              <div>
+                <h2 className="text-xl font-black text-slate-950">
+                  Profil
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Nom affiché dans l’application.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FormField label="Nom complet">
+                <input
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                  className="form-input"
+                  placeholder="Prénom Nom"
+                  required
+                />
+              </FormField>
+
+              <FormField label="Email">
+                <input
+                  value={email}
+                  className="form-input bg-slate-50"
+                  disabled
+                />
+              </FormField>
+            </div>
+
+            <div className="mt-6 flex justify-end border-t border-slate-100 pt-5">
+              <button
+                type="submit"
+                disabled={isSavingProfile}
+                className="inline-flex items-center gap-2 rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-black text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Save className="h-5 w-5" />
+                {isSavingProfile ? "Enregistrement..." : "Enregistrer le profil"}
+              </button>
+            </div>
+          </form>
+        </section>
 
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
           <form
@@ -201,14 +269,6 @@ setMustChangePassword(false);
             </div>
 
             <div className="space-y-4">
-              <FormField label="Email">
-                <input
-                  value={email}
-                  className="form-input bg-slate-50"
-                  disabled
-                />
-              </FormField>
-
               <FormField label="Mot de passe actuel">
                 <input
                   type="password"
