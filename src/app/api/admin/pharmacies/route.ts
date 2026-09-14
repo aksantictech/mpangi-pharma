@@ -201,6 +201,20 @@ export async function POST(request: Request) {
       throw new Error(createError.message);
     }
 
+    // Sans cette ligne d'initialisation, la pharmacie n'a aucune configuration
+    // (pharmacy_settings) et la page « Paramètres généraux » échoue en
+    // silence (.single() sans ligne) : le formulaire d'identité/logo
+    // n'apparaît jamais. create_pharmacy_with_owner() le fait déjà pour le
+    // flux normal ; cette route (création directe par le Super Admin) doit
+    // faire de même.
+    const { error: settingsError } = await supabaseAdmin
+      .from("pharmacy_settings")
+      .insert({ pharmacy_id: pharmacy.id });
+
+    if (settingsError) {
+      throw new Error(settingsError.message);
+    }
+
     return NextResponse.json({
       pharmacy,
       message: "Pharmacie créée avec succès.",

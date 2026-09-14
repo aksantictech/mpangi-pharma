@@ -18,6 +18,7 @@ import {
 
 import { canEditPharmacySettings } from "@/lib/permissions";
 import {
+  ensurePharmacySettings,
   getCurrentPharmacy,
   getPharmacySettings,
   updatePharmacy,
@@ -113,7 +114,16 @@ export default function GeneralSettingsPage() {
         return;
       }
 
-      const currentSettings = await getPharmacySettings(currentPharmacy.id);
+      let currentSettings: PharmacySettings;
+
+      try {
+        currentSettings = await getPharmacySettings(currentPharmacy.id);
+      } catch {
+        // Pharmacie créée avant le correctif de la route de création admin
+        // (aucune ligne pharmacy_settings) : on la crée à la volée au lieu
+        // de bloquer tout l'écran (logo compris) sur une erreur invisible.
+        currentSettings = await ensurePharmacySettings(currentPharmacy.id);
+      }
 
       setPharmacy(currentPharmacy);
       setSettings(currentSettings);
@@ -163,6 +173,7 @@ export default function GeneralSettingsPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadData();
   }, []);
 
@@ -330,7 +341,11 @@ export default function GeneralSettingsPage() {
   }
 
   if (!pharmacy || !settings) {
-    return <EmptyState />;
+    // Un message d'erreur signifie que le chargement a échoué pour une
+    // vraie raison (réseau, permissions...) : on l'affiche au lieu de faire
+    // croire qu'aucune pharmacie n'existe, ce qui masquait silencieusement
+    // les échecs de getPharmacySettings().
+    return <EmptyState message={errorMessage} onRetry={() => void loadData()} />;
   }
 
   const canEdit = canEditPharmacySettings(pharmacy.role);
@@ -774,13 +789,33 @@ function LoadingState({ label }: { label: string }) {
   );
 }
 
-function EmptyState() {
+function EmptyState({
+  message,
+  onRetry,
+}: {
+  message?: string;
+  onRetry: () => void;
+}) {
   return (
     <main className="min-h-screen bg-slate-50 p-3 md:p-6">
       <div className="mx-auto max-w-7xl rounded-[2rem] border border-amber-100 bg-amber-50 p-8">
         <h1 className="text-2xl font-black text-amber-800">
-          Aucune pharmacie trouvée
+          {message ? "Impossible de charger la pharmacie" : "Aucune pharmacie trouvée"}
         </h1>
+
+        <p className="mt-2 text-sm leading-6 text-amber-700">
+          {message ||
+            "Votre compte doit être propriétaire ou gérant d’une pharmacie active pour accéder à ces paramètres."}
+        </p>
+
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-5 inline-flex items-center gap-2 rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm font-black text-amber-800"
+        >
+          <RefreshCcw className="h-5 w-5" />
+          Réessayer
+        </button>
       </div>
     </main>
   );

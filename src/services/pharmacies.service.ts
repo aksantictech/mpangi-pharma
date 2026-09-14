@@ -285,6 +285,31 @@ export async function getPharmacySettings(pharmacyId: string) {
   return data as PharmacySettings;
 }
 
+/**
+ * Crée la ligne pharmacy_settings manquante (pharmacie créée avant le
+ * correctif de la route admin, qui n'insérait pas cette ligne) puis la
+ * renvoie. À utiliser en repli quand getPharmacySettings() échoue.
+ */
+export async function ensurePharmacySettings(
+  pharmacyId: string
+): Promise<PharmacySettings> {
+  const response = await fetch("/api/pharmacy/settings/ensure", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pharmacyId }),
+  });
+
+  const body = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      body?.message || "Impossible d’initialiser les paramètres de la pharmacie."
+    );
+  }
+
+  return body.settings as PharmacySettings;
+}
+
 export async function updatePharmacySettings(
   payload: UpdatePharmacySettingsPayload
 ) {
