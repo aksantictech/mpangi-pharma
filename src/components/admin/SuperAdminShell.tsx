@@ -411,7 +411,7 @@ export default function SuperAdminShell({
                   <div className="my-1 border-t border-slate-100" />
 
                   <Link
-                    href="/compte"
+                    href="/admin/compte"
                     className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
                   >
                     <UserCircle className="h-4 w-4" />
@@ -419,7 +419,7 @@ export default function SuperAdminShell({
                   </Link>
 
                   <Link
-                    href="/compte"
+                    href="/admin/compte"
                     className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
                   >
                     <KeyRound className="h-4 w-4" />

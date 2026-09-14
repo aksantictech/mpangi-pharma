@@ -1,4 +1,5 @@
 import type { AdminPharmacy } from "@/types/admin";
+import type { PharmacyMember } from "@/types/settings";
 
 async function parseJsonSafe(response: Response) {
   try {
@@ -86,6 +87,23 @@ export async function updateAdminPharmacy(
   }
 
   return result;
+}
+
+export async function getAdminPharmacyMembers(
+  pharmacyId: string
+): Promise<PharmacyMember[]> {
+  const response = await fetch(`/api/admin/pharmacies/${pharmacyId}/members`, {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  const result = await parseJsonSafe(response);
+
+  if (!response.ok) {
+    throw new Error(result?.message || "Erreur chargement des utilisateurs.");
+  }
+
+  return (result?.members ?? []) as PharmacyMember[];
 }
 
 export async function deleteAdminPharmacy(pharmacyId: string) {

@@ -17,9 +17,10 @@ const actions = [
     tone: "bg-emerald-50 text-emerald-700",
   },
   {
-    href: "/parametres/utilisateurs",
+    href: "/admin/pharmacies",
     title: "Gestion des accès",
-    description: "Contrôler les rôles, statuts et mots de passe temporaires.",
+    description:
+      "Ouvrez « Utilisateurs » sur une pharmacie pour gérer ses rôles, statuts et mots de passe temporaires.",
     icon: UserCog,
     tone: "bg-purple-50 text-purple-700",
   },

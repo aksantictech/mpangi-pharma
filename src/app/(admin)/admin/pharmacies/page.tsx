@@ -23,6 +23,7 @@ import {
 import DeletePharmacyDialog from "@/components/admin/DeletePharmacyDialog";
 import PharmacyDetailsDialog from "@/components/admin/PharmacyDetailsDialog";
 import PharmacyEditDialog from "@/components/admin/PharmacyEditDialog";
+import PharmacyMembersDialog from "@/components/admin/PharmacyMembersDialog";
 import {
   createAdminPharmacy,
   getAdminPharmacies,
@@ -79,6 +80,9 @@ export default function AdminPharmaciesPage() {
     null
   );
   const [editingPharmacy, setEditingPharmacy] = useState<AdminPharmacy | null>(
+    null
+  );
+  const [membersPharmacy, setMembersPharmacy] = useState<AdminPharmacy | null>(
     null
   );
   const [deletingPharmacy, setDeletingPharmacy] =
@@ -486,6 +490,15 @@ export default function AdminPharmaciesPage() {
 
                   <button
                     type="button"
+                    onClick={() => setMembersPharmacy(pharmacy)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs font-black text-blue-700 hover:bg-blue-100"
+                  >
+                    <Users className="h-4 w-4" />
+                    Utilisateurs
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => handleToggleActive(pharmacy)}
                     disabled={isBusy}
                     className={`inline-flex items-center justify-center gap-2 rounded-2xl border px-3 py-2.5 text-xs font-black disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -519,7 +532,7 @@ export default function AdminPharmaciesPage() {
                   <button
                     type="button"
                     onClick={() => setDeletingPharmacy(pharmacy)}
-                    className="col-span-2 inline-flex items-center justify-center gap-2 rounded-2xl border border-red-200 px-3 py-2.5 text-xs font-black text-red-700 hover:bg-red-50 sm:col-span-1"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-200 px-3 py-2.5 text-xs font-black text-red-700 hover:bg-red-50"
                   >
                     <Trash2 className="h-4 w-4" />
                     Supprimer
@@ -544,6 +557,11 @@ export default function AdminPharmaciesPage() {
           setEditingPharmacy(null);
           setSuccessMessage(`« ${updated.name} » mise à jour.`);
         }}
+      />
+
+      <PharmacyMembersDialog
+        pharmacy={membersPharmacy}
+        onClose={() => setMembersPharmacy(null)}
       />
 
       <DeletePharmacyDialog
