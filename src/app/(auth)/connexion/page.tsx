@@ -4,9 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Lock, Mail, Store } from "lucide-react";
+import { Download, Lock, Mail, ShieldCheck, Store } from "lucide-react";
 
-import AppLogo from "@/components/branding/AppLogo";
 import AksanticFooter from "@/components/branding/AksanticFooter";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
@@ -46,65 +45,74 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      <section className="grid min-h-[calc(100vh-88px)] grid-cols-1 lg:grid-cols-2">
-        <div className="relative hidden overflow-hidden lg:flex lg:flex-col lg:items-center lg:justify-center lg:px-12 lg:py-10">
-          {/* Photo de fond */}
-          <div
-            className="absolute inset-0 bg-slate-900 bg-cover bg-center"
-            style={{ backgroundImage: `url(${LOGIN_HERO_IMAGE})` }}
-          />
+    <main className="relative min-h-screen overflow-hidden bg-slate-950">
+      {/* Photo pleine page, commune aux deux colonnes */}
+      <div
+        className="fixed inset-0 -z-10 bg-slate-900 bg-cover bg-center"
+        style={{ backgroundImage: `url(${LOGIN_HERO_IMAGE})` }}
+      />
+      <div className="fixed inset-0 -z-10 bg-gradient-to-t from-slate-950/85 via-slate-950/30 to-slate-950/10" />
+      <div className="fixed inset-0 -z-10 bg-gradient-to-br from-blue-950/35 via-transparent to-emerald-900/25" />
 
-          {/* Dégradés de marque par-dessus la photo, pour la lisibilité */}
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-slate-950/10" />
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-950/40 via-transparent to-emerald-900/30" />
+      <div className="relative flex min-h-screen flex-col">
+        <section className="grid flex-1 grid-cols-1 lg:grid-cols-[1.1fr_460px]">
+          <div className="relative hidden flex-col items-center justify-center px-12 py-10 lg:flex">
+            <div className="flex max-w-xl flex-col items-center text-center">
+              <div className="mp-login-logo-stage relative flex h-40 w-40 items-center justify-center">
+                <div className="mp-login-logo-glow absolute left-1/2 top-1/2 h-64 w-64 rounded-full bg-gradient-to-br from-blue-400 via-emerald-300 to-blue-500 blur-3xl" />
 
-          <div className="relative z-10 flex max-w-xl flex-col items-center text-center">
-            <div className="mp-login-logo-stage relative flex h-40 w-40 items-center justify-center">
-              <div className="mp-login-logo-glow absolute left-1/2 top-1/2 h-64 w-64 rounded-full bg-gradient-to-br from-blue-400 via-emerald-300 to-blue-500 blur-3xl" />
-
-              <div className="mp-login-logo-float relative flex h-32 w-32 items-center justify-center rounded-[2rem] bg-white/95 p-5 shadow-2xl shadow-black/50 ring-1 ring-white/40 backdrop-blur">
-                <Image
-                  src="/icons/m-pharma.svg"
-                  alt="Mpangi Pharma"
-                  width={96}
-                  height={96}
-                  priority
-                  className="h-full w-full object-contain"
-                />
+                <div className="mp-login-logo-float relative flex h-32 w-32 items-center justify-center rounded-[2rem] bg-white/95 p-5 shadow-2xl shadow-black/50 ring-1 ring-white/40 backdrop-blur">
+                  <Image
+                    src="/icons/m-pharma.svg"
+                    alt="Mpangi Pharma"
+                    width={96}
+                    height={96}
+                    priority
+                    className="h-full w-full object-contain"
+                  />
+                </div>
               </div>
-            </div>
 
-            <h1 className="mt-10 text-4xl font-black leading-tight text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.55)] xl:text-5xl">
-              Gestion moderne, simple et sécurisée{" "}
-              <span className="bg-gradient-to-r from-emerald-300 to-blue-300 bg-clip-text text-transparent">
-                pour les pharmacies.
-              </span>
-            </h1>
+              <h1 className="mt-10 text-4xl font-black leading-tight text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.55)] xl:text-5xl">
+                Gestion moderne, simple et sécurisée{" "}
+                <span className="bg-gradient-to-r from-emerald-300 to-blue-300 bg-clip-text text-transparent">
+                  pour les pharmacies.
+                </span>
+              </h1>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center justify-center px-4 py-8 sm:px-5 sm:py-10">
-          <div className="w-full max-w-md rounded-[1.75rem] border border-slate-200 bg-white/95 p-5 shadow-2xl shadow-blue-100 backdrop-blur sm:rounded-[2rem] sm:p-8">
-            <div className="mb-6 flex justify-center lg:hidden">
-              <AppLogo />
-            </div>
+          <div className="flex items-center justify-center px-4 py-8 sm:px-5 sm:py-10 lg:justify-end lg:px-12">
+            <div className="w-full max-w-md rounded-[1.75rem] border border-white/50 bg-white/95 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl sm:rounded-[2rem] sm:p-8">
+              <div className="flex flex-col items-center gap-4 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-lg shadow-blue-100 ring-1 ring-slate-100">
+                  <Image
+                    src="/icons/m-pharma.svg"
+                    alt="Mpangi Pharma"
+                    width={40}
+                    height={40}
+                    priority
+                    className="h-10 w-10 object-contain"
+                  />
+                </div>
 
-            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-3xl bg-blue-50 text-blue-700 shadow-inner sm:mb-6 sm:h-16 sm:w-16">
-              <Lock className="h-7 w-7 sm:h-8 sm:w-8" />
-            </div>
+                <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-1.5 text-xs font-black uppercase tracking-[0.15em] text-blue-700">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Espace sécurisé
+                </span>
+              </div>
 
-            <div className="text-center">
-              <h2 className="text-2xl font-black text-slate-950">
-                Bienvenue
-              </h2>
+              <div className="mt-5 text-center">
+                <h2 className="text-2xl font-black text-slate-950 sm:text-3xl">
+                  Bienvenue sur Mpangi_Pharma
+                </h2>
 
-              <p className="mt-2 text-sm text-slate-500">
-                Connectez-vous à votre espace Mpangi_Pharma.
-              </p>
-            </div>
+                <p className="mt-2 text-sm text-slate-500">
+                  Connectez-vous à votre espace pharmacie.
+                </p>
+              </div>
 
-            <form onSubmit={handleLogin} className="mt-7 space-y-4 sm:mt-8 sm:space-y-5">
+              <form onSubmit={handleLogin} className="mt-7 space-y-4 sm:mt-8 sm:space-y-5">
               <div>
                 <label className="mb-2 block text-sm font-bold text-slate-700">
                   Email
@@ -203,9 +211,10 @@ export default function LoginPage() {
             </form>
           </div>
         </div>
-      </section>
+        </section>
 
-      <AksanticFooter />
+        <AksanticFooter />
+      </div>
     </main>
   );
 }
