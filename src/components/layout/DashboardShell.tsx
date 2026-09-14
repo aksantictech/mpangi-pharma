@@ -498,10 +498,6 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-slate-50">
       {!isCompactMode && (
         <aside className="fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white">
-          <div className="border-b border-slate-100 p-6">
-            <AppLogo />
-          </div>
-
           <div className="border-b border-slate-100 p-5">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
               Pharmacie active
@@ -530,6 +526,21 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
                   {formatRole(pharmacy?.role)}
                 </p>
               </>
+            )}
+
+            {pharmacy && (
+              <div className="mt-4 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                {pharmacy.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={pharmacy.logo_url}
+                    alt={`Logo ${pharmacy.name}`}
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <Building2 className="h-7 w-7 text-slate-300" />
+                )}
+              </div>
             )}
 
             {accessWarning && (
@@ -729,6 +740,21 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
                       {formatRole(pharmacy?.role)}
                     </p>
                   </>
+                )}
+
+                {pharmacy && (
+                  <div className="mt-4 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                    {pharmacy.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={pharmacy.logo_url}
+                        alt={`Logo ${pharmacy.name}`}
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <Building2 className="h-7 w-7 text-slate-300" />
+                    )}
+                  </div>
                 )}
               </div>
 
