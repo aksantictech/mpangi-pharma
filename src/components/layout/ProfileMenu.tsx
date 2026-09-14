@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, KeyRound, LogOut, UserCircle } from "lucide-react";
+import { Building2, ChevronDown, KeyRound, LogOut, UserCircle } from "lucide-react";
 
 export function initialsFromName(name: string, fallback: string) {
   const source = name.trim() || fallback;
@@ -22,6 +22,9 @@ type ProfileMenuProps = {
   isSigningOut: boolean;
   onSignOut: () => void;
   dark?: boolean;
+  /** Lien optionnel vers les infos de la pharmacie (logo, coordonnées, gérant). */
+  pharmacyHref?: string;
+  pharmacyLabel?: string;
 };
 
 /**
@@ -37,6 +40,8 @@ export default function ProfileMenu({
   isSigningOut,
   onSignOut,
   dark = false,
+  pharmacyHref,
+  pharmacyLabel,
 }: ProfileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -115,6 +120,17 @@ export default function ProfileMenu({
             <UserCircle className="h-4 w-4" />
             Modifier le profil
           </Link>
+
+          {pharmacyHref && (
+            <Link
+              href={pharmacyHref}
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+            >
+              <Building2 className="h-4 w-4" />
+              {pharmacyLabel || "Infos de la pharmacie"}
+            </Link>
+          )}
 
           <Link
             href={accountHref}

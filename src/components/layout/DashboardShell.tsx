@@ -648,6 +648,8 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
                 accountHref="/compte"
                 isSigningOut={isSigningOut}
                 onSignOut={handleSignOut}
+                pharmacyHref={pharmacy ? "/parametres/general" : undefined}
+                pharmacyLabel="Infos & logo de la pharmacie"
               />
 
               <button
@@ -890,6 +892,8 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
                 accountHref="/compte"
                 isSigningOut={isSigningOut}
                 onSignOut={handleSignOut}
+                pharmacyHref={pharmacy ? "/parametres/general" : undefined}
+                pharmacyLabel="Infos & logo de la pharmacie"
               />
             </div>
           </header>
