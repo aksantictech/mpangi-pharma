@@ -52,8 +52,10 @@ export default function DeletePharmacyDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-[2rem] border-2 border-red-200 bg-white p-6 text-slate-950 shadow-2xl">
+    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/70 backdrop-blur-sm md:items-center md:p-8">
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-[2rem] border-2 border-red-200 bg-white p-6 text-slate-950 shadow-2xl md:rounded-[2rem]">
+        <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200 md:hidden" />
+
         <div className="mb-5 flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-700">

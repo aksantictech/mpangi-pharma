@@ -8,7 +8,14 @@ alter table public.pharmacies
   add column if not exists archived_at timestamptz;
 
 -- 2. Suppression definitive et complete d'une pharmacie et de toutes les
---    donnees qui lui sont rattachees. Reserve au Super Admin (is_platform_admin()).
+--    donnees qui lui sont rattachees.
+--    Securite : PAS de controle is_platform_admin()/auth.uid() ici -
+--    auth.uid() est NULL quand la fonction est appelee avec la cle
+--    service_role (le cas normal, depuis la route API deja protegee par
+--    requirePlatformAdmin()), donc ce controle echouait toujours a tort.
+--    A la place, la fonction n'est accordee (grant) qu'au role service_role :
+--    aucun utilisateur authentifie ne peut l'appeler directement, meme en
+--    connaissant son nom, quel que soit son role.
 --    Introspecte information_schema pour rester robuste si le schema evolue :
 --    ne touche que les tables/colonnes qui existent reellement.
 create or replace function public.admin_delete_pharmacy(p_pharmacy_id uuid)
@@ -22,10 +29,6 @@ declare
   v_count bigint;
   v_deleted jsonb := '{}'::jsonb;
 begin
-  if not public.is_platform_admin() then
-    raise exception 'Acces refuse : reserve au Super Admin.' using errcode = '42501';
-  end if;
-
   if not exists (select 1 from public.pharmacies where id = p_pharmacy_id) then
     raise exception 'Pharmacie introuvable.';
   end if;
@@ -99,5 +102,5 @@ begin
 end;
 $$;
 
-revoke all on function public.admin_delete_pharmacy(uuid) from public;
-grant execute on function public.admin_delete_pharmacy(uuid) to authenticated;
+revoke all on function public.admin_delete_pharmacy(uuid) from public, anon, authenticated;
+grant execute on function public.admin_delete_pharmacy(uuid) to service_role;
