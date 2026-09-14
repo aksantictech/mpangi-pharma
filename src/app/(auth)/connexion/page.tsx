@@ -1,26 +1,17 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Bell,
-  Boxes,
-  Download,
-  FileText,
-  LineChart,
-  Lock,
-  Mail,
-  ShieldCheck,
-  Smartphone,
-  Store,
-} from "lucide-react";
+import { Download, Lock, Mail, Store } from "lucide-react";
 
 import AppLogo from "@/components/branding/AppLogo";
 import AksanticFooter from "@/components/branding/AksanticFooter";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
 const APK_DOWNLOAD_HREF = "/download/Mpangi-Pharma.apk";
+const LOGIN_HERO_IMAGE = "/branding/login-hero.jpg";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -57,96 +48,39 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
       <section className="grid min-h-[calc(100vh-88px)] grid-cols-1 lg:grid-cols-2">
-        <div className="relative hidden overflow-hidden px-12 py-10 lg:flex lg:flex-col lg:justify-center">
-          <div className="absolute -left-32 top-20 h-72 w-72 rounded-full bg-blue-100 blur-3xl" />
-          <div className="absolute bottom-10 right-20 h-80 w-80 rounded-full bg-emerald-100 blur-3xl" />
+        <div className="relative hidden overflow-hidden lg:flex lg:flex-col lg:items-center lg:justify-center lg:px-12 lg:py-10">
+          {/* Photo de fond */}
+          <div
+            className="absolute inset-0 bg-slate-900 bg-cover bg-center"
+            style={{ backgroundImage: `url(${LOGIN_HERO_IMAGE})` }}
+          />
 
-          <div className="relative z-10 max-w-2xl">
-            <AppLogo />
+          {/* Dégradés de marque par-dessus la photo, pour la lisibilité */}
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-slate-950/10" />
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-950/40 via-transparent to-emerald-900/30" />
 
-            <div className="mt-10">
-              <h1 className="max-w-xl text-4xl font-black leading-tight text-slate-950">
-                Gestion moderne, simple et sécurisée pour les pharmacies.
-              </h1>
+          <div className="relative z-10 flex max-w-xl flex-col items-center text-center">
+            <div className="mp-login-logo-stage relative flex h-40 w-40 items-center justify-center">
+              <div className="mp-login-logo-glow absolute left-1/2 top-1/2 h-64 w-64 rounded-full bg-gradient-to-br from-blue-400 via-emerald-300 to-blue-500 blur-3xl" />
 
-              <p className="mt-5 max-w-lg text-lg leading-8 text-slate-600">
-                Mpangi_Pharma accompagne les pharmacies dans la gestion des
-                stocks, lots, expirations, ventes, factures et finances.
-              </p>
-            </div>
-
-            <div className="mt-10 grid grid-cols-2 gap-4 xl:grid-cols-4">
-              <FeatureCard
-                icon={<Boxes className="h-6 w-6" />}
-                title="Stock & lots"
-                description="Suivi des produits, lots et quantités."
-              />
-
-              <FeatureCard
-                icon={<FileText className="h-6 w-6" />}
-                title="Factures"
-                description="Factures simples avec logo pharmacie."
-              />
-
-              <FeatureCard
-                icon={<Bell className="h-6 w-6" />}
-                title="Expirations"
-                description="Alertes produits proches de l’expiration."
-              />
-
-              <FeatureCard
-                icon={<LineChart className="h-6 w-6" />}
-                title="Finances"
-                description="Recettes, dépenses et marges."
-              />
-            </div>
-
-            <div className="mt-10 rounded-3xl border border-emerald-100 bg-emerald-50/80 p-5">
-              <div className="flex items-start gap-4">
-                <div className="rounded-2xl bg-white p-3 text-emerald-600 shadow-sm">
-                  <ShieldCheck className="h-6 w-6" />
-                </div>
-
-                <div>
-                  <h2 className="font-bold text-slate-900">
-                    Adapté au contexte RDC
-                  </h2>
-
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    Gestion CDF/USD, multi-pharmacie, mode PWA, APK Android et
-                    préparation au fonctionnement hors-ligne.
-                  </p>
-                </div>
+              <div className="mp-login-logo-float relative flex h-32 w-32 items-center justify-center rounded-[2rem] bg-white/95 p-5 shadow-2xl shadow-black/50 ring-1 ring-white/40 backdrop-blur">
+                <Image
+                  src="/icons/m-pharma.svg"
+                  alt="Mpangi Pharma"
+                  width={96}
+                  height={96}
+                  priority
+                  className="h-full w-full object-contain"
+                />
               </div>
             </div>
 
-            <div className="mt-5 rounded-3xl border border-blue-100 bg-white/80 p-5 shadow-sm backdrop-blur">
-              <div className="flex items-start gap-4">
-                <div className="rounded-2xl bg-blue-50 p-3 text-blue-700">
-                  <Smartphone className="h-6 w-6" />
-                </div>
-
-                <div>
-                  <h2 className="font-bold text-slate-900">
-                    Application Android disponible
-                  </h2>
-
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    Installez l’APK sur un terminal Android ou un appareil POS
-                    compatible pour faciliter l’utilisation en pharmacie.
-                  </p>
-
-                  <a
-                    href={APK_DOWNLOAD_HREF}
-                    download="Mpangi-Pharma.apk"
-                    className="mt-4 inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-100 hover:bg-blue-800"
-                  >
-                    <Download className="h-5 w-5" />
-                    Télécharger l’APK Android
-                  </a>
-                </div>
-              </div>
-            </div>
+            <h1 className="mt-10 text-4xl font-black leading-tight text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.55)] xl:text-5xl">
+              Gestion moderne, simple et sécurisée{" "}
+              <span className="bg-gradient-to-r from-emerald-300 to-blue-300 bg-clip-text text-transparent">
+                pour les pharmacies.
+              </span>
+            </h1>
           </div>
         </div>
 
@@ -273,29 +207,5 @@ export default function LoginPage() {
 
       <AksanticFooter />
     </main>
-  );
-}
-
-function FeatureCard({
-  icon,
-  title,
-  description,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white/80 p-5 shadow-sm backdrop-blur">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
-        {icon}
-      </div>
-
-      <h3 className="font-black text-slate-900">{title}</h3>
-
-      <p className="mt-2 text-sm leading-6 text-slate-500">
-        {description}
-      </p>
-    </div>
   );
 }

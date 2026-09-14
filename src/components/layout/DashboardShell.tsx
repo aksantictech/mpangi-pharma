@@ -247,6 +247,16 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
 
         if (!isMounted) return;
 
+        // Le statut Super Admin est résolu indépendamment des pharmacies :
+        // une erreur sur les pharmacies d'un compte ne doit jamais lui faire
+        // perdre son accès à l'espace Super Admin.
+        const platformAdminStatus =
+          platformAdminResult.status === "fulfilled"
+            ? platformAdminResult.value
+            : false;
+
+        setIsPlatformAdmin(platformAdminStatus);
+
         const hasNetworkError =
           (pharmaciesResult.status === "rejected" &&
             isNetworkError(pharmaciesResult.reason)) ||
@@ -264,18 +274,15 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
 
         if (pharmaciesResult.status === "rejected") {
           setAccessWarning(
-            getErrorMessage(pharmaciesResult.reason) ||
-              "Impossible de vérifier vos pharmacies."
+            platformAdminStatus
+              ? "Impossible de charger vos pharmacies. Utilisez « Super Admin » pour gérer la plateforme."
+              : getErrorMessage(pharmaciesResult.reason) ||
+                  "Impossible de vérifier vos pharmacies."
           );
           return;
         }
 
         const myPharmacies = pharmaciesResult.value;
-
-        const platformAdminStatus =
-          platformAdminResult.status === "fulfilled"
-            ? platformAdminResult.value
-            : false;
 
         const currentPharmacy =
           currentPharmacyResult.status === "fulfilled"
@@ -358,6 +365,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobileMenuOpen(false);
   }, [pathname]);
 

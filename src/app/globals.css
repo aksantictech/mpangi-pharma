@@ -296,3 +296,56 @@ body {
     font-size: 10px !important;
   }
 }
+/*
+ * Logo animé "3D" de la page de connexion : léger flottement + bascule de
+ * perspective, désactivé pour les utilisateurs qui préfèrent moins
+ * d'animation.
+ */
+@keyframes mp-logo-float {
+  0%,
+  100% {
+    transform: translateY(0) rotateY(0deg) rotateX(0deg) scale(1);
+  }
+  25% {
+    transform: translateY(-10px) rotateY(12deg) rotateX(3deg) scale(1.02);
+  }
+  50% {
+    transform: translateY(-16px) rotateY(0deg) rotateX(-3deg) scale(1.04);
+  }
+  75% {
+    transform: translateY(-10px) rotateY(-12deg) rotateX(3deg) scale(1.02);
+  }
+}
+
+@keyframes mp-logo-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+}
+
+.mp-login-logo-stage {
+  perspective: 1000px;
+}
+
+.mp-login-logo-glow {
+  animation: mp-logo-glow 6s ease-in-out infinite;
+}
+
+.mp-login-logo-float {
+  animation: mp-logo-float 7s ease-in-out infinite;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-login-logo-float,
+  .mp-login-logo-glow {
+    animation: none;
+  }
+}
