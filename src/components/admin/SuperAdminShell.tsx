@@ -60,6 +60,18 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/**
+ * Un seul lien doit être actif à la fois. `/admin/pharmacies` commence par
+ * `/admin/`, donc "Vue d'ensemble" (/admin) matchait aussi "Pharmacies"
+ * (/admin/pharmacies) simultanément. On ne retient que le href le plus
+ * spécifique (le plus long) parmi ceux qui correspondent.
+ */
+function getActiveHref(pathname: string, hrefs: string[]) {
+  return hrefs
+    .filter((href) => isActivePath(pathname, href))
+    .sort((a, b) => b.length - a.length)[0];
+}
+
 function initialsFrom(name: string, email: string) {
   const source = name.trim() || email;
   const parts = source.split(/\s+/).filter(Boolean);
@@ -205,6 +217,10 @@ export default function SuperAdminShell({
 
   const initials = initialsFrom(adminName, adminEmail);
   const displayName = adminName || adminEmail || "Super Admin";
+  const activeHref = getActiveHref(
+    pathname,
+    navItems.map((item) => item.href)
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 lg:flex">
@@ -220,7 +236,7 @@ export default function SuperAdminShell({
         <nav className="flex-1 space-y-1 overflow-y-auto p-4">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = isActivePath(pathname, item.href);
+            const active = item.href === activeHref;
 
             return (
               <Link
@@ -313,7 +329,7 @@ export default function SuperAdminShell({
             <nav className="flex-1 space-y-1 overflow-y-auto p-4">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const active = isActivePath(pathname, item.href);
+                const active = item.href === activeHref;
 
                 return (
                   <Link
@@ -363,8 +379,8 @@ export default function SuperAdminShell({
               Centre d’administration
             </p>
             <h2 className="text-lg font-black text-slate-950">
-              {navItems.find((item) => isActivePath(pathname, item.href))
-                ?.label ?? "Mpangi_Pharma"}
+              {navItems.find((item) => item.href === activeHref)?.label ??
+                "Mpangi_Pharma"}
             </h2>
           </div>
 
