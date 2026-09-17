@@ -13,7 +13,6 @@ import {
   FileText,
   LayoutDashboard,
   LineChart,
-  LogOut,
   Menu,
   UploadCloud,
   MoreHorizontal,
@@ -601,16 +600,22 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-slate-50">
       {!isCompactMode && (
         <aside className="fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white">
-          <div className="border-b border-slate-100 p-5">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
-              Pharmacie active
-            </p>
+          {pharmacy && (
+            <div className="border-b border-slate-100 px-4 py-4">
+              <PharmacyOpeningStatusControl
+                pharmacyId={pharmacy.id}
+                canManage={canManageOpeningStatus(pharmacy.role)}
+                stackButtons
+              />
+            </div>
+          )}
 
+          <div className="border-b border-slate-100 p-4">
             {pharmacies.length > 1 ? (
               <select
                 value={pharmacy?.id || ""}
                 onChange={(event) => handlePharmacyChange(event.target.value)}
-                className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-950 outline-none focus:border-blue-500"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-black text-slate-950 outline-none focus:border-blue-500"
               >
                 {pharmacies.map((item) => (
                   <option key={`desktop-pharmacy-${item.id}`} value={item.id}>
@@ -619,30 +624,23 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
                 ))}
               </select>
             ) : (
-              <>
-                <p className="mt-2 truncate text-sm font-black text-slate-950">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                  {pharmacy?.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={pharmacy.logo_url}
+                      alt={`Logo ${pharmacy.name}`}
+                      className="h-full w-full object-contain"
+                    />
+                  ) : (
+                    <Building2 className="h-5 w-5 text-slate-300" />
+                  )}
+                </div>
+
+                <p className="truncate text-sm font-black text-slate-950">
                   {pharmacy?.name || "Aucune pharmacie"}
                 </p>
-
-                <p className="mt-1 truncate text-xs font-medium text-slate-500">
-                  {pharmacy?.city || "Ville non renseignée"} ·{" "}
-                  {formatRole(pharmacy?.role)}
-                </p>
-              </>
-            )}
-
-            {pharmacy && (
-              <div className="mt-4 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-                {pharmacy.logo_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={pharmacy.logo_url}
-                    alt={`Logo ${pharmacy.name}`}
-                    className="h-full w-full object-contain"
-                  />
-                ) : (
-                  <Building2 className="h-7 w-7 text-slate-300" />
-                )}
               </div>
             )}
 
@@ -661,15 +659,6 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
               </Link>
             )}
           </div>
-
-          {pharmacy && (
-            <div className="border-b border-slate-100 px-4 py-4">
-              <PharmacyOpeningStatusControl
-                pharmacyId={pharmacy.id}
-                canManage={canManageOpeningStatus(pharmacy.role)}
-              />
-            </div>
-          )}
 
           <nav className="flex-1 space-y-1 overflow-y-auto p-4">
             {visibleNavigationItems.map((item) => {
@@ -714,17 +703,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={handleSignOut}
-              disabled={isSigningOut}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-black text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <LogOut className="h-5 w-5" />
-              {isSigningOut ? "Déconnexion..." : "Déconnexion"}
-            </button>
-
-            <p className="mt-4 text-center text-xs font-medium text-slate-400">
+            <p className="text-center text-xs font-medium text-slate-400">
               Aksantic Technology © 2026
             </p>
           </div>
@@ -828,18 +807,22 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="max-h-[calc(88vh-88px)] overflow-y-auto p-5">
-              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">
-                  Pharmacie active
-                </p>
+              {pharmacy && (
+                <PharmacyOpeningStatusControl
+                  pharmacyId={pharmacy.id}
+                  canManage={canManageOpeningStatus(pharmacy.role)}
+                  stackButtons
+                />
+              )}
 
+              <div className="mt-3 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-3">
                 {pharmacies.length > 1 ? (
                   <select
                     value={pharmacy?.id || ""}
                     onChange={(event) =>
                       handlePharmacyChange(event.target.value)
                     }
-                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-3 py-4 text-sm font-black text-slate-950 outline-none focus:border-blue-500"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-4 text-sm font-black text-slate-950 outline-none focus:border-blue-500"
                   >
                     {pharmacies.map((item) => (
                       <option
@@ -851,42 +834,26 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
                     ))}
                   </select>
                 ) : (
-                  <>
-                    <p className="mt-2 truncate text-base font-black text-slate-950">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                      {pharmacy?.logo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={pharmacy.logo_url}
+                          alt={`Logo ${pharmacy.name}`}
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <Building2 className="h-5 w-5 text-slate-300" />
+                      )}
+                    </div>
+
+                    <p className="truncate text-base font-black text-slate-950">
                       {pharmacy?.name || "Aucune pharmacie"}
                     </p>
-
-                    <p className="mt-1 truncate text-sm font-medium text-slate-500">
-                      {pharmacy?.city || "Ville non renseignée"} ·{" "}
-                      {formatRole(pharmacy?.role)}
-                    </p>
-                  </>
-                )}
-
-                {pharmacy && (
-                  <div className="mt-4 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                    {pharmacy.logo_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={pharmacy.logo_url}
-                        alt={`Logo ${pharmacy.name}`}
-                        className="h-full w-full object-contain"
-                      />
-                    ) : (
-                      <Building2 className="h-7 w-7 text-slate-300" />
-                    )}
                   </div>
                 )}
               </div>
-
-              {pharmacy && (
-                <div className="mt-3">
-                  <PharmacyOpeningStatusControl
-                    pharmacyId={pharmacy.id}
-                    canManage={canManageOpeningStatus(pharmacy.role)}
-                  />
-                </div>
-              )}
 
               <div className="mt-5">
                 <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
@@ -944,16 +911,6 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
                   </div>
                 </div>
               )}
-
-              <button
-                type="button"
-                onClick={handleSignOut}
-                disabled={isSigningOut}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-sm font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <LogOut className="h-5 w-5" />
-                {isSigningOut ? "Déconnexion..." : "Déconnexion"}
-              </button>
 
               <p className="mt-5 pb-5 text-center text-xs font-medium text-slate-400">
                 Aksantic Technology © 2026

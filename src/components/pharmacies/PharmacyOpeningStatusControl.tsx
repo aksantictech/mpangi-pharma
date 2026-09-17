@@ -21,12 +21,16 @@ type PharmacyOpeningStatusControlProps = {
   pharmacyId: string;
   canManage?: boolean;
   compact?: boolean;
+  /** Empile les 3 boutons Auto/Ouverte/Fermée en colonne au lieu d'une
+   * grille à 3 colonnes (utile dans une sidebar étroite). */
+  stackButtons?: boolean;
 };
 
 export default function PharmacyOpeningStatusControl({
   pharmacyId,
   canManage = true,
   compact = false,
+  stackButtons = false,
 }: PharmacyOpeningStatusControlProps) {
   const [status, setStatus] =
     useState<PharmacyOpeningStatus | null>(null);
@@ -177,7 +181,13 @@ export default function PharmacyOpeningStatusControl({
       </div>
 
       {canManage ? (
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div
+          className={
+            stackButtons
+              ? "mt-3 flex flex-col gap-2"
+              : "mt-3 grid grid-cols-3 gap-2"
+          }
+        >
           <StatusButton
             label="Auto"
             icon={<Clock3 className="h-4 w-4" />}
@@ -185,6 +195,7 @@ export default function PharmacyOpeningStatusControl({
               status.opening_mode === "automatic"
             }
             disabled={isSaving}
+            stacked={stackButtons}
             onClick={() =>
               handleModeChange("automatic")
             }
@@ -198,6 +209,7 @@ export default function PharmacyOpeningStatusControl({
             }
             disabled={isSaving}
             tone="success"
+            stacked={stackButtons}
             onClick={() =>
               handleModeChange("forced_open")
             }
@@ -211,6 +223,7 @@ export default function PharmacyOpeningStatusControl({
             }
             disabled={isSaving}
             tone="danger"
+            stacked={stackButtons}
             onClick={() =>
               handleModeChange("forced_closed")
             }
@@ -238,6 +251,7 @@ function StatusButton({
   active,
   disabled,
   tone = "default",
+  stacked = false,
   onClick,
 }: {
   label: string;
@@ -245,6 +259,7 @@ function StatusButton({
   active: boolean;
   disabled: boolean;
   tone?: "default" | "success" | "danger";
+  stacked?: boolean;
   onClick: () => void;
 }) {
   const activeClass = {
@@ -261,7 +276,11 @@ function StatusButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-[10px] font-black ${
+      className={`inline-flex min-h-11 items-center rounded-xl border text-[10px] font-black ${
+        stacked
+          ? "w-full justify-start gap-2 px-3 py-2.5 text-xs"
+          : "flex-col justify-center gap-1 px-2 py-2"
+      } ${
         active
           ? activeClass
           : "border-slate-200 bg-white text-slate-600"
