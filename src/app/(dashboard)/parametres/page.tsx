@@ -5,8 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   Building2,
+  CreditCard,
   LayoutDashboard,
   Settings,
+  UserCircle,
   Users,
 } from "lucide-react";
 
@@ -25,6 +27,9 @@ type SettingsCard = {
   icon: LucideIcon;
   tone: string;
   superAdminOnly?: boolean;
+  /** Visible pour tout membre actif de la pharmacie, quel que soit son
+   * rôle (Abonnement, Mon compte), au lieu de propriétaire/gérant seuls. */
+  allRoles?: boolean;
 };
 
 const cards: SettingsCard[] = [
@@ -43,6 +48,24 @@ const cards: SettingsCard[] = [
       "Voir, ajouter, modifier, désactiver et réinitialiser les accès des utilisateurs liés à la pharmacie active.",
     icon: Users,
     tone: "purple",
+  },
+  {
+    href: "/abonnement",
+    title: "Abonnement",
+    description:
+      "Jours restants, moyens de paiement de la plateforme et déclaration d’un paiement.",
+    icon: CreditCard,
+    tone: "emerald",
+    allRoles: true,
+  },
+  {
+    href: "/compte",
+    title: "Mon compte",
+    description:
+      "Modifier votre nom affiché, votre email et votre mot de passe.",
+    icon: UserCircle,
+    tone: "amber",
+    allRoles: true,
   },
   {
     href: "/admin",
@@ -107,13 +130,17 @@ export default function SettingsHomePage() {
           return isPlatformAdmin;
         }
 
+        if (card.allRoles) {
+          return isPlatformAdmin || Boolean(pharmacy);
+        }
+
         return (
           isPlatformAdmin ||
           pharmacy?.role === "owner" ||
           pharmacy?.role === "manager"
         );
       }),
-    [isPlatformAdmin, pharmacy?.role]
+    [isPlatformAdmin, pharmacy]
   );
 
   if (isLoading) {

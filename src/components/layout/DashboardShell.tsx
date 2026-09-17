@@ -28,7 +28,6 @@ import {
 } from "lucide-react";
 
 import AppLogo from "@/components/branding/AppLogo";
-import PharmacyOpeningStatusControl from "@/components/pharmacies/PharmacyOpeningStatusControl";
 import PharmacyOpeningStatusBadge from "@/components/pharmacies/PharmacyOpeningStatusBadge";
 import OfflineStatusBar from "@/components/offline/OfflineStatusBar";
 import NotificationsBell from "@/components/layout/NotificationsBell";
@@ -70,6 +69,11 @@ type NavigationItem = {
   href: string;
   module: AppModule;
   icon: LucideIcon;
+  /** Reste accessible (droits, titre de page, surlignage actif) mais ne
+   * s'affiche plus comme lien de premier niveau : Abonnement et Mon compte
+   * vivent maintenant dans Paramètres, à côté de Ma pharmacie et
+   * Utilisateurs. */
+  hideFromSidebar?: boolean;
 };
 
 const navigationItems: NavigationItem[] = [
@@ -151,12 +155,14 @@ const navigationItems: NavigationItem[] = [
     href: "/abonnement",
     module: "abonnement",
     icon: CreditCard,
+    hideFromSidebar: true,
   },
   {
     label: "Mon compte",
     href: "/compte",
     module: "compte",
     icon: UserCircle,
+    hideFromSidebar: true,
   },
 ];
 
@@ -232,11 +238,18 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
     canAccessModule(pharmacy?.role, item.module, isPlatformAdmin)
   );
 
-  const mobileMainNavigationItems = visibleNavigationItems.filter((item) =>
+  // Abonnement et Mon compte restent dans visibleNavigationItems (titre de
+  // page, surlignage actif) mais n'apparaissent plus comme liens de menu :
+  // ils vivent désormais dans Paramètres.
+  const sidebarNavigationItems = visibleNavigationItems.filter(
+    (item) => !item.hideFromSidebar
+  );
+
+  const mobileMainNavigationItems = sidebarNavigationItems.filter((item) =>
     mobileMainHrefs.includes(item.href)
   );
 
-  const mobileMoreNavigationItems = visibleNavigationItems.filter(
+  const mobileMoreNavigationItems = sidebarNavigationItems.filter(
     (item) => !mobileMainHrefs.includes(item.href)
   );
 
@@ -652,7 +665,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
           </div>
 
           <nav className="flex-1 space-y-1 overflow-y-auto p-4">
-            {visibleNavigationItems.map((item) => {
+            {sidebarNavigationItems.map((item) => {
               const Icon = item.icon;
               const isActive = item.href === activeHref;
 
@@ -728,6 +741,15 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
                     {formatRole(pharmacy?.role)}
                   </p>
                 </div>
+
+                {pharmacy && (
+                  <div className="mt-1.5">
+                    <PharmacyOpeningStatusBadge
+                      pharmacyId={pharmacy.id}
+                      canManage={canManageOpeningStatus(pharmacy.role)}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -798,15 +820,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="max-h-[calc(88vh-88px)] overflow-y-auto p-5">
-              {pharmacy && (
-                <PharmacyOpeningStatusControl
-                  pharmacyId={pharmacy.id}
-                  canManage={canManageOpeningStatus(pharmacy.role)}
-                  stackButtons
-                />
-              )}
-
-              <div className="mt-3 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-3">
+              <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-3">
                 {pharmacies.length > 1 ? (
                   <select
                     value={pharmacy?.id || ""}
