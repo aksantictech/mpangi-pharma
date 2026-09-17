@@ -11,6 +11,11 @@ import {
 
 import type { AdminPharmacy, PharmacyHealth } from "@/types/admin";
 import type { Pharmacy } from "@/types/pharmacy";
+import type { PharmacySubscription } from "@/types/subscription";
+
+/** Essai gratuit accordé automatiquement à la création, le temps que le
+ * Super Admin configure un abonnement définitif depuis /admin/abonnements. */
+const DEFAULT_TRIAL_DAYS = 30;
 
 type CreatePharmacyBody = {
   name: string;
@@ -107,22 +112,32 @@ export async function GET() {
 
     const supabaseAdmin = createSupabaseAdminClient();
 
-    const [{ data, error }, health] = await Promise.all([
-      supabaseAdmin
-        .from("pharmacies")
-        .select("*")
-        .order("created_at", { ascending: false }),
-      loadHealthByPharmacy(supabaseAdmin),
-    ]);
+    const [{ data, error }, health, { data: subscriptionRows }] =
+      await Promise.all([
+        supabaseAdmin
+          .from("pharmacies")
+          .select("*")
+          .order("created_at", { ascending: false }),
+        loadHealthByPharmacy(supabaseAdmin),
+        supabaseAdmin.from("pharmacy_subscriptions").select("*"),
+      ]);
 
     if (error) {
       throw new Error(error.message);
     }
 
+    const subscriptions = new Map<string, PharmacySubscription>(
+      ((subscriptionRows ?? []) as PharmacySubscription[]).map((row) => [
+        row.pharmacy_id,
+        row,
+      ])
+    );
+
     const pharmacies: AdminPharmacy[] = ((data ?? []) as Pharmacy[]).map(
       (pharmacy) => ({
         ...pharmacy,
         health: health.get(pharmacy.id) ?? emptyHealth(),
+        subscription: subscriptions.get(pharmacy.id) ?? null,
       })
     );
 
@@ -213,6 +228,24 @@ export async function POST(request: Request) {
 
     if (settingsError) {
       throw new Error(settingsError.message);
+    }
+
+    // Essai gratuit automatique : sans ça, la nouvelle pharmacie n'a aucune
+    // ligne pharmacy_subscriptions et has_active_pharmacy_role() (utilisée
+    // par la RLS des données métier) la considère bloquée dès sa création.
+    const { error: subscriptionError } = await supabaseAdmin
+      .from("pharmacy_subscriptions")
+      .insert({
+        pharmacy_id: pharmacy.id,
+        status: "trial",
+        plan_label: `Essai gratuit ${DEFAULT_TRIAL_DAYS} jours`,
+        expires_at: new Date(
+          Date.now() + DEFAULT_TRIAL_DAYS * 24 * 60 * 60 * 1000
+        ).toISOString(),
+      });
+
+    if (subscriptionError) {
+      throw new Error(subscriptionError.message);
     }
 
     return NextResponse.json({

@@ -8,6 +8,7 @@ import {
   Bell,
   Boxes,
   Building2,
+  CreditCard,
   Database,
   FileText,
   LayoutDashboard,
@@ -55,8 +56,14 @@ import {
   isCurrentUserPlatformAdmin,
   setActivePharmacy,
 } from "@/services/pharmacies.service";
+import { getPharmacySubscription } from "@/services/subscriptions.service";
 
 import type { PharmacyWithRole } from "@/types/pharmacy";
+import {
+  getSubscriptionDaysRemaining,
+  isSubscriptionBlocking,
+  type PharmacySubscription,
+} from "@/types/subscription";
 
 type NavigationItem = {
   label: string;
@@ -140,6 +147,12 @@ const navigationItems: NavigationItem[] = [
     icon: Settings,
   },
   {
+    label: "Abonnement",
+    href: "/abonnement",
+    module: "abonnement",
+    icon: CreditCard,
+  },
+  {
     label: "Mon compte",
     href: "/compte",
     module: "compte",
@@ -153,6 +166,20 @@ function canStayWithoutActivePharmacy(pathname: string) {
   return (
     pathname === "/dashboard" ||
     pathname.startsWith("/dashboard/") ||
+    pathname === "/compte" ||
+    pathname.startsWith("/compte/") ||
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/")
+  );
+}
+
+// Une pharmacie bloquée/expirée ne doit plus pouvoir utiliser la
+// plateforme, mais son propriétaire/gérant doit toujours pouvoir voir
+// pourquoi et payer : seules /abonnement et /compte restent accessibles.
+function canStayWhenSubscriptionBlocked(pathname: string) {
+  return (
+    pathname === "/abonnement" ||
+    pathname.startsWith("/abonnement/") ||
     pathname === "/compte" ||
     pathname.startsWith("/compte/") ||
     pathname === "/admin" ||
@@ -196,6 +223,11 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   const [accountEmail, setAccountEmail] = useState("");
   const [alerts, setAlerts] = useState<string[]>([]);
 
+  const [subscription, setSubscription] = useState<PharmacySubscription | null>(
+    null
+  );
+  const [isSubscriptionLoaded, setIsSubscriptionLoaded] = useState(false);
+
   const visibleNavigationItems = navigationItems.filter((item) =>
     canAccessModule(pharmacy?.role, item.module, isPlatformAdmin)
   );
@@ -218,6 +250,35 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
     "Mpangi_Pharma";
 
   const isOnDashboard = pathname === "/dashboard";
+
+  const subscriptionBlocked =
+    isSubscriptionLoaded && !isPlatformAdmin && isSubscriptionBlocking(subscription);
+
+  const subscriptionDaysRemaining = getSubscriptionDaysRemaining(subscription);
+
+  const subscriptionWarning = (() => {
+    if (subscriptionBlocked) {
+      if (subscription?.status === "blocked") {
+        return "Abonnement bloqué : accès limité à la page Abonnement. Contactez Aksantic Technology.";
+      }
+
+      return "Abonnement expiré : accès limité à la page Abonnement pour régulariser.";
+    }
+
+    // Avertissement discret avant blocage, pour laisser le temps de payer.
+    if (
+      isSubscriptionLoaded &&
+      subscriptionDaysRemaining !== null &&
+      subscriptionDaysRemaining <= 7 &&
+      subscriptionDaysRemaining >= 0
+    ) {
+      return `Abonnement : ${subscriptionDaysRemaining} jour${
+        subscriptionDaysRemaining > 1 ? "s" : ""
+      } restant${subscriptionDaysRemaining > 1 ? "s" : ""}. Pensez à renouveler.`;
+    }
+
+    return "";
+  })();
 
   useEffect(() => {
     function updateCompactMode() {
@@ -439,6 +500,48 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   }, [pharmacy]);
 
   useEffect(() => {
+    let isMounted = true;
+
+    async function loadSubscription() {
+      if (!pharmacy) {
+        if (isMounted) {
+          setSubscription(null);
+          setIsSubscriptionLoaded(false);
+        }
+        return;
+      }
+
+      try {
+        const result = await getPharmacySubscription(pharmacy.id);
+
+        if (!isMounted) return;
+
+        setSubscription(result);
+        // isSubscriptionLoaded ne passe à true qu'après une lecture
+        // réussie : une erreur réseau ne doit jamais se traduire par un
+        // blocage (isSubscriptionBlocking(null) vaut true par défaut).
+        setIsSubscriptionLoaded(true);
+      } catch {
+        // Silencieux : on ne bloque pas l'interface sur une erreur réseau
+        // transitoire.
+      }
+    }
+
+    void loadSubscription();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pharmacy]);
+
+  useEffect(() => {
+    if (!subscriptionBlocked) return;
+    if (canStayWhenSubscriptionBlocked(pathname)) return;
+
+    router.replace("/abonnement");
+  }, [subscriptionBlocked, pathname, router]);
+
+  useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobileMenuOpen(false);
   }, [pathname]);
@@ -547,6 +650,15 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
               <div className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-3 text-xs font-bold leading-5 text-red-700">
                 {accessWarning}
               </div>
+            )}
+
+            {subscriptionWarning && (
+              <Link
+                href="/abonnement"
+                className="mt-4 block rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800"
+              >
+                {subscriptionWarning}
+              </Link>
             )}
           </div>
 
@@ -679,6 +791,15 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
             <div className="mt-3 rounded-2xl border border-red-100 bg-red-50 p-3 text-xs font-bold leading-5 text-red-700">
               {accessWarning}
             </div>
+          )}
+
+          {subscriptionWarning && (
+            <Link
+              href="/abonnement"
+              className="mt-3 block rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800"
+            >
+              {subscriptionWarning}
+            </Link>
           )}
         </header>
       )}

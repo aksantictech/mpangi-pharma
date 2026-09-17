@@ -19,7 +19,8 @@ export type AppModule =
   | "audit"
   | "sauvegardes"
   | "synchronisation"
-  | "compte";
+  | "compte"
+  | "abonnement";
 
 const allRoles: PharmacyRole[] = [
   "owner",
@@ -66,6 +67,11 @@ const modulePermissions: Record<AppModule, PharmacyRole[]> = {
   sauvegardes: [],
 
   compte: allRoles,
+
+  // Tout le monde doit pouvoir voir l'état de l'abonnement (jours
+  // restants, blocage) ; seuls owner/manager peuvent déclarer un paiement
+  // (imposé côté RLS, voir subscription_payments_insert_by_owners_managers).
+  abonnement: allRoles,
 };
 
 export function normalizeRole(role?: string | null): PharmacyRole | null {
@@ -149,6 +155,10 @@ export function getModuleFromPath(pathname: string): AppModule | null {
 
   if (pathname === "/compte" || pathname.startsWith("/compte/")) {
     return "compte";
+  }
+
+  if (pathname === "/abonnement" || pathname.startsWith("/abonnement/")) {
+    return "abonnement";
   }
 
   return null;

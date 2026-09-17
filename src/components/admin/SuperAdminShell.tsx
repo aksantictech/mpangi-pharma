@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   Activity,
   Building2,
+  CreditCard,
   Database,
   DatabaseBackup,
   LayoutDashboard,
@@ -37,6 +38,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/admin", label: "Vue d’ensemble", icon: LayoutDashboard },
   { href: "/admin/pharmacies", label: "Pharmacies", icon: Building2 },
+  { href: "/admin/abonnements", label: "Abonnements", icon: CreditCard },
   {
     href: "/admin/catalogue-produits",
     label: "Catalogue national",
@@ -198,7 +200,7 @@ export default function SuperAdminShell({
 
         <div className="border-t border-white/10 p-4">
           <Link
-            href="/dashboard"
+            href="/admin/pharmacies"
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white hover:bg-white/20"
           >
             <Store className="h-5 w-5" />
@@ -286,7 +288,7 @@ export default function SuperAdminShell({
 
             <div className="border-t border-white/10 p-4">
               <Link
-                href="/dashboard"
+                href="/admin/pharmacies"
                 className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white"
               >
                 <Store className="h-5 w-5" />

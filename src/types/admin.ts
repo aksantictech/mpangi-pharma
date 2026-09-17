@@ -1,4 +1,5 @@
 import type { Pharmacy } from "@/types/pharmacy";
+import type { PharmacySubscription } from "@/types/subscription";
 
 export type PharmacyHealth = {
   activeMembers: number;
@@ -9,6 +10,7 @@ export type PharmacyHealth = {
 
 export type AdminPharmacy = Pharmacy & {
   health: PharmacyHealth;
+  subscription: PharmacySubscription | null;
 };
 
 export type AdminOverview = {
