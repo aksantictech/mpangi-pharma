@@ -29,6 +29,7 @@ import {
 
 import AppLogo from "@/components/branding/AppLogo";
 import PharmacyOpeningStatusControl from "@/components/pharmacies/PharmacyOpeningStatusControl";
+import PharmacyOpeningStatusBadge from "@/components/pharmacies/PharmacyOpeningStatusBadge";
 import OfflineStatusBar from "@/components/offline/OfflineStatusBar";
 import NotificationsBell from "@/components/layout/NotificationsBell";
 import ProfileMenu from "@/components/layout/ProfileMenu";
@@ -600,16 +601,6 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-slate-50">
       {!isCompactMode && (
         <aside className="fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white">
-          {pharmacy && (
-            <div className="border-b border-slate-100 px-4 py-4">
-              <PharmacyOpeningStatusControl
-                pharmacyId={pharmacy.id}
-                canManage={canManageOpeningStatus(pharmacy.role)}
-                stackButtons
-              />
-            </div>
-          )}
-
           <div className="border-b border-slate-100 p-4">
             {pharmacies.length > 1 ? (
               <select
@@ -984,6 +975,13 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
                   {pageTitle}
                 </h2>
               </div>
+
+              {pharmacy && (
+                <PharmacyOpeningStatusBadge
+                  pharmacyId={pharmacy.id}
+                  canManage={canManageOpeningStatus(pharmacy.role)}
+                />
+              )}
             </div>
 
             <div className="flex items-center gap-3">
