@@ -4,6 +4,31 @@ import { ArrowRight, CheckCircle2 } from "lucide-react";
 import PublicSiteHeader from "@/components/public/PublicSiteHeader";
 import PublicSiteFooter from "@/components/public/PublicSiteFooter";
 import PublicMobileNav from "@/components/public/PublicMobileNav";
+import JsonLd from "@/components/seo/JsonLd";
+import { SITE_URL, pageMetadata } from "@/lib/seo";
+
+import type { Metadata } from "next";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Forfaits et tarifs du logiciel de pharmacie",
+  description:
+    "Découvrez les 3 formules Mpangi_Pharma pour petites, moyennes et grandes pharmacies : installation, gestion du stock, ventes, factures et matériel inclus. Dès 50 $ par mois.",
+  path: "/forfaits",
+});
+
+const breadcrumb = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    { "@type": "ListItem", position: 1, name: "Accueil", item: SITE_URL },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: "Forfaits",
+      item: `${SITE_URL}/forfaits`,
+    },
+  ],
+};
 
 const plans = [
   {
@@ -60,6 +85,7 @@ const plans = [
 export default function PricingPage() {
   return (
     <main className="min-h-screen bg-slate-50 pb-24 lg:pb-0">
+      <JsonLd data={breadcrumb} />
       <PublicSiteHeader />
 
       <section className="bg-gradient-to-r from-blue-800 via-blue-700 to-emerald-600 py-16 text-white">

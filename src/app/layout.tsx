@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import PwaRegister from "@/components/pwa/PwaRegister";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
 
 import "./globals.css";
 
@@ -16,10 +17,37 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "M Pharma",
-  description:
-    "Application de gestion multi-pharmacie pour produits, stock, ventes et factures.",
-  applicationName: "M Pharma",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Logiciel de gestion de pharmacie en RDC | Mpangi_Pharma",
+    template: "%s | Mpangi_Pharma",
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: "Mpangi_Pharma",
+  authors: [{ name: "Aksantic Technology", url: "https://aksantictech.com" }],
+  creator: "Aksantic Technology",
+  keywords: [
+    "logiciel de gestion de pharmacie",
+    "logiciel pharmacie RDC",
+    "gestion de stock pharmacie Kinshasa",
+    "application pharmacie Android",
+    "facturation pharmacie",
+    "pharmacie ouverte Kinshasa",
+  ],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    locale: "fr_CD",
+    siteName: SITE_NAME,
+    url: SITE_URL,
+    title: "Logiciel de gestion de pharmacie en RDC | Mpangi_Pharma",
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Logiciel de gestion de pharmacie en RDC | Mpangi_Pharma",
+    description: SITE_DESCRIPTION,
+  },
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icons/m-pharma.svg",

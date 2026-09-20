@@ -61,6 +61,8 @@ export default function PublicSiteHeader() {
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
+          aria-label={isOpen ? "Fermer le menu" : "Ouvrir le menu"}
+          aria-expanded={isOpen}
           className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 text-slate-700 lg:hidden"
         >
           {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

@@ -16,10 +16,71 @@ import {
 
 import PublicSiteHeader from "@/components/public/PublicSiteHeader";
 import PublicSiteFooter from "@/components/public/PublicSiteFooter";
+import JsonLd from "@/components/seo/JsonLd";
+import { CONTACT, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
+
+// Tarifs alignés sur /forfaits. Volontairement AUCUN aggregateRating/review :
+// des avis inventés violent les règles Google sur les données structurées.
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${CONTACT.website}/#organization`,
+      name: "Aksantic Technology",
+      url: CONTACT.website,
+      email: CONTACT.email,
+      contactPoint: {
+        "@type": "ContactPoint",
+        telephone: CONTACT.whatsapp,
+        contactType: "sales",
+        availableLanguage: ["fr"],
+        areaServed: "CD",
+      },
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      url: SITE_URL,
+      name: SITE_NAME,
+      inLanguage: "fr",
+      publisher: { "@id": `${CONTACT.website}/#organization` },
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${SITE_URL}/#software`,
+      name: SITE_NAME,
+      description: SITE_DESCRIPTION,
+      url: SITE_URL,
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web, Android",
+      inLanguage: "fr",
+      publisher: { "@id": `${CONTACT.website}/#organization` },
+      offers: [
+        { name: "Petite pharmacie", price: "50" },
+        { name: "Pharmacie moyenne", price: "100" },
+        { name: "Grande pharmacie", price: "150" },
+      ].map((plan) => ({
+        "@type": "Offer",
+        name: plan.name,
+        price: plan.price,
+        priceCurrency: "USD",
+        url: `${SITE_URL}/forfaits`,
+        priceSpecification: {
+          "@type": "UnitPriceSpecification",
+          price: plan.price,
+          priceCurrency: "USD",
+          unitText: "MONTH",
+        },
+      })),
+    },
+  ],
+};
 
 export default function PublicHomePage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-white via-slate-50 to-blue-50 pb-24 lg:pb-0">
+      <JsonLd data={structuredData} />
       <PublicSiteHeader />
 
       <section className="mx-auto max-w-7xl px-4 py-12 md:px-6 md:py-16">
@@ -216,7 +277,7 @@ function ModuleCard({
         {icon}
       </div>
 
-      <h3 className="font-black text-slate-900">{title}</h3>
+      <h2 className="font-black text-slate-900">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
     </div>
   );
