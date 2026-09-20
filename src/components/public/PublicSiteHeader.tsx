@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Menu, X, Home, Pill, BadgeDollarSign, Phone, LogIn } from "lucide-react";
 
 import AppLogo from "@/components/branding/AppLogo";
+import { prefetchFor } from "@/lib/public-links";
 
 const navItems = [
   { href: "/", label: "Accueil", icon: Home },
@@ -32,6 +33,7 @@ export default function PublicSiteHeader() {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={prefetchFor(item.href)}
                 className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700"
               >
                 <Icon className="h-4 w-4" />
@@ -51,6 +53,7 @@ export default function PublicSiteHeader() {
 
           <Link
             href="/connexion"
+            prefetch={false}
             className="inline-flex items-center gap-2 rounded-2xl bg-blue-700 px-4 py-2 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-800"
           >
             <LogIn className="h-4 w-4" />
@@ -99,6 +102,7 @@ export default function PublicSiteHeader() {
 
               <Link
                 href="/connexion"
+            prefetch={false}
                 onClick={() => setIsOpen(false)}
                 className="rounded-2xl bg-blue-700 px-4 py-3 text-center text-sm font-black text-white hover:bg-blue-800"
               >

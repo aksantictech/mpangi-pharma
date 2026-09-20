@@ -51,6 +51,14 @@ function isPublicRoute(pathname: string) {
   return publicRoutes.some((route) => matchesRoute(pathname, route));
 }
 
+/**
+ * Fichiers publics générés ou statiques (SEO, PWA, vérification Google) :
+ * aucune décision d'accès à prendre, donc aucune raison d'interroger
+ * Supabase Auth pour eux.
+ */
+const publicFilePattern =
+  /^\/(robots\.txt|sitemap\.xml|opengraph-image|manifest\.webmanifest|sw\.js|google[a-z0-9]+\.html)$/;
+
 function isProtectedRoute(pathname: string) {
   return protectedRoutes.some((route) => matchesRoute(pathname, route));
 }
@@ -82,6 +90,20 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
+    return response;
+  }
+
+  /*
+   * Perf : les pages publiques (et les fichiers SEO/PWA) passent toujours,
+   * avec ou sans session. Avant, auth.getUser() — un appel réseau vers
+   * Supabase Auth — s'exécutait AVANT ce test sur chaque visite de la page
+   * d'accueil, ajoutant plusieurs centaines de ms au TTFB pour rien. Les
+   * routes protégées, /connexion (redirige si déjà connecté) et /api
+   * (rafraîchissement de session) gardent le comportement d'origine.
+   */
+  const earlyPathname = request.nextUrl.pathname;
+
+  if (isPublicRoute(earlyPathname) || publicFilePattern.test(earlyPathname)) {
     return response;
   }
 

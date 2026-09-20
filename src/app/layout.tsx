@@ -35,6 +35,8 @@ export const metadata: Metadata = {
     "pharmacie ouverte Kinshasa",
   ],
   alternates: { canonical: "/" },
+  // Vérification de propriété Google Search Console (balise HTML).
+  verification: { google: "LYUWMedsM-Nx_4vfvtuFSAkoBkFmkxI4cms49UxwFQo" },
   openGraph: {
     type: "website",
     locale: "fr_CD",

@@ -26,6 +26,7 @@ export default function PublicSiteFooter() {
               </Link>
               <Link
                 href="/pharmacies-ouvertes"
+                prefetch={false}
                 className="text-slate-600 hover:text-blue-700"
               >
                 Pharmacies ouvertes

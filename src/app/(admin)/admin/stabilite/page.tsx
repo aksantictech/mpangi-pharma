@@ -13,6 +13,7 @@ import {
   XCircle,
 } from "lucide-react";
 
+import SystemHealthPanel from "@/components/admin/SystemHealthPanel";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
 type CheckState = "checking" | "ok" | "warning" | "error";
@@ -142,7 +143,8 @@ export default function StabilityPage() {
                 Paramètres système
               </h1>
               <p className="mt-2 text-sm text-slate-500">
-                Contrôle local de la connectivité, de la PWA et des services essentiels.
+                Santé de la base et de la plateforme (mesures réelles du serveur), puis
+                contrôles de ce terminal : connectivité, PWA et services essentiels.
               </p>
             </div>
 
@@ -157,6 +159,14 @@ export default function StabilityPage() {
             </button>
           </div>
         </header>
+
+        <SystemHealthPanel />
+
+        <div className="pt-2">
+          <h2 className="text-xs font-black uppercase tracking-[0.15em] text-slate-500">
+            Contrôles de ce terminal
+          </h2>
+        </div>
 
         <section className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm md:rounded-[2rem] md:p-6">
           <div className="flex items-center gap-4">

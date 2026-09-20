@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { prefetchFor } from "@/lib/public-links";
 import { usePathname } from "next/navigation";
 import {
   BadgeDollarSign,
@@ -57,6 +58,7 @@ export default function PublicMobileNav() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={prefetchFor(item.href)}
               className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[10px] font-black ${
                 isActive
                   ? "bg-blue-700 text-white"

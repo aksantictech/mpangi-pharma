@@ -17,6 +17,7 @@ import {
 import PublicSiteHeader from "@/components/public/PublicSiteHeader";
 import PublicSiteFooter from "@/components/public/PublicSiteFooter";
 import JsonLd from "@/components/seo/JsonLd";
+import { prefetchFor } from "@/lib/public-links";
 import { CONTACT, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
 
 // Tarifs alignés sur /forfaits. Volontairement AUCUN aggregateRating/review :
@@ -106,6 +107,7 @@ export default function PublicHomePage() {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/pharmacies-ouvertes"
+                prefetch={false}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-700 px-6 py-4 text-sm font-black text-white shadow-lg shadow-blue-200 hover:bg-blue-800"
               >
                 Trouver une pharmacie ouverte
@@ -306,6 +308,7 @@ function ServiceCard({
 
       <Link
         href={href}
+        prefetch={prefetchFor(href)}
         className="mt-5 inline-flex items-center gap-2 text-sm font-black text-blue-700"
       >
         {cta}
