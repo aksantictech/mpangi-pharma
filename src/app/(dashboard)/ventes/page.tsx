@@ -5,16 +5,18 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
+  ChevronDown,
   Minus,
   Plus,
+  Printer,
   Receipt,
   RefreshCcw,
   Search,
   ShoppingCart,
+  SlidersHorizontal,
   Trash2,
   WifiOff,
+  X,
 } from "lucide-react";
 
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
@@ -42,8 +44,9 @@ import type {
   SellableProduct,
 } from "@/types/sale";
 
-const MOBILE_PAGE_SIZE = 5;
-const DESKTOP_PAGE_SIZE = 50;
+// Nombre de tuiles produit affichées d'un coup ; « Afficher plus » en ajoute.
+const PAGE_SIZE = 24;
+const LOW_STOCK_THRESHOLD = 5;
 
 type SaleCartItem = CartItem & {
   requiresPrescription?: boolean;
@@ -125,8 +128,11 @@ export default function SalesPage() {
   const [formFilter, setFormFilter] = useState("all");
   const [prescriptionFilter, setPrescriptionFilter] = useState("all");
   const [stockFilter, setStockFilter] = useState("available");
-  const [mobilePage, setMobilePage] = useState(1);
-  const [desktopPage, setDesktopPage] = useState(1);
+  // Le compteur est lié à la combinaison de filtres : dès qu'elle change, on
+  // repart de la première page sans avoir besoin d'un effet de remise à zéro.
+  const [pager, setPager] = useState({ key: "", count: PAGE_SIZE });
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash_cdf");
   // Modes personnalisés (sociétés conventionnées…) configurés dans Paramètres.
@@ -273,18 +279,6 @@ export default function SalesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOnline]);
 
-  useEffect(() => {
-    setMobilePage(1);
-    setDesktopPage(1);
-  }, [
-    search,
-    categoryFilter,
-    originFilter,
-    formFilter,
-    prescriptionFilter,
-    stockFilter,
-  ]);
-
   const filterOptions = useMemo(() => {
     const categories = new Set<string>();
     const origins = new Set<string>();
@@ -388,7 +382,9 @@ export default function SalesPage() {
       const matchesStock =
         stockFilter === "all" ||
         (stockFilter === "available" && quantity > 0) ||
-        (stockFilter === "low" && quantity > 0 && quantity <= 5) ||
+        (stockFilter === "low" &&
+          quantity > 0 &&
+          quantity <= LOW_STOCK_THRESHOLD) ||
         (stockFilter === "out" && quantity <= 0);
 
       return (
@@ -410,35 +406,71 @@ export default function SalesPage() {
     stockFilter,
   ]);
 
-  const mobileTotalPages = Math.max(
-    1,
-    Math.ceil(filteredProducts.length / MOBILE_PAGE_SIZE)
-  );
+  const filterKey = [
+    search,
+    categoryFilter,
+    originFilter,
+    formFilter,
+    prescriptionFilter,
+    stockFilter,
+  ].join("\u0001");
 
-  const safeMobilePage = Math.min(mobilePage, mobileTotalPages);
+  const visibleCount = pager.key === filterKey ? pager.count : PAGE_SIZE;
+  const visibleProducts = filteredProducts.slice(0, visibleCount);
 
-  const mobileProducts = filteredProducts.slice(
-    (safeMobilePage - 1) * MOBILE_PAGE_SIZE,
-    safeMobilePage * MOBILE_PAGE_SIZE
-  );
+  // Filtres « avancés » (hors recherche et catégorie, déjà visibles) qui
+  // s'écartent de leur valeur par défaut : affiché sur le bouton Filtres.
+  const activeAdvancedFilters =
+    (originFilter !== "all" ? 1 : 0) +
+    (formFilter !== "all" ? 1 : 0) +
+    (prescriptionFilter !== "all" ? 1 : 0) +
+    (stockFilter !== "available" ? 1 : 0);
 
-  const desktopTotalPages = Math.max(
-    1,
-    Math.ceil(filteredProducts.length / DESKTOP_PAGE_SIZE)
-  );
+  const cartQuantities = useMemo(() => {
+    const quantities = new Map<string, number>();
 
-  const safeDesktopPage = Math.min(desktopPage, desktopTotalPages);
-
-  const desktopProducts = filteredProducts.slice(
-    (safeDesktopPage - 1) * DESKTOP_PAGE_SIZE,
-    safeDesktopPage * DESKTOP_PAGE_SIZE
-  );
-
-  useEffect(() => {
-    if (mobilePage > mobileTotalPages) {
-      setMobilePage(mobileTotalPages);
+    for (const item of cart) {
+      quantities.set(item.productId, item.quantity);
     }
-  }, [mobilePage, mobileTotalPages]);
+
+    return quantities;
+  }, [cart]);
+
+  function showMoreProducts() {
+    setPager({ key: filterKey, count: visibleCount + PAGE_SIZE });
+  }
+
+  function resetFilters() {
+    setSearch("");
+    setCategoryFilter("all");
+    setOriginFilter("all");
+    setFormFilter("all");
+    setPrescriptionFilter("all");
+    setStockFilter("available");
+  }
+
+  // Pistolet code-barres / saisie rapide : Entrée ajoute le produit dont le
+  // code-barres correspond exactement, ou l'unique résultat de la recherche.
+  function handleSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") return;
+
+    const typed = search.trim().toLowerCase();
+
+    if (!typed) return;
+
+    const byBarcode = filteredProducts.find(
+      (product) => String(product.barcode ?? "").toLowerCase() === typed
+    );
+    const match =
+      byBarcode ??
+      (filteredProducts.length === 1 ? filteredProducts[0] : undefined);
+
+    if (!match) return;
+
+    event.preventDefault();
+    addToCart(match);
+    setSearch("");
+  }
 
   useEffect(() => {
     const pharmacyId = pharmacy?.id;
@@ -590,6 +622,20 @@ export default function SalesPage() {
     setCreatedInvoiceHref("");
   }
 
+  // Vente enregistrée : on vide le panier, on referme le volet mobile et on
+  // remonte en haut pour montrer la confirmation.
+  function resetAfterSale() {
+    setCart([]);
+    setDiscount("0");
+    setCustomerName("");
+    setNotes("");
+    setCartOpen(false);
+
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
   async function handleValidateSale() {
     if (!pharmacy) return;
 
@@ -635,17 +681,14 @@ export default function SalesPage() {
         });
 
         setSuccessMessage(
-          `Vente hors-ligne enregistrée. Ticket provisoire ${
+          `Ticket provisoire ${
             result.localInvoiceNumber
           } · Total ${Number(result.totalAmount).toLocaleString("fr-CD")} ${
             result.currency
           }. Synchronisation nécessaire dès retour d’internet.`
         );
 
-        setCart([]);
-        setDiscount("0");
-        setCustomerName("");
-        setNotes("");
+        resetAfterSale();
 
         await loadData();
         return;
@@ -667,7 +710,7 @@ export default function SalesPage() {
       setCreatedInvoiceHref(saleId ? `/factures/${saleId}` : "/factures");
 
       setSuccessMessage(
-        `Vente validée. Facture ${result.invoice_number} · Total ${Number(
+        `Facture ${result.invoice_number} · Total ${Number(
           result.total_amount
         ).toLocaleString("fr-CD")} CDF${
           paymentMethod === "cash_usd"
@@ -681,10 +724,7 @@ export default function SalesPage() {
         }`
       );
 
-      setCart([]);
-      setDiscount("0");
-      setCustomerName("");
-      setNotes("");
+      resetAfterSale();
 
       await loadData();
     } catch (error) {
@@ -729,31 +769,43 @@ export default function SalesPage() {
   const isOfflineMode = !isOnline || productsSource === "offline";
 
   return (
-    <main className="min-h-screen bg-slate-50 p-3 md:p-6">
-      <div className="mx-auto max-w-7xl space-y-4 md:space-y-6">
-        <header className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-6">
-          <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-700 md:text-sm">
-                {pharmacy.name}
-              </p>
+    <main className="min-h-screen bg-slate-50 p-3 pb-24 md:p-6 xl:pb-6">
+      <div className="mx-auto max-w-7xl space-y-4 md:space-y-5">
+        <header className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-xs font-black uppercase tracking-[0.18em] text-blue-700">
+              {pharmacy.name}
+            </p>
 
-              <h1 className="mt-1 text-2xl font-black text-slate-950 md:mt-2 md:text-3xl">
-                Ventes / Caisse
-              </h1>
+            <h1 className="mt-0.5 text-2xl font-black text-slate-950 md:text-3xl">
+              Caisse
+            </h1>
+          </div>
 
-              <p className="mt-1 text-xs text-slate-500 md:mt-2 md:text-sm">
-                Interface caisse adaptée au terminal Android.
-              </p>
-            </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span
+              className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-black ${
+                isOfflineMode
+                  ? "bg-amber-100 text-amber-800"
+                  : "bg-emerald-100 text-emerald-800"
+              }`}
+            >
+              {isOfflineMode ? (
+                <WifiOff className="h-4 w-4" />
+              ) : (
+                <span className="h-2 w-2 rounded-full bg-emerald-600" />
+              )}
+              {isOfflineMode ? "Hors-ligne" : "En ligne"}
+            </span>
 
             <button
               type="button"
               onClick={loadData}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
+              aria-label="Actualiser la caisse"
+              title="Actualiser"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
             >
               <RefreshCcw className="h-5 w-5" />
-              Actualiser
             </button>
           </div>
         </header>
@@ -767,36 +819,82 @@ export default function SalesPage() {
         )}
 
         {errorMessage && (
-          <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+          <div
+            role="alert"
+            className="sticky top-20 z-30 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700 shadow-sm"
+          >
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
-            {errorMessage}
+            <p className="min-w-0 flex-1">{errorMessage}</p>
+            <button
+              type="button"
+              onClick={() => setErrorMessage("")}
+              aria-label="Fermer le message"
+              className="shrink-0 rounded-lg p-1 text-red-700 hover:bg-red-100"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         )}
 
         {successMessage && (
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-            <div className="flex items-start gap-3 text-sm font-bold text-emerald-700">
-              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
-              <p>{successMessage}</p>
+          <div
+            role="status"
+            className="rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-4 md:p-5"
+          >
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white">
+                <CheckCircle2 className="h-6 w-6" />
+              </span>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-base font-black text-emerald-900">
+                  {isOfflineMode ? "Vente enregistrée" : "Vente validée"}
+                </p>
+
+                <p className="mt-1 text-sm font-semibold leading-6 text-emerald-800">
+                  {successMessage}
+                </p>
+              </div>
             </div>
 
-            {!isOfflineMode && (
-              <Link
-                href={createdInvoiceHref || "/factures"}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-4 py-3 text-sm font-black text-white hover:bg-emerald-800 sm:w-auto"
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              {!isOfflineMode && (
+                <Link
+                  href={createdInvoiceHref || "/factures"}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-black text-white hover:bg-emerald-800"
+                >
+                  <Printer className="h-5 w-5" />
+                  Voir / imprimer la facture
+                </Link>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSuccessMessage("");
+                  setCreatedInvoiceHref("");
+                }}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-white px-5 py-3 text-sm font-black text-emerald-800 hover:bg-emerald-100"
               >
-                <Receipt className="h-4 w-4" />
-                Voir / imprimer la facture
-              </Link>
-            )}
+                <Plus className="h-5 w-5" />
+                Nouvelle vente
+              </button>
+            </div>
           </div>
         )}
 
         {pendingOfflineSales.length > 0 && (
-          <section className="rounded-[1.5rem] border border-amber-100 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-5">
-            <h2 className="text-lg font-black text-slate-950 md:text-xl">
-              Ventes hors-ligne en attente
-            </h2>
+          <details
+            open
+            className="group rounded-[1.5rem] border border-amber-100 bg-white p-4 shadow-sm"
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+              <h2 className="text-base font-black text-slate-950">
+                Ventes hors-ligne en attente ({pendingOfflineSales.length})
+              </h2>
+
+              <ChevronDown className="h-5 w-5 text-slate-400 transition group-open:rotate-180" />
+            </summary>
 
             <div className="mt-3 space-y-2">
               {pendingOfflineSales.map((sale) => (
@@ -831,255 +929,244 @@ export default function SalesPage() {
                 </article>
               ))}
             </div>
-          </section>
+          </details>
         )}
 
-        <section className="rounded-[1.5rem] border border-blue-100 bg-blue-50 p-3 xl:hidden">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.15em] text-blue-700">
-                Panier
-              </p>
-
-              <p className="mt-1 text-xs font-bold text-slate-600">
-                {totalItems} article(s) · {cart.length} produit(s)
-              </p>
-            </div>
-
-            <div className="text-right">
-              <p className="text-[10px] font-bold text-slate-500">Total</p>
-              <p className="text-lg font-black text-slate-950">
-                {formatMoney(total, currency)}
-              </p>
-            </div>
-          </div>
-
-          <a
-            href="#panier-caisse"
-            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white"
-          >
-            <ShoppingCart className="h-4 w-4" />
-            Ouvrir panier / paiement
-          </a>
-        </section>
-
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_430px] xl:gap-6">
-          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-5">
-            <div className="mb-4 flex flex-col justify-between gap-3 xl:flex-row xl:items-center">
-              <div>
-                <h2 className="text-lg font-black text-slate-950 md:text-xl">
-                  Produits disponibles
-                </h2>
-
-                <p className="mt-1 text-xs text-slate-500 md:text-sm">
-                  Source :{" "}
-                  <span className="font-black">
-                    {productsSource === "online" ? "Supabase" : "Cache offline"}
-                  </span>
-                </p>
-              </div>
-
-              <div className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 xl:w-96">
-                <Search className="h-5 w-5 text-slate-400" />
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start xl:gap-6">
+          <div className="min-w-0 space-y-3">
+            <div className="flex gap-2">
+              <label className="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-2xl border-2 border-slate-200 bg-white px-4 focus-within:border-blue-600">
+                <Search className="h-5 w-5 shrink-0 text-slate-400" />
 
                 <input
+                  type="search"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Nom, DCI, dosage, fabricant..."
-                  className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                  onKeyDown={handleSearchKeyDown}
+                  enterKeyHint="search"
+                  autoComplete="off"
+                  placeholder="Produit, DCI ou code-barres…"
+                  aria-label="Rechercher un produit"
+                  className="min-w-0 flex-1 bg-transparent text-base font-semibold text-slate-950 outline-none placeholder:font-medium placeholder:text-slate-400"
                 />
-              </div>
-            </div>
 
-            <div className="mb-4 grid grid-cols-1 gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 xl:grid-cols-5">
-              <FilterSelect
-                label="Catégorie"
-                value={categoryFilter}
-                onChange={setCategoryFilter}
-                options={filterOptions.categories}
-              />
-
-              <FilterSelect
-                label="Origine"
-                value={originFilter}
-                onChange={setOriginFilter}
-                options={filterOptions.origins}
-              />
-
-              <FilterSelect
-                label="Forme"
-                value={formFilter}
-                onChange={setFormFilter}
-                options={filterOptions.forms}
-              />
-
-              <label className="block">
-                <span className="mb-2 block text-xs font-black text-slate-600">
-                  Ordonnance
-                </span>
-                <select
-                  value={prescriptionFilter}
-                  onChange={(event) =>
-                    setPrescriptionFilter(event.target.value)
-                  }
-                  className="form-input bg-white"
-                >
-                  <option value="all">Tous</option>
-                  <option value="required">Ordonnance requise</option>
-                  <option value="not_required">Sans ordonnance</option>
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-xs font-black text-slate-600">
-                  Stock
-                </span>
-                <select
-                  value={stockFilter}
-                  onChange={(event) => setStockFilter(event.target.value)}
-                  className="form-input bg-white"
-                >
-                  <option value="all">Tous</option>
-                  <option value="available">Disponibles</option>
-                  <option value="low">Stock faible</option>
-                  <option value="out">Rupture</option>
-                </select>
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    aria-label="Effacer la recherche"
+                    className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </label>
 
               <button
                 type="button"
-                onClick={() => {
-                  setSearch("");
-                  setCategoryFilter("all");
-                  setOriginFilter("all");
-                  setFormFilter("all");
-                  setPrescriptionFilter("all");
-                  setStockFilter("available");
-                }}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 sm:col-span-2 xl:col-span-5"
+                onClick={() => setFiltersOpen((open) => !open)}
+                aria-expanded={filtersOpen}
+                className={`relative inline-flex min-h-14 shrink-0 items-center justify-center gap-2 rounded-2xl border-2 px-4 text-sm font-black ${
+                  filtersOpen || activeAdvancedFilters > 0
+                    ? "border-blue-600 bg-blue-50 text-blue-800"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
               >
-                Réinitialiser les filtres
+                <SlidersHorizontal className="h-5 w-5" />
+                <span className="hidden sm:inline">Filtres</span>
+
+                {activeAdvancedFilters > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-700 px-1.5 text-[11px] font-black text-white">
+                    {activeAdvancedFilters}
+                  </span>
+                )}
               </button>
             </div>
 
-            <div className="space-y-2 xl:hidden">
-              <MobilePagination
-                page={safeMobilePage}
-                totalPages={mobileTotalPages}
-                totalItems={filteredProducts.length}
-                pageSize={MOBILE_PAGE_SIZE}
-                onPrevious={() =>
-                  setMobilePage((page) => Math.max(1, page - 1))
-                }
-                onNext={() =>
-                  setMobilePage((page) => Math.min(mobileTotalPages, page + 1))
-                }
-              />
+            {filterOptions.categories.length > 0 && (
+              <div
+                role="group"
+                aria-label="Catégories"
+                className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none] md:mx-0 md:px-0 [&::-webkit-scrollbar]:hidden"
+              >
+                <CategoryChip
+                  label="Tous"
+                  active={categoryFilter === "all"}
+                  onClick={() => setCategoryFilter("all")}
+                />
 
-              {filteredProducts.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm font-semibold text-slate-500">
-                  Aucun produit disponible. Synchronisez d’abord les produits en
-                  ligne si vous voulez vendre hors-ligne.
-                </div>
-              ) : (
-                mobileProducts.map((product) => (
-                  <ProductSaleCard
+                {filterOptions.categories.map((category) => (
+                  <CategoryChip
+                    key={category}
+                    label={category}
+                    active={categoryFilter === category}
+                    onClick={() => setCategoryFilter(category)}
+                  />
+                ))}
+              </div>
+            )}
+
+            {filtersOpen && (
+              <div className="grid grid-cols-1 gap-3 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
+                <FilterSelect
+                  label="Origine"
+                  value={originFilter}
+                  onChange={setOriginFilter}
+                  options={filterOptions.origins}
+                />
+
+                <FilterSelect
+                  label="Forme"
+                  value={formFilter}
+                  onChange={setFormFilter}
+                  options={filterOptions.forms}
+                />
+
+                <label className="block">
+                  <span className="mb-2 block text-xs font-black text-slate-600">
+                    Ordonnance
+                  </span>
+                  <select
+                    value={prescriptionFilter}
+                    onChange={(event) =>
+                      setPrescriptionFilter(event.target.value)
+                    }
+                    className="form-input bg-white"
+                  >
+                    <option value="all">Tous</option>
+                    <option value="required">Ordonnance requise</option>
+                    <option value="not_required">Sans ordonnance</option>
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block text-xs font-black text-slate-600">
+                    Stock
+                  </span>
+                  <select
+                    value={stockFilter}
+                    onChange={(event) => setStockFilter(event.target.value)}
+                    className="form-input bg-white"
+                  >
+                    <option value="all">Tous</option>
+                    <option value="available">Disponibles</option>
+                    <option value="low">Stock faible</option>
+                    <option value="out">Rupture</option>
+                  </select>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 sm:col-span-2 lg:col-span-4"
+                >
+                  Réinitialiser les filtres
+                </button>
+              </div>
+            )}
+
+            <p className="px-1 text-xs font-semibold text-slate-500">
+              {filteredProducts.length} produit(s) · Source :{" "}
+              <span className="font-black text-slate-700">
+                {productsSource === "online" ? "Supabase" : "Cache offline"}
+              </span>
+            </p>
+
+            {filteredProducts.length === 0 ? (
+              <div className="rounded-[1.5rem] border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500">
+                Aucun produit trouvé. Modifiez la recherche ou les filtres.
+                Pour vendre hors-ligne, synchronisez d’abord les produits en
+                ligne.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-3">
+                {visibleProducts.map((product) => (
+                  <ProductTile
                     key={product.product_id}
                     product={product}
+                    inCartQuantity={cartQuantities.get(product.product_id) ?? 0}
                     onAdd={() => addToCart(product)}
                   />
-                ))
-              )}
+                ))}
+              </div>
+            )}
 
-              <MobilePagination
-                page={safeMobilePage}
-                totalPages={mobileTotalPages}
-                totalItems={filteredProducts.length}
-                pageSize={MOBILE_PAGE_SIZE}
-                onPrevious={() =>
-                  setMobilePage((page) => Math.max(1, page - 1))
-                }
-                onNext={() =>
-                  setMobilePage((page) => Math.min(mobileTotalPages, page + 1))
-                }
-              />
-            </div>
-
-            <div className="hidden grid-cols-1 gap-3 md:grid-cols-2 xl:grid">
-              {filteredProducts.length === 0 ? (
-                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 text-sm font-semibold text-slate-500 md:col-span-2">
-                  Aucun produit disponible. Synchronisez d’abord les produits en
-                  ligne si vous voulez vendre hors-ligne.
-                </div>
-              ) : (
-                desktopProducts.map((product) => (
-                  <ProductSaleCard
-                    key={product.product_id}
-                    product={product}
-                    onAdd={() => addToCart(product)}
-                  />
-                ))
-              )}
-            </div>
-
-            <div className="mt-4 hidden xl:block">
-              <MobilePagination
-                page={safeDesktopPage}
-                totalPages={desktopTotalPages}
-                totalItems={filteredProducts.length}
-                pageSize={DESKTOP_PAGE_SIZE}
-                onPrevious={() =>
-                  setDesktopPage((page) => Math.max(1, page - 1))
-                }
-                onNext={() =>
-                  setDesktopPage((page) =>
-                    Math.min(desktopTotalPages, page + 1)
-                  )
-                }
-              />
-            </div>
+            {filteredProducts.length > visibleCount && (
+              <button
+                type="button"
+                onClick={showMoreProducts}
+                className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
+              >
+                Afficher plus ({filteredProducts.length - visibleCount}{" "}
+                restants)
+              </button>
+            )}
           </div>
+
+          {cartOpen && (
+            <div
+              aria-hidden="true"
+              onClick={() => setCartOpen(false)}
+              className="fixed inset-0 z-[85] bg-slate-950/50 xl:hidden"
+            />
+          )}
 
           <aside
             id="panier-caisse"
-            className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-5 xl:sticky xl:top-6 xl:self-start"
+            aria-label="Panier"
+            className={`border border-slate-200 bg-white xl:sticky xl:top-24 xl:flex xl:max-h-[calc(100dvh-7rem)] xl:flex-col xl:self-start xl:rounded-[2rem] xl:shadow-sm ${
+              cartOpen
+                ? "fixed inset-x-0 bottom-0 z-[90] flex max-h-[92dvh] flex-col rounded-t-[2rem] shadow-2xl xl:inset-x-auto xl:bottom-auto xl:z-auto"
+                : "hidden"
+            }`}
           >
-            <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-3 pt-4 md:px-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 md:h-12 md:w-12">
-                  <ShoppingCart className="h-5 w-5 md:h-6 md:w-6" />
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                  <ShoppingCart className="h-6 w-6" />
                 </div>
 
                 <div>
-                  <h2 className="text-lg font-black text-slate-950 md:text-xl">
+                  <h2 className="text-lg font-black leading-tight text-slate-950">
                     Panier
                   </h2>
 
-                  <p className="text-xs text-slate-500 md:text-sm">
-                    {cart.length} produit(s)
+                  <p className="text-xs font-semibold text-slate-500">
+                    {totalItems} article(s) · {cart.length} produit(s)
                   </p>
                 </div>
               </div>
 
-              {cart.length > 0 && (
+              <div className="flex items-center gap-2">
+                {cart.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearCart}
+                    className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-black text-red-700 hover:bg-red-100"
+                  >
+                    Vider
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  onClick={clearCart}
-                  className="rounded-2xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-black text-red-700 hover:bg-red-100"
+                  onClick={() => setCartOpen(false)}
+                  aria-label="Fermer le panier"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 xl:hidden"
                 >
-                  Vider
+                  <X className="h-5 w-5" />
                 </button>
-              )}
+              </div>
             </div>
 
-            <div className="max-h-[42vh] space-y-2 overflow-y-auto pr-1 xl:max-h-[40vh]">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pb-4 md:px-5">
               {cart.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-500">
-                  Panier vide. Ajoutez un produit depuis la liste.
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-sm font-semibold text-slate-500">
+                  Panier vide. Touchez un produit pour l’ajouter.
                 </div>
               ) : (
                 cart.map((item) => (
-                  <CartItemCard
+                  <CartLine
                     key={item.productId}
                     item={item}
                     currency={currency}
@@ -1096,120 +1183,143 @@ export default function SalesPage() {
                   />
                 ))
               )}
+
+              {cart.some((item) => item.requiresPrescription) && (
+                <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-bold leading-5 text-red-700">
+                  Ce panier contient un médicament sous ordonnance. Vérifiez
+                  l’ordonnance avant d’encaisser.
+                </div>
+              )}
+
+              <FormField label="Mode de paiement">
+                <select
+                  value={
+                    customMethodId ? `custom:${customMethodId}` : paymentMethod
+                  }
+                  onChange={(event) =>
+                    handlePaymentMethodChange(event.target.value)
+                  }
+                  className="form-input min-h-12"
+                >
+                  {paymentMethods.map((method) => (
+                    <option key={method.value} value={method.value}>
+                      {method.label}
+                    </option>
+                  ))}
+                  {customMethods.length > 0 && (
+                    <optgroup label="Sociétés et autres modes">
+                      {customMethods.map((method) => (
+                        <option key={method.id} value={`custom:${method.id}`}>
+                          {method.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </FormField>
+
+              <details className="group rounded-2xl border border-slate-200">
+                <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2">
+                  <span className="min-w-0">
+                    <span className="block text-sm font-black text-slate-700">
+                      Client, remise, note
+                    </span>
+
+                    {(customerName || discountValue > 0 || notes) && (
+                      <span className="block truncate text-xs font-semibold text-blue-700">
+                        {[
+                          customerName,
+                          discountValue > 0
+                            ? `Remise ${formatMoney(discountValue, currency)}`
+                            : "",
+                          notes ? "Note ajoutée" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    )}
+                  </span>
+
+                  <ChevronDown className="h-5 w-5 shrink-0 text-slate-400 transition group-open:rotate-180" />
+                </summary>
+
+                <div className="space-y-3 border-t border-slate-100 p-4">
+                  <FormField label="Client optionnel">
+                    <input
+                      value={customerName}
+                      onChange={(event) => setCustomerName(event.target.value)}
+                      className="form-input"
+                      placeholder="Nom du client"
+                    />
+                  </FormField>
+
+                  <FormField label="Remise (CDF)">
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      value={discount}
+                      onChange={(event) => setDiscount(event.target.value)}
+                      className="form-input"
+                    />
+                  </FormField>
+
+                  <FormField label="Note optionnelle">
+                    <textarea
+                      value={notes}
+                      onChange={(event) => setNotes(event.target.value)}
+                      className="form-input min-h-16 resize-none"
+                      placeholder="Observation..."
+                    />
+                  </FormField>
+                </div>
+              </details>
             </div>
 
-            {cart.some((item) => item.requiresPrescription) && (
-              <div className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-bold leading-5 text-red-700">
-                Ce panier contient un médicament sous ordonnance. Vérifiez l’ordonnance avant de valider la vente.
-              </div>
-            )}
-
-            <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
-              <div className="grid grid-cols-2 gap-2">
-                <FormField label="Devise des prix">
-                  <div className="form-input flex items-center bg-slate-100 font-black text-slate-700">
-                    CDF
+            <div className="shrink-0 space-y-3 border-t border-slate-100 bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 md:px-5 xl:rounded-b-[2rem] xl:pb-5">
+              {discountValue > 0 && (
+                <div className="space-y-1 text-sm font-semibold text-slate-500">
+                  <div className="flex justify-between">
+                    <span>Sous-total</span>
+                    <span>{formatMoney(subtotal, currency)}</span>
                   </div>
-                </FormField>
 
-                <FormField label="Paiement">
-                  <select
-                    value={
-                      customMethodId ? `custom:${customMethodId}` : paymentMethod
-                    }
-                    onChange={(event) =>
-                      handlePaymentMethodChange(event.target.value)
-                    }
-                    className="form-input"
-                  >
-                    {paymentMethods.map((method) => (
-                      <option key={method.value} value={method.value}>
-                        {method.label}
-                      </option>
-                    ))}
-                    {customMethods.length > 0 && (
-                      <optgroup label="Sociétés et autres modes">
-                        {customMethods.map((method) => (
-                          <option key={method.id} value={`custom:${method.id}`}>
-                            {method.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </select>
-                </FormField>
-              </div>
-
-              <FormField label="Client optionnel">
-                <input
-                  value={customerName}
-                  onChange={(event) => setCustomerName(event.target.value)}
-                  className="form-input"
-                  placeholder="Nom du client"
-                />
-              </FormField>
-
-              <FormField label="Remise (CDF)">
-                <input
-                  type="number"
-                  min="0"
-                  value={discount}
-                  onChange={(event) => setDiscount(event.target.value)}
-                  className="form-input"
-                />
-              </FormField>
-
-              <FormField label="Note optionnelle">
-                <textarea
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  className="form-input min-h-16 resize-none"
-                  placeholder="Observation..."
-                />
-              </FormField>
-
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <div className="flex justify-between text-sm text-slate-600">
-                  <span>Sous-total</span>
-                  <span>{formatMoney(subtotal, currency)}</span>
+                  <div className="flex justify-between">
+                    <span>Remise</span>
+                    <span>- {formatMoney(discountValue, currency)}</span>
+                  </div>
                 </div>
+              )}
 
-                <div className="mt-2 flex justify-between text-sm text-slate-600">
-                  <span>Remise</span>
-                  <span>{formatMoney(discountValue, currency)}</span>
-                </div>
+              <div className="flex items-end justify-between gap-3">
+                <span className="pb-1 text-sm font-black uppercase tracking-wide text-slate-500">
+                  Total
+                </span>
 
-                <div className="mt-3 flex justify-between border-t border-slate-200 pt-3 text-lg font-black text-slate-950 md:text-xl">
-                  <span>Total</span>
-                  <span>{formatMoney(total, "CDF")}</span>
-                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-black leading-none text-slate-950">
+                    {Number(total).toLocaleString("fr-CD")}{" "}
+                    <span className="text-base text-slate-500">CDF</span>
+                  </p>
 
-                {paymentMethod === "cash_usd" && (
-                  <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-3">
-                    <div className="flex justify-between text-sm font-black text-blue-900">
-                      <span>Équivalent USD</span>
-                      <span>
-                        {totalUsd.toLocaleString("fr-CD", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}{" "}
-                        USD
-                      </span>
-                    </div>
-
-                    <p className="mt-1 text-xs font-semibold text-blue-700">
-                      Taux appliqué : 1 USD ={" "}
-                      {exchangeRate.toLocaleString("fr-CD")} CDF
+                  {paymentMethod === "cash_usd" && (
+                    <p className="mt-1.5 text-xs font-bold text-blue-700">
+                      ≈{" "}
+                      {totalUsd.toLocaleString("fr-CD", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      USD · 1 USD = {exchangeRate.toLocaleString("fr-CD")} CDF
                     </p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               <button
                 type="button"
                 disabled={isSelling || cart.length === 0}
                 onClick={handleValidateSale}
-                className={`inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 text-sm font-black text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-60 ${
+                className={`inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 text-base font-black text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-60 ${
                   isOfflineMode
                     ? "bg-amber-700 shadow-amber-100 hover:bg-amber-800"
                     : "bg-blue-700 shadow-blue-100 hover:bg-blue-800"
@@ -1219,12 +1329,38 @@ export default function SalesPage() {
                 {isSelling
                   ? "Validation..."
                   : isOfflineMode
-                    ? "Enregistrer vente hors-ligne"
-                    : "Valider la vente"}
+                    ? "Enregistrer hors-ligne"
+                    : "Encaisser"}
               </button>
             </div>
           </aside>
         </section>
+
+        {!cartOpen && cart.length > 0 && (
+          <div className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[60] px-3 xl:hidden">
+            <button
+              type="button"
+              onClick={() => setCartOpen(true)}
+              className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl bg-blue-700 px-4 py-3 text-white shadow-xl shadow-blue-900/20"
+            >
+              <span className="flex items-center gap-3">
+                <span className="relative">
+                  <ShoppingCart className="h-6 w-6" />
+
+                  <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-black text-blue-800">
+                    {totalItems}
+                  </span>
+                </span>
+
+                <span className="text-sm font-black">Voir le panier</span>
+              </span>
+
+              <span className="text-lg font-black">
+                {formatMoney(total, currency)}
+              </span>
+            </button>
+          </div>
+        )}
 
         <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-5">
           <h2 className="text-lg font-black text-slate-950 md:text-xl">
@@ -1362,69 +1498,110 @@ export default function SalesPage() {
   );
 }
 
-function ProductSaleCard({
-  product,
-  onAdd,
+function CategoryChip({
+  label,
+  active,
+  onClick,
 }: {
-  product: SellableProduct;
-  onAdd: () => void;
+  label: string;
+  active: boolean;
+  onClick: () => void;
 }) {
   return (
     <button
       type="button"
-      onClick={onAdd}
-      className="rounded-2xl border border-slate-200 bg-white p-3 text-left transition hover:border-blue-200 hover:bg-blue-50 active:scale-[0.99] md:min-h-32 md:rounded-3xl md:p-4"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`min-h-11 shrink-0 rounded-full border px-4 text-sm font-black ${
+        active
+          ? "border-blue-700 bg-blue-700 text-white"
+          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+      }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="line-clamp-2 text-sm font-black leading-5 text-slate-950 md:text-base">
-            {product.name}
-          </h3>
+      {label}
+    </button>
+  );
+}
 
-          <p className="mt-1 line-clamp-1 text-xs font-semibold text-slate-500 md:text-sm">
-            {[product.dosage, product.form].filter(Boolean).join(" / ") ||
-              product.generic_name ||
-              "Produit"}
-          </p>
+function ProductTile({
+  product,
+  inCartQuantity,
+  onAdd,
+}: {
+  product: SellableProduct;
+  inCartQuantity: number;
+  onAdd: () => void;
+}) {
+  const stock = Number(product.total_quantity || 0);
+  const isOut = stock <= 0;
+  const isLow = stock > 0 && stock <= LOW_STOCK_THRESHOLD;
 
-          {product.generic_name && (
-            <p className="mt-1 truncate text-[11px] text-slate-400 md:text-xs">
-              DCI : {product.generic_name}
-            </p>
-          )}
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      disabled={isOut}
+      className={`relative flex min-h-36 flex-col justify-between rounded-2xl border-2 p-3 text-left transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
+        inCartQuantity > 0
+          ? "border-blue-600 bg-blue-50"
+          : "border-slate-200 bg-white hover:border-blue-300"
+      }`}
+    >
+      {inCartQuantity > 0 && (
+        <span className="absolute -right-2 -top-2 flex h-7 min-w-7 items-center justify-center rounded-full bg-blue-700 px-2 text-xs font-black text-white shadow">
+          {inCartQuantity}
+        </span>
+      )}
 
-          {productRequiresPrescription(product) && (
-            <div className="mt-2">
-              <PrescriptionBadge />
-            </div>
-          )}
-        </div>
+      <div className="min-w-0">
+        <h3 className="line-clamp-2 text-sm font-black leading-5 text-slate-950">
+          {product.name}
+        </h3>
 
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-blue-700 text-white md:h-11 md:w-11">
-          <Plus className="h-4 w-4 md:h-5 md:w-5" />
-        </div>
+        <p className="mt-1 line-clamp-1 text-xs font-semibold text-slate-500">
+          {[product.dosage, product.form].filter(Boolean).join(" / ") ||
+            product.generic_name ||
+            "Produit"}
+        </p>
+
+        {productRequiresPrescription(product) && (
+          <div className="mt-2">
+            <PrescriptionBadge />
+          </div>
+        )}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black md:mt-4 md:text-xs">
-        <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700 md:px-3">
-          Stock : {Number(product.total_quantity || 0)}
-        </span>
+      <div className="mt-3">
+        <p className="text-lg font-black leading-none text-blue-800">
+          {Number(product.selling_price || 0).toLocaleString("fr-CD")}{" "}
+          <span className="text-xs font-bold text-blue-600">CDF</span>
+        </p>
 
-        <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700 md:px-3">
-          {formatMoney(Number(product.selling_price || 0), "CDF")}
-        </span>
-
-        {product.nearest_expiry_date && (
-          <span className="rounded-full bg-orange-50 px-2 py-1 text-orange-700 md:px-3">
-            Exp : {formatShortDate(product.nearest_expiry_date)}
+        <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-black">
+          <span
+            className={`whitespace-nowrap ${
+              isOut
+                ? "text-red-700"
+                : isLow
+                  ? "text-amber-700"
+                  : "text-slate-500"
+            }`}
+          >
+            {isOut ? "Rupture" : `Stock ${stock}`}
           </span>
-        )}
+
+          {product.nearest_expiry_date && (
+            <span className="whitespace-nowrap text-orange-700">
+              Exp {formatExpiryShort(product.nearest_expiry_date)}
+            </span>
+          )}
+        </div>
       </div>
     </button>
   );
 }
 
-function CartItemCard({
+function CartLine({
   item,
   currency,
   onDecrease,
@@ -1440,23 +1617,21 @@ function CartItemCard({
   onRemove: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 p-3 md:rounded-3xl md:p-4">
+    <div className="rounded-2xl border border-slate-200 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="line-clamp-2 text-sm font-black text-slate-950">
             {item.name}
           </p>
 
-          <p className="mt-1 text-xs text-slate-500">
-            {[item.dosage, item.form].filter(Boolean).join(" / ") || "-"}
-          </p>
-
-          <p className="mt-1 text-[11px] font-semibold text-slate-400">
-            Stock dispo : {item.availableQuantity}
+          <p className="mt-0.5 text-xs font-semibold text-slate-500">
+            {[item.dosage, item.form].filter(Boolean).join(" / ")}
+            {[item.dosage, item.form].some(Boolean) ? " · " : ""}
+            {formatMoney(item.unitPrice, currency)}
           </p>
 
           {item.requiresPrescription && (
-            <div className="mt-2">
+            <div className="mt-1.5">
               <PrescriptionBadge />
             </div>
           )}
@@ -1465,18 +1640,20 @@ function CartItemCard({
         <button
           type="button"
           onClick={onRemove}
-          className="rounded-xl p-2 text-red-600 hover:bg-red-50"
+          aria-label={`Retirer ${item.name}`}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-red-600 hover:bg-red-50"
         >
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={onDecrease}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 hover:bg-slate-50"
+            aria-label="Diminuer la quantité"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 hover:bg-slate-50"
           >
             <Minus className="h-4 w-4" />
           </button>
@@ -1485,77 +1662,30 @@ function CartItemCard({
             type="number"
             min="1"
             max={item.availableQuantity}
+            inputMode="numeric"
             value={item.quantity}
+            aria-label={`Quantité de ${item.name}`}
             onChange={(event) =>
               onChangeQuantity(Number(event.target.value || 1))
             }
-            className="h-9 w-14 rounded-xl border border-slate-200 px-2 text-center text-sm font-black outline-none"
+            className="h-11 w-14 rounded-xl border border-slate-200 px-1 text-center text-base font-black outline-none focus:border-blue-600"
           />
 
           <button
             type="button"
             onClick={onIncrease}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 hover:bg-slate-50"
+            disabled={item.quantity >= item.availableQuantity}
+            aria-label="Augmenter la quantité"
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
           >
             <Plus className="h-4 w-4" />
           </button>
         </div>
 
-        <p className="text-sm font-black text-slate-950">
+        <p className="text-base font-black text-slate-950">
           {formatMoney(item.quantity * item.unitPrice, currency)}
         </p>
       </div>
-    </div>
-  );
-}
-
-function MobilePagination({
-  page,
-  totalPages,
-  totalItems,
-  pageSize,
-  onPrevious,
-  onNext,
-}: {
-  page: number;
-  totalPages: number;
-  totalItems: number;
-  pageSize: number;
-  onPrevious: () => void;
-  onNext: () => void;
-}) {
-  const start = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
-  const end = Math.min(page * pageSize, totalItems);
-
-  return (
-    <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-      <button
-        type="button"
-        onClick={onPrevious}
-        disabled={page <= 1}
-        className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 disabled:opacity-40"
-      >
-        <ChevronLeft className="h-4 w-4" />
-      </button>
-
-      <div className="text-center">
-        <p className="text-xs font-black text-slate-900">
-          Page {page}/{totalPages}
-        </p>
-
-        <p className="text-[11px] font-semibold text-slate-500">
-          {start}-{end} sur {totalItems}
-        </p>
-      </div>
-
-      <button
-        type="button"
-        onClick={onNext}
-        disabled={page >= totalPages}
-        className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 disabled:opacity-40"
-      >
-        <ChevronRight className="h-4 w-4" />
-      </button>
     </div>
   );
 }
@@ -1667,10 +1797,14 @@ function formatMoney(value: number, currency: string) {
   return `${Number(value || 0).toLocaleString("fr-CD")} ${currency}`;
 }
 
-function formatShortDate(value: string) {
+// Péremption courte (MM/AA) pour tenir sur une tuile produit.
+function formatExpiryShort(value: string) {
   if (!value) return "-";
 
-  return new Intl.DateTimeFormat("fr-FR").format(new Date(value));
+  return new Intl.DateTimeFormat("fr-FR", {
+    month: "2-digit",
+    year: "2-digit",
+  }).format(new Date(value));
 }
 
 function PrescriptionBadge() {
