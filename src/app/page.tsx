@@ -342,12 +342,12 @@ function PricingPreviewCard({
       <h3 className="text-xl font-black text-slate-950">{name}</h3>
 
       <div className="mt-5 space-y-2">
-        <p className="text-sm font-semibold text-slate-500">Installation</p>
+        <p className="text-sm font-semibold text-slate-600">Installation</p>
         <p className="text-2xl font-black text-slate-950">{install}</p>
       </div>
 
       <div className="mt-4 space-y-2">
-        <p className="text-sm font-semibold text-slate-500">Abonnement</p>
+        <p className="text-sm font-semibold text-slate-600">Abonnement</p>
         <p className="text-xl font-black text-blue-700">{monthly}</p>
       </div>
 

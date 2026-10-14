@@ -3,7 +3,6 @@ import { ArrowRight, CheckCircle2 } from "lucide-react";
 
 import PublicSiteHeader from "@/components/public/PublicSiteHeader";
 import PublicSiteFooter from "@/components/public/PublicSiteFooter";
-import PublicMobileNav from "@/components/public/PublicMobileNav";
 import JsonLd from "@/components/seo/JsonLd";
 import { SITE_URL, pageMetadata } from "@/lib/seo";
 
@@ -126,12 +125,12 @@ export default function PricingPage() {
               </p>
 
               <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-5">
-                <p className="text-sm font-semibold text-slate-500">Installation</p>
+                <p className="text-sm font-semibold text-slate-600">Installation</p>
                 <p className="mt-1 text-3xl font-black text-slate-950">
                   {plan.install}
                 </p>
 
-                <p className="mt-5 text-sm font-semibold text-slate-500">
+                <p className="mt-5 text-sm font-semibold text-slate-600">
                   Abonnement mensuel
                 </p>
                 <p className="mt-1 text-2xl font-black text-blue-700">

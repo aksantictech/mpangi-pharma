@@ -70,7 +70,8 @@ export const viewport: Viewport = {
   themeColor: "#0b3b8f",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // Pas de maximumScale : bloquer le zoom est un défaut d'accessibilité
+  // (Lighthouse) et empêche les personnes malvoyantes d'agrandir la page.
 };
 
 export default function RootLayout({
@@ -79,10 +80,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+    // Les variables de police doivent être sur <html> : globals.css les lit sur
+    // html { font-family: var(--font-geist-sans) }. Posées sur <body>, elles
+    // n'existaient pas à ce niveau et le navigateur retombait sur sa police
+    // par défaut à empattements.
+    <html lang="fr" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className="antialiased">
         <PwaRegister />
         {children}
       </body>
