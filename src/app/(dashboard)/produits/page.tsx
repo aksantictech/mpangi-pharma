@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   MoreVertical,
+  Pencil,
   Package,
   Power,
   Search,
@@ -20,6 +21,7 @@ import {
 
 import AddBatchDialog from "@/components/products/AddBatchDialog";
 import AddProductDialog from "@/components/products/AddProductDialog";
+import EditProductDialog from "@/components/products/EditProductDialog";
 import ExpirationBadge from "@/components/products/ExpirationBadge";
 import ProductBatchesDialog from "@/components/products/ProductBatchesDialog";
 import ProductExcelActions from "@/components/products/ProductExcelActions";
@@ -63,6 +65,7 @@ export default function ProductsPage() {
     []
   );
 
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [supplierFilter, setSupplierFilter] = useState("all");
@@ -734,8 +737,12 @@ export default function ProductsPage() {
                   pharmacyId={pharmacy.id}
                   product={product}
                   onChanged={loadData}
+                  onEdit={() => setEditingProductId(product.product_id)}
                   onDeactivate={() =>
-                    void changeProductStatus(product, "inactive")
+                    void changeProductStatus(
+                      product,
+                      product.status === "inactive" ? "active" : "inactive"
+                    )
                   }
                   onArchive={() =>
                     void changeProductStatus(product, "archived")
@@ -859,6 +866,9 @@ export default function ProductsPage() {
                               disabled={
                                 changingProductId === product.product_id
                               }
+                              onEdit={() =>
+                                setEditingProductId(product.product_id)
+                              }
                               onDeactivate={() =>
                                 void changeProductStatus(
                                   product,
@@ -905,6 +915,13 @@ export default function ProductsPage() {
           </div>
         </section>
       </div>
+
+      <EditProductDialog
+        pharmacyId={pharmacy.id}
+        productId={editingProductId}
+        onClose={() => setEditingProductId(null)}
+        onSaved={loadData}
+      />
     </main>
   );
 }
@@ -913,6 +930,7 @@ function MobileProductCard({
   pharmacyId,
   product,
   onChanged,
+  onEdit,
   onDeactivate,
   onArchive,
   onDelete,
@@ -921,6 +939,7 @@ function MobileProductCard({
   pharmacyId: string;
   product: ProductListItem;
   onChanged: () => void;
+  onEdit: () => void;
   onDeactivate: () => void;
   onArchive: () => void;
   onDelete: () => void;
@@ -992,6 +1011,16 @@ function MobileProductCard({
         />
       </div>
 
+      <button
+        type="button"
+        onClick={onEdit}
+        disabled={isChanging}
+        className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 disabled:opacity-50"
+      >
+        <Pencil className="h-4 w-4" />
+        Modifier le produit
+      </button>
+
       <div className="mt-2 grid grid-cols-3 gap-2">
         <button
           type="button"
@@ -1030,12 +1059,14 @@ function MobileProductCard({
 function ProductActionMenu({
   product,
   disabled,
+  onEdit,
   onDeactivate,
   onArchive,
   onDelete,
 }: {
   product: ProductListItem;
   disabled: boolean;
+  onEdit: () => void;
   onDeactivate: () => void;
   onArchive: () => void;
   onDelete: () => void;
@@ -1055,7 +1086,19 @@ function ProductActionMenu({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 z-20 mt-2 w-48 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+        <div className="absolute right-0 z-20 mt-2 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              onEdit();
+            }}
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-black text-blue-700 hover:bg-blue-50"
+          >
+            <Pencil className="h-4 w-4" />
+            Modifier le produit
+          </button>
+
           <button
             type="button"
             onClick={() => {

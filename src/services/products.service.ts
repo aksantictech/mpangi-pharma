@@ -312,6 +312,8 @@ export async function findDuplicateProductInPharmacy(payload: {
   dosage?: string;
   form?: string;
   unit?: string;
+  /** Produit à ignorer (cas de la modification d'une fiche existante). */
+  excludeProductId?: string;
 }) {
   const supabase = createSupabaseClient();
   const searchedName = payload.name.trim();
@@ -334,7 +336,9 @@ export async function findDuplicateProductInPharmacy(payload: {
   const searchedKey = buildProductDuplicateKey(payload);
 
   const duplicate = (data ?? []).find(
-    (product) => buildProductDuplicateKey(product) === searchedKey
+    (product) =>
+      product.id !== payload.excludeProductId &&
+      buildProductDuplicateKey(product) === searchedKey
   );
 
   return (duplicate ?? null) as ProductDuplicateCandidate | null;
@@ -774,6 +778,106 @@ export async function removeBatchFromSale(
   return data as string;
 }
 
+
+export async function getProductById(payload: {
+  pharmacyId: string;
+  productId: string;
+}) {
+  const supabase = createSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("products")
+    .select("*")
+    .eq("id", payload.productId)
+    .eq("pharmacy_id", payload.pharmacyId)
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as Product;
+}
+
+export type UpdateProductPayload = {
+  pharmacyId: string;
+  productId: string;
+  name: string;
+  genericName?: string;
+  categoryId?: string;
+  dosage?: string;
+  form?: string;
+  unit: string;
+  barcode?: string;
+  manufacturer?: string;
+  supplierId?: string;
+  minStock: number;
+  requiresPrescription: boolean;
+  vatApplicable: boolean;
+  vatRate: VatRate;
+  description?: string;
+};
+
+/**
+ * Corrige la fiche d'un produit déjà enregistré (nom, dosage, options…).
+ * Les prix et quantités vivent sur les lots : ils ne sont pas touchés, et les
+ * ventes passées gardent le nom figé sur leurs lignes de facture.
+ */
+export async function updateProduct(payload: UpdateProductPayload) {
+  const supabase = createSupabaseClient();
+
+  const name = payload.name.trim();
+
+  if (!name) {
+    throw new Error("Le nom du produit est obligatoire.");
+  }
+
+  const duplicateProduct = await findDuplicateProductInPharmacy({
+    pharmacyId: payload.pharmacyId,
+    name,
+    genericName: payload.genericName,
+    dosage: payload.dosage,
+    form: payload.form,
+    unit: payload.unit,
+    excludeProductId: payload.productId,
+  });
+
+  if (duplicateProduct) {
+    throw new Error(
+      `Un autre produit identique existe déjà dans cette pharmacie : ${duplicateProduct.name}.`
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("products")
+    .update({
+      name,
+      generic_name: emptyToNull(payload.genericName),
+      category_id: emptyToNull(payload.categoryId),
+      dosage: emptyToNull(payload.dosage),
+      form: emptyToNull(payload.form),
+      unit: payload.unit.trim() || "boîte",
+      barcode: emptyToNull(payload.barcode),
+      manufacturer: emptyToNull(payload.manufacturer),
+      default_supplier_id: emptyToNull(payload.supplierId),
+      min_stock: Math.max(0, Number(payload.minStock) || 0),
+      requires_prescription: payload.requiresPrescription,
+      vat_applicable: payload.vatApplicable,
+      vat_rate: payload.vatApplicable ? payload.vatRate : 0,
+      description: emptyToNull(payload.description),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", payload.productId)
+    .eq("pharmacy_id", payload.pharmacyId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data as Product;
+}
 
 export async function updateProductStatus(payload: {
   pharmacyId: string;
