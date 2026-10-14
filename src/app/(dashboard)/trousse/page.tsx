@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayMoney, useDisplayCurrency } from "@/lib/currency";
 import { useSuccessToast } from "@/components/ui/Toast";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
@@ -55,7 +56,7 @@ type DraftLine = {
 };
 
 function money(value: number) {
-  return `${Math.round(value).toLocaleString("fr-CD")} CDF`;
+  return formatDisplayMoney(value, "CDF");
 }
 
 function num(value: number) {
@@ -63,6 +64,8 @@ function num(value: number) {
 }
 
 export default function KitPage() {
+  // Re-rendu quand la devise d'affichage (CDF/USD/EUR) change.
+  useDisplayCurrency();
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [products, setProducts] = useState<SellableProduct[]>([]);
   const [requisitions, setRequisitions] = useState<KitRequisition[]>([]);

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayMoney, useDisplayCurrency } from "@/lib/currency";
 import PageLoading from "@/components/ui/PageLoading";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -24,6 +25,10 @@ const MOBILE_PAGE_SIZE = 5;
 const DESKTOP_PAGE_SIZE = 50;
 
 export default function InvoicesPage() {
+  // Re-rendu quand la devise d'affichage (CDF/USD/EUR) change.
+  useDisplayCurrency();
+  // Re-rendu quand la devise d'affichage (CDF/USD/EUR) change.
+  useDisplayCurrency();
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [invoices, setInvoices] = useState<Sale[]>([]);
 
@@ -265,13 +270,13 @@ export default function InvoicesPage() {
 
           <MetricCard
             title="Total vendu"
-            value={`${totalAmount.toLocaleString("fr-CD")} CDF`}
+            value={formatMoney(totalAmount, "CDF")}
             icon={<WalletCards className="h-5 w-5 md:h-6 md:w-6" />}
           />
 
           <MetricCard
             title="Marge brute"
-            value={`${totalMargin.toLocaleString("fr-CD")} CDF`}
+            value={formatMoney(totalMargin, "CDF")}
             icon={<CalendarDays className="h-5 w-5 md:h-6 md:w-6" />}
           />
         </section>
@@ -469,8 +474,8 @@ export default function InvoicesPage() {
 
         <div className="mt-5 grid grid-cols-3 gap-3">
           <PrintMetric label="Factures" value={filteredInvoices.length.toString()} />
-          <PrintMetric label="Total vendu" value={`${filteredTotalAmount.toLocaleString("fr-CD")} CDF`} />
-          <PrintMetric label="Marge brute" value={`${filteredTotalMargin.toLocaleString("fr-CD")} CDF`} />
+          <PrintMetric label="Total vendu" value={formatMoney(filteredTotalAmount, "CDF")} />
+          <PrintMetric label="Marge brute" value={formatMoney(filteredTotalMargin, "CDF")} />
         </div>
 
         <table className="mt-6 w-full border-collapse text-xs">
@@ -706,7 +711,7 @@ function formatStatus(status?: string | null) {
 }
 
 function formatMoney(value: number, currency: string) {
-  return `${Number(value || 0).toLocaleString("fr-CD")} ${currency}`;
+  return formatDisplayMoney(value, currency);
 }
 
 

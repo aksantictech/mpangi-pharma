@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayMoney, useDisplayCurrency } from "@/lib/currency";
 import { useSuccessToast } from "@/components/ui/Toast";
 import PageLoading from "@/components/ui/PageLoading";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -49,6 +50,8 @@ const statusLabels: Record<OfflineSaleStatus, string> = {
 };
 
 export default function SynchronisationPage() {
+  // Re-rendu quand la devise d'affichage (CDF/USD/EUR) change.
+  useDisplayCurrency();
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [offlineSales, setOfflineSales] = useState<OfflineSaleWithItems[]>([]);
 
@@ -888,5 +891,5 @@ function formatPaymentMethod(method: PaymentMethod) {
 }
 
 function formatMoney(value: number, currency: string) {
-  return `${Number(value || 0).toLocaleString("fr-CD")} ${currency}`;
+  return formatDisplayMoney(value, currency);
 }

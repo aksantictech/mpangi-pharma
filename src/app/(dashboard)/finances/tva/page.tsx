@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayMoney, useDisplayCurrency } from "@/lib/currency";
 import PageLoading from "@/components/ui/PageLoading";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -50,6 +51,8 @@ function getCurrentMonthRange() {
 }
 
 export default function VatReportPage() {
+  // Re-rendu quand la devise d'affichage (CDF/USD/EUR) change.
+  useDisplayCurrency();
   const defaultRange = useMemo(() => getCurrentMonthRange(), []);
 
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
@@ -598,9 +601,7 @@ function PrintMetric({
 }
 
 function formatMoney(value: number) {
-  return `${Number(value || 0).toLocaleString("fr-CD", {
-    maximumFractionDigits: 2,
-  })} CDF`;
+  return formatDisplayMoney(value, "CDF");
 }
 
 function formatDate(value: string) {

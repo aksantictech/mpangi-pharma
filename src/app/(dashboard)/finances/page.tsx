@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayMoney, useDisplayCurrency } from "@/lib/currency";
 import { useSuccessToast } from "@/components/ui/Toast";
 import PageLoading from "@/components/ui/PageLoading";
 import Link from "next/link";
@@ -101,6 +102,8 @@ const emptySummary: FinanceSummary = {
 };
 
 export default function FinancesPage() {
+  // Re-rendu quand la devise d'affichage (CDF/USD/EUR) change.
+  useDisplayCurrency();
   const defaultRange = useMemo(() => getCurrentMonthRange(), []);
 
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
@@ -1422,7 +1425,7 @@ function formatStatus(status?: string | null) {
 }
 
 function formatMoney(value: number, currency: string) {
-  return `${Number(value || 0).toLocaleString("fr-CD")} ${currency}`;
+  return formatDisplayMoney(value, currency);
 }
 
 function formatDate(value?: string | null) {

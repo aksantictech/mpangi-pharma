@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayMoney, useDisplayCurrency } from "@/lib/currency";
 import PageLoading from "@/components/ui/PageLoading";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
@@ -122,6 +123,8 @@ function writeDismissed(pharmacyId: string) {
 }
 
 export default function DashboardPage() {
+  // Re-rendu quand la devise d'affichage (CDF/USD/EUR) change.
+  useDisplayCurrency();
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [products, setProducts] = useState<ProductStockSummary[]>([]);
   const [expirationAlerts, setExpirationAlerts] = useState<ExpirationAlert[]>(
@@ -476,7 +479,7 @@ export default function DashboardPage() {
             <>
               <MetricCard
                 title="Ventes du jour"
-                value={`${trend.today.total.toLocaleString("fr-CD")} CDF`}
+                value={formatDisplayMoney(trend.today.total)}
                 icon={<Receipt className="h-5 w-5 md:h-6 md:w-6" />}
                 tone="blue"
                 footer={
@@ -562,10 +565,9 @@ export default function DashboardPage() {
                   <p className="mt-1 text-xs text-slate-500 md:text-sm">
                     Total :{" "}
                     <span className="font-black text-slate-800">
-                      {trend.days
-                        .reduce((sum, day) => sum + day.total, 0)
-                        .toLocaleString("fr-CD")}{" "}
-                      CDF
+                      {formatDisplayMoney(
+                        trend.days.reduce((sum, day) => sum + day.total, 0)
+                      )}
                     </span>
                   </p>
                 </div>
@@ -713,9 +715,9 @@ function SalesBars({ days }: { days: SalesTrendDay[] }) {
           <div
             key={day.date}
             className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5"
-            title={`${formatDayLong(day.date)} : ${day.total.toLocaleString(
-              "fr-CD"
-            )} CDF · ${day.count} vente(s)`}
+            title={`${formatDayLong(day.date)} : ${formatDisplayMoney(
+              day.total
+            )} · ${day.count} vente(s)`}
           >
             <span className="text-[10px] font-black text-slate-500 md:text-xs">
               {day.count > 0 ? day.count : ""}

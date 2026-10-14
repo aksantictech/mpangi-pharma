@@ -1,6 +1,9 @@
 "use client";
 
-import { useSuccessToast } from "@/components/ui/Toast";
+import { formatDisplayMoney, useDisplayCurrency } from "@/lib/currency";
+import { useSuccessToast, useToast } from "@/components/ui/Toast";
+import { signedQuantity } from "@/lib/inventory";
+import { printReport } from "@/lib/print-report";
 import PageLoading from "@/components/ui/PageLoading";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
@@ -16,6 +19,7 @@ import {
   Save,
   Search,
   X,
+  Printer,
 } from "lucide-react";
 
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
@@ -95,6 +99,8 @@ const initialCorrectionForm: CorrectionFormState = {
 };
 
 export default function StockPage() {
+  // Re-rendu quand la devise d'affichage (CDF/USD/EUR) change.
+  useDisplayCurrency();
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -132,6 +138,7 @@ export default function StockPage() {
   const [errorMessage, setErrorMessage] = useState("");
   // Succès : notification éphémère (voir components/ui/Toast) plutôt qu'un bandeau.
   const setSuccessMessage = useSuccessToast();
+  const toast = useToast();
 
   async function loadData() {
     setIsLoading(true);
@@ -450,6 +457,103 @@ export default function StockPage() {
     0
   );
 
+  // Impression de l'historique tel que filtré à l'écran (toutes les lignes, pas
+  // seulement la page affichée), avec le logo et les coordonnées de la pharmacie.
+  async function handlePrintMovements() {
+    if (!pharmacy) return;
+
+    const signed = filteredMovements.map((movement) =>
+      signedQuantity(movement.movement_type, movement.quantity)
+    );
+    const totalIn = signed.filter((value) => value > 0).reduce((a, b) => a + b, 0);
+    const totalOut = signed.filter((value) => value < 0).reduce((a, b) => a + b, 0);
+
+    const filters: string[] = [];
+
+    if (movementTypeFilter !== "all") {
+      filters.push(
+        `Type : ${
+          movementTypeLabels[movementTypeFilter as StockMovementType] ??
+          movementTypeFilter
+        }`
+      );
+    }
+
+    if (movementSearch.trim()) filters.push(`Recherche : « ${movementSearch.trim()} »`);
+
+    const dateLabel = (value: string) =>
+      new Intl.DateTimeFormat("fr-FR").format(new Date(value));
+
+    try {
+      await printReport({
+        pharmacy,
+        title: "Historique des mouvements de stock",
+        subtitle:
+          movementDateFrom || movementDateTo
+            ? `Du ${movementDateFrom ? dateLabel(movementDateFrom) : "début"} au ${
+                movementDateTo ? dateLabel(movementDateTo) : "aujourd’hui"
+              }`
+            : "Tous les mouvements chargés",
+        orientation: "landscape",
+        meta: [
+          {
+            label: "Filtres",
+            value: filters.length > 0 ? filters.join(" · ") : "Aucun",
+          },
+        ],
+        summary: [
+          { label: "Mouvements", value: String(filteredMovements.length) },
+          { label: "Quantités entrées", value: `+${totalIn.toLocaleString("fr-CD")}` },
+          { label: "Quantités sorties", value: String(totalOut.toLocaleString("fr-CD")) },
+          {
+            label: "Solde net",
+            value: `${totalIn + totalOut > 0 ? "+" : ""}${(totalIn + totalOut).toLocaleString("fr-CD")}`,
+          },
+        ],
+        columns: [
+          { label: "Date", width: "13%" },
+          { label: "Produit" },
+          { label: "Lot" },
+          { label: "Type" },
+          { label: "Qté", align: "right" },
+          { label: "Motif" },
+          { label: "Utilisateur" },
+        ],
+        rows: filteredMovements.map((movement, index) => {
+          const quantity = signed[index];
+
+          return [
+            new Date(movement.created_at).toLocaleString("fr-FR"),
+            [
+              movement.product_name,
+              [movement.dosage, movement.form].filter(Boolean).join(" / "),
+            ]
+              .filter(Boolean)
+              .join(" — "),
+            movement.batch_number || "-",
+            movementTypeLabels[movement.movement_type] ?? movement.movement_type,
+            `${quantity > 0 ? "+" : ""}${quantity.toLocaleString("fr-CD")}`,
+            movement.reason || "-",
+            movement.user_name || "-",
+          ];
+        }),
+        totals: [
+          "",
+          `TOTAL (${filteredMovements.length} mouvements)`,
+          "",
+          "",
+          `${totalIn + totalOut > 0 ? "+" : ""}${(totalIn + totalOut).toLocaleString("fr-CD")}`,
+          "",
+          "",
+        ],
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Impression impossible."
+      );
+    }
+  }
+
   function updateEntryField<K extends keyof EntryFormState>(
     field: K,
     value: EntryFormState[K]
@@ -655,14 +759,14 @@ export default function StockPage() {
 
           <MetricCard
             title="Achat"
-            value={`${stockValuePurchase.toLocaleString("fr-CD")} CDF`}
+            value={formatMoney(stockValuePurchase)}
             icon={<PackagePlus className="h-5 w-5 md:h-6 md:w-6" />}
             tone="orange"
           />
 
           <MetricCard
             title="Vente"
-            value={`${stockValueSale.toLocaleString("fr-CD")} CDF`}
+            value={formatMoney(stockValueSale)}
             icon={<CalendarClock className="h-5 w-5 md:h-6 md:w-6" />}
             tone="purple"
           />
@@ -912,11 +1016,23 @@ export default function StockPage() {
               </p>
             </div>
 
-            <SearchBox
-              value={movementSearch}
-              onChange={setMovementSearch}
-              placeholder="Produit, lot, utilisateur, référence..."
-            />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <SearchBox
+                value={movementSearch}
+                onChange={setMovementSearch}
+                placeholder="Produit, lot, utilisateur, référence..."
+              />
+
+              <button
+                type="button"
+                onClick={handlePrintMovements}
+                disabled={filteredMovements.length === 0}
+                className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-blue-700 px-5 text-sm font-black text-white shadow-lg shadow-blue-100 hover:bg-blue-800 disabled:opacity-50"
+              >
+                <Printer className="h-5 w-5" />
+                Imprimer
+              </button>
+            </div>
           </div>
 
           <div className="mb-4 grid grid-cols-1 gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -1591,21 +1707,23 @@ function MetricCard({
   );
 }
 
+const movementTypeLabels: Record<StockMovementType, string> = {
+  supplier_entry: "Entrée",
+  sale: "Vente",
+  customer_return: "Retour client",
+  supplier_return: "Retour fournisseur",
+  adjustment_in: "Ajustement +",
+  adjustment_out: "Ajustement -",
+  loss: "Perte",
+  damage: "Casse",
+  expired: "Expiré",
+  transfer_in: "Transfert +",
+  transfer_out: "Transfert -",
+  inventory_correction: "Inventaire",
+};
+
 function MovementBadge({ type }: { type: StockMovementType }) {
-  const labels: Record<StockMovementType, string> = {
-    supplier_entry: "Entrée",
-    sale: "Vente",
-    customer_return: "Retour client",
-    supplier_return: "Retour fournisseur",
-    adjustment_in: "Ajustement +",
-    adjustment_out: "Ajustement -",
-    loss: "Perte",
-    damage: "Casse",
-    expired: "Expiré",
-    transfer_in: "Transfert +",
-    transfer_out: "Transfert -",
-    inventory_correction: "Inventaire",
-  };
+  const labels = movementTypeLabels;
 
   const positiveTypes: StockMovementType[] = [
     "supplier_entry",
@@ -1724,7 +1842,7 @@ function ModalActions({
 }
 
 function formatMoney(value: number) {
-  return `${Number(value || 0).toLocaleString("fr-CD")} CDF`;
+  return formatDisplayMoney(value, "CDF");
 }
 
 function formatDate(value?: string | null) {

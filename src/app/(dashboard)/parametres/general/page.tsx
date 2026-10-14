@@ -2,6 +2,7 @@
 
 "use client";
 
+import { setExchangeRates } from "@/lib/currency";
 import PageLoading from "@/components/ui/PageLoading";
 import { useSuccessToast } from "@/components/ui/Toast";
 import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
@@ -23,6 +24,7 @@ import {
   getCurrentPharmacy,
   getPharmacySettings,
   updatePharmacy,
+  updatePharmacyEuroRate,
   updatePharmacySettings,
   uploadPharmacyLogo,
 } from "@/services/pharmacies.service";
@@ -50,6 +52,7 @@ type PharmacyFormState = {
   email: string;
   pharmacistName: string;
   exchangeRate: string;
+  exchangeRateEur: string;
   invoiceFooter: string;
   logoUrl: string;
 };
@@ -82,6 +85,7 @@ export default function GeneralSettingsPage() {
     email: "",
     pharmacistName: "",
     exchangeRate: "2800",
+    exchangeRateEur: "",
     invoiceFooter: "",
     logoUrl: "",
   });
@@ -128,6 +132,11 @@ export default function GeneralSettingsPage() {
       }
 
       setPharmacy(currentPharmacy);
+      // Les taux enregistrés s'appliquent tout de suite à l'affichage, sans recharger.
+      setExchangeRates(
+        currentPharmacy.exchange_rate,
+        currentPharmacy.exchange_rate_eur
+      );
       setSettings(currentSettings);
 
       setPharmacyForm({
@@ -151,6 +160,9 @@ export default function GeneralSettingsPage() {
         email: currentPharmacy.email || "",
         pharmacistName: currentPharmacy.pharmacist_name || "",
         exchangeRate: String(currentPharmacy.exchange_rate || 2800),
+        exchangeRateEur: currentPharmacy.exchange_rate_eur
+          ? String(currentPharmacy.exchange_rate_eur)
+          : "",
         invoiceFooter: currentPharmacy.invoice_footer || "",
         logoUrl: currentPharmacy.logo_url || "",
       });
@@ -286,6 +298,20 @@ export default function GeneralSettingsPage() {
         invoiceFooter: pharmacyForm.invoiceFooter,
         logoUrl: pharmacyForm.logoUrl || null,
       });
+
+      // Taux EUR : appel séparé (colonne de la migration 0005). On ne l'envoie
+      // que s'il change, pour ne pas échouer tant que la migration n'est pas passée.
+      const eurInput = pharmacyForm.exchangeRateEur.trim();
+      const eurRate = eurInput ? Number(eurInput) : null;
+      const previousEur = pharmacy.exchange_rate_eur ?? null;
+
+      if (eurRate !== null && (!Number.isFinite(eurRate) || eurRate <= 0)) {
+        throw new Error("Le taux EUR doit être supérieur à zéro.");
+      }
+
+      if (eurRate !== previousEur) {
+        await updatePharmacyEuroRate(pharmacy.id, eurRate);
+      }
 
       setSuccessMessage("Informations de la pharmacie enregistrées.");
       await loadData();
@@ -631,6 +657,21 @@ export default function GeneralSettingsPage() {
                   disabled={!canEdit}
                 />
               </FormField>
+
+              <FormField label="Taux de change : 1 EUR = combien de CDF ? (optionnel)">
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  value={pharmacyForm.exchangeRateEur}
+                  onChange={(event) =>
+                    updatePharmacyField("exchangeRateEur", event.target.value)
+                  }
+                  className="form-input"
+                  placeholder="Ex. 3000"
+                  disabled={!canEdit}
+                />
+              </FormField>
             </div>
 
             <div className="mt-4 rounded-3xl border border-blue-100 bg-blue-50 p-4">
@@ -651,8 +692,9 @@ export default function GeneralSettingsPage() {
                 USD
               </p>
               <p className="mt-2 text-xs leading-5 text-blue-700">
-                Les prix des produits restent enregistrés en CDF. Lors d’un paiement en USD,
-                seule l’équivalence finale du total sera calculée.
+                Les prix des produits restent enregistrés en CDF. Le bouton CDF / USD / EUR
+                de l’application convertit seulement l’affichage avec ces taux ; EUR n’est
+                disponible que si le taux EUR est renseigné.
               </p>
             </div>
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { describeConversion, formatDisplayMoney } from "@/lib/currency";
 import type { PharmacyWithRole } from "@/types/pharmacy";
 import type { PaymentMethod, SaleItem, SaleWithItems } from "@/types/sale";
 
@@ -189,6 +190,7 @@ export default function InvoicePrintA4({
             {pharmacy.invoice_footer ||
               "Merci pour votre confiance."}
           </p>
+          {describeConversion() && <p>{describeConversion()}</p>}
           <p>
             Document généré par Mpangi Pharma — AKSANTIC Technology © 2026
           </p>
@@ -672,14 +674,6 @@ function formatPaymentMethod(method: PaymentMethod) {
   return labels[method] ?? method;
 }
 
-function formatMoney(
-  value: number,
-  currency: string
-) {
-  return `${Number(value || 0).toLocaleString(
-    "fr-CD",
-    {
-      maximumFractionDigits: 2,
-    }
-  )} ${currency}`;
+function formatMoney(value: number, currency: string) {
+  return formatDisplayMoney(value, currency);
 }

@@ -9,6 +9,7 @@ import {
   BriefcaseMedical,
   Boxes,
   Building2,
+  ClipboardList,
   CreditCard,
   Database,
   FileText,
@@ -34,6 +35,7 @@ import PharmacyOpeningStatusBadge from "@/components/pharmacies/PharmacyOpeningS
 import OfflineStatusBar from "@/components/offline/OfflineStatusBar";
 import NotificationsBell from "@/components/layout/NotificationsBell";
 import CommandPalette from "@/components/layout/CommandPalette";
+import CurrencySwitcher from "@/components/layout/CurrencySwitcher";
 import ProfileMenu from "@/components/layout/ProfileMenu";
 import ThemeToggle from "@/components/layout/ThemeToggle";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -47,6 +49,7 @@ import {
   clearOfflinePharmacyData,
 } from "@/lib/offline/db";
 import { KIT_MODULE_LABEL } from "@/lib/constants";
+import { setExchangeRates } from "@/lib/currency";
 import { getActiveHref } from "@/lib/nav-active";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import {
@@ -106,6 +109,12 @@ const navigationItems: NavigationItem[] = [
     href: "/stock",
     module: "stock",
     icon: Boxes,
+  },
+  {
+    label: "Inventaire",
+    href: "/inventaire",
+    module: "inventaire",
+    icon: ClipboardList,
   },
   {
     label: "Ventes",
@@ -596,6 +605,13 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
     };
   }, [pathname, router]);
 
+  // Taux de la pharmacie active, pour la conversion d'affichage CDF/USD/EUR.
+  useEffect(() => {
+    if (pharmacy) {
+      setExchangeRates(pharmacy.exchange_rate, pharmacy.exchange_rate_eur);
+    }
+  }, [pharmacy]);
+
   // Ctrl/Cmd + K : ouvre ou ferme la recherche rapide depuis n'importe quelle page.
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -906,6 +922,14 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
                 <ThemeToggle variant="row" />
               </div>
 
+              <div className="mt-3">
+                <p className="mb-2 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
+                  Devise d’affichage
+                </p>
+
+                <CurrencySwitcher showHint />
+              </div>
+
               <div className="mt-5">
                 <p className="mb-3 text-xs font-black uppercase tracking-[0.2em] text-slate-400">
                   Navigation
@@ -1045,6 +1069,8 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="flex items-center gap-3">
+              <CurrencySwitcher />
+
               <button
                 type="button"
                 onClick={() => setIsSearchOpen(true)}

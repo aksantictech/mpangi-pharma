@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayMoney, useDisplayCurrency } from "@/lib/currency";
 import { useSuccessToast } from "@/components/ui/Toast";
 import PageLoading from "@/components/ui/PageLoading";
 import Link from "next/link";
@@ -37,6 +38,8 @@ const filters: { value: ExpirationFilter; label: string }[] = [
 ];
 
 export default function ExpirationsPage() {
+  // Re-rendu quand la devise d'affichage (CDF/USD/EUR) change.
+  useDisplayCurrency();
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [alerts, setAlerts] = useState<ExpirationAlert[]>([]);
 
@@ -705,7 +708,7 @@ function formatRiskText(status: ExpirationStatus) {
 }
 
 function formatMoney(value: number) {
-  return `${Number(value || 0).toLocaleString("fr-CD")} CDF`;
+  return formatDisplayMoney(value, "CDF");
 }
 
 function formatDate(value?: string | null) {

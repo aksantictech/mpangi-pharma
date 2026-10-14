@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayMoney, useDisplayCurrency } from "@/lib/currency";
 import PageLoading from "@/components/ui/PageLoading";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -20,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 
+import CurrencySwitcher from "@/components/layout/CurrencySwitcher";
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
 import {
   baseMethodForKind,
@@ -114,6 +116,8 @@ function getCachedCurrentPharmacy() {
 
 
 export default function SalesPage() {
+  // Re-rendu quand la devise d'affichage (CDF/USD/EUR) change.
+  useDisplayCurrency();
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [products, setProducts] = useState<SellableProduct[]>([]);
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
@@ -684,9 +688,10 @@ export default function SalesPage() {
         setSuccessMessage(
           `Ticket provisoire ${
             result.localInvoiceNumber
-          } · Total ${Number(result.totalAmount).toLocaleString("fr-CD")} ${
+          } · Total ${formatMoney(
+            Number(result.totalAmount),
             result.currency
-          }. Synchronisation nécessaire dès retour d’internet.`
+          )}. Synchronisation nécessaire dès retour d’internet.`
         );
 
         resetAfterSale();
@@ -711,9 +716,10 @@ export default function SalesPage() {
       setCreatedInvoiceHref(saleId ? `/factures/${saleId}` : "/factures");
 
       setSuccessMessage(
-        `Facture ${result.invoice_number} · Total ${Number(
-          result.total_amount
-        ).toLocaleString("fr-CD")} CDF${
+        `Facture ${result.invoice_number} · Total ${formatMoney(
+          Number(result.total_amount),
+          "CDF"
+        )}${
           paymentMethod === "cash_usd"
             ? ` · Équivalent ${(
                 Number(result.total_amount) / exchangeRate
@@ -802,6 +808,14 @@ export default function SalesPage() {
             </button>
           </div>
         </header>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-black uppercase tracking-wide text-slate-500">
+            Devise d’affichage
+          </span>
+
+          <CurrencySwitcher />
+        </div>
 
         {isOfflineMode && (
           <div className="flex items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
@@ -1291,8 +1305,7 @@ export default function SalesPage() {
 
                 <div className="text-right">
                   <p className="text-3xl font-black leading-none text-slate-950">
-                    {Number(total).toLocaleString("fr-CD")}{" "}
-                    <span className="text-base text-slate-500">CDF</span>
+                    {formatMoney(total, "CDF")}
                   </p>
 
                   {paymentMethod === "cash_usd" && (
@@ -1566,8 +1579,7 @@ function ProductTile({
 
       <div className="mt-3">
         <p className="text-lg font-black leading-none text-blue-800">
-          {Number(product.selling_price || 0).toLocaleString("fr-CD")}{" "}
-          <span className="text-xs font-bold text-blue-600">CDF</span>
+          {formatMoney(Number(product.selling_price || 0), "CDF")}
         </p>
 
         <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-black">
@@ -1787,7 +1799,7 @@ function formatPaymentMethod(method: PaymentMethod) {
 }
 
 function formatMoney(value: number, currency: string) {
-  return `${Number(value || 0).toLocaleString("fr-CD")} ${currency}`;
+  return formatDisplayMoney(value, currency);
 }
 
 // Péremption courte (MM/AA) pour tenir sur une tuile produit.

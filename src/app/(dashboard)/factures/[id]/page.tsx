@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayMoney, useDisplayCurrency } from "@/lib/currency";
 import PageLoading from "@/components/ui/PageLoading";
 import Image from "next/image";
 import Link from "next/link";
@@ -50,6 +51,8 @@ type InvoiceTotals = {
 
 
 export default function InvoiceDetailsPage() {
+  // Re-rendu quand la devise d'affichage (CDF/USD/EUR) change.
+  useDisplayCurrency();
   const params = useParams();
   const router = useRouter();
 
@@ -1049,14 +1052,6 @@ function getThermalShareMessage(
   );
 }
 
-function formatMoney(
-  value: number,
-  currency: string
-) {
-  return `${Number(value || 0).toLocaleString(
-    "fr-CD",
-    {
-      maximumFractionDigits: 2,
-    }
-  )} ${currency}`;
+function formatMoney(value: number, currency: string) {
+  return formatDisplayMoney(value, currency);
 }

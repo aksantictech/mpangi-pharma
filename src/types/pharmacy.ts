@@ -18,6 +18,8 @@ export type Pharmacy = {
   currency_main: string;
   currency_secondary: string;
   exchange_rate: number;
+  /** Nombre de CDF pour 1 EUR ; absent tant que la migration 0005 n'est pas appliquée. */
+  exchange_rate_eur?: number | null;
   invoice_footer: string | null;
   is_active: boolean;
   archived_at?: string | null;

@@ -234,6 +234,31 @@ export type UpdatePharmacySettingsPayload = {
   receiptFormat: string;
 };
 
+/**
+ * Taux EUR : mis à jour à part de la fiche pharmacie car la colonne vient de la
+ * migration 0005 ; si elle n'est pas appliquée, l'enregistrement du reste de la
+ * fiche ne doit pas échouer.
+ */
+export async function updatePharmacyEuroRate(
+  pharmacyId: string,
+  rate: number | null
+) {
+  const supabase = createSupabaseClient();
+
+  const { error } = await supabase
+    .from("pharmacies")
+    .update({ exchange_rate_eur: rate })
+    .eq("id", pharmacyId);
+
+  if (error) {
+    throw new Error(
+      /exchange_rate_eur/.test(error.message)
+        ? "La base de données doit être mise à jour : exécutez la migration 0005_euro_rate.sql dans Supabase."
+        : error.message
+    );
+  }
+}
+
 export async function updatePharmacy(payload: UpdatePharmacyPayload) {
   const supabase = createSupabaseClient();
 
