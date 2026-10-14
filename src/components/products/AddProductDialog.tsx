@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 
+import BarcodeField from "@/components/products/BarcodeField";
 import QuickSupplierDialog from "@/components/products/QuickSupplierDialog";
 
 import {
@@ -1063,13 +1064,9 @@ export default function AddProductDialog({
                     </FormField>
 
                     <FormField label="Code-barres">
-                      <input
+                      <BarcodeField
                         value={form.barcode}
-                        onChange={(event) =>
-                          updateField("barcode", event.target.value)
-                        }
-                        className="form-input"
-                        placeholder="Scanner ou saisir"
+                        onChange={(value) => updateField("barcode", value)}
                       />
                     </FormField>
 

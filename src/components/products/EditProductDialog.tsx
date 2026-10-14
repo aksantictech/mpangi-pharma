@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Save, X } from "lucide-react";
 
+import BarcodeField from "@/components/products/BarcodeField";
 import {
   getProductById,
   getProductCategories,
@@ -276,10 +277,9 @@ export default function EditProductDialog({
               </Field>
 
               <Field label="Code-barres">
-                <input
+                <BarcodeField
                   value={form.barcode}
-                  onChange={(event) => update("barcode", event.target.value)}
-                  className="form-input"
+                  onChange={(value) => update("barcode", value)}
                 />
               </Field>
 
