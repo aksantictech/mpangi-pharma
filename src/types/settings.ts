@@ -1,4 +1,4 @@
-import type { VatRate } from "@/types/product";
+import type { PricingRoundingMode, VatRate } from "@/types/product";
 
 export type PharmacySettings = {
   id: string;
@@ -9,6 +9,10 @@ export type PharmacySettings = {
   low_stock_alert_enabled: boolean;
   invoice_prefix: string;
   receipt_format: string;
+
+  /** Indice de prix par défaut : prix de vente = prix d'achat x coefficient. null = non configuré. */
+  default_price_coefficient?: number | null;
+  default_price_rounding?: PricingRoundingMode;
 
   vat_enabled: boolean;
   default_vat_rate: VatRate;

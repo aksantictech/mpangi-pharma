@@ -32,6 +32,8 @@ import {
 type ProductSetupPanelProps = {
   pharmacyId: string;
   onChanged?: () => void;
+  /** Quelle partie afficher : les deux (défaut), ou une seule (pages Paramètres). */
+  mode?: "all" | "categories" | "suppliers";
 };
 
 const categoryColors = [
@@ -66,7 +68,11 @@ type SupplierEditState = {
 export default function ProductSetupPanel({
   pharmacyId,
   onChanged,
+  mode = "all",
 }: ProductSetupPanelProps) {
+  const showCategories = mode === "all" || mode === "categories";
+  const showSuppliers = mode === "all" || mode === "suppliers";
+
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
@@ -118,7 +124,9 @@ export default function ProductSetupPanel({
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pharmacyId]);
 
   async function refreshAfterChange(message: string) {
@@ -466,11 +474,18 @@ export default function ProductSetupPanel({
       <div className="mb-5 flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
           <h2 className="text-xl font-black text-slate-950">
-            Paramètres produits
+            {mode === "categories"
+              ? "Catégories de produits"
+              : mode === "suppliers"
+                ? "Fournisseurs"
+                : "Paramètres produits"}
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Ajoutez, modifiez ou désactivez les catégories et fournisseurs de la
-            pharmacie active.
+            {mode === "categories"
+              ? "Ajoutez, modifiez ou désactivez les catégories de la pharmacie active."
+              : mode === "suppliers"
+                ? "Ajoutez, modifiez ou désactivez les fournisseurs de la pharmacie active."
+                : "Ajoutez, modifiez ou désactivez les catégories et fournisseurs de la pharmacie active."}
           </p>
         </div>
 
@@ -497,283 +512,287 @@ export default function ProductSetupPanel({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <div className="rounded-3xl border border-slate-200 p-5">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
-              <Layers3 className="h-6 w-6" />
+      <div className={`grid grid-cols-1 gap-5 ${mode === "all" ? "xl:grid-cols-2" : ""}`}>
+        {showCategories && (
+          <div className="rounded-3xl border border-slate-200 p-5">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                <Layers3 className="h-6 w-6" />
+              </div>
+
+              <div>
+                <h3 className="font-black text-slate-950">Catégories</h3>
+                <p className="text-sm text-slate-500">
+                  {isLoading ? "Chargement..." : `${categories.length} catégorie(s)`}
+                </p>
+              </div>
             </div>
 
-            <div>
-              <h3 className="font-black text-slate-950">Catégories</h3>
-              <p className="text-sm text-slate-500">
-                {isLoading ? "Chargement..." : `${categories.length} catégorie(s)`}
-              </p>
-            </div>
-          </div>
+            <form onSubmit={handleCreateCategory} className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <input
+                  value={categoryName}
+                  onChange={(event) => setCategoryName(event.target.value)}
+                  className="form-input"
+                  placeholder="Ex : Antipaludiques"
+                />
 
-          <form onSubmit={handleCreateCategory} className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <input
-                value={categoryName}
-                onChange={(event) => setCategoryName(event.target.value)}
-                className="form-input"
-                placeholder="Ex : Antipaludiques"
-              />
+                <input
+                  value={categoryDescription}
+                  onChange={(event) =>
+                    setCategoryDescription(event.target.value)
+                  }
+                  className="form-input"
+                  placeholder="Description optionnelle"
+                />
+              </div>
 
-              <input
-                value={categoryDescription}
-                onChange={(event) =>
-                  setCategoryDescription(event.target.value)
-                }
-                className="form-input"
-                placeholder="Description optionnelle"
-              />
-            </div>
+              <ColorPicker value={categoryColor} onChange={setCategoryColor} />
 
-            <ColorPicker value={categoryColor} onChange={setCategoryColor} />
+              <button
+                type="submit"
+                disabled={isSavingCategory}
+                className="inline-flex items-center gap-2 rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-60"
+              >
+                <Plus className="h-5 w-5" />
+                {isSavingCategory ? "Ajout..." : "Ajouter catégorie"}
+              </button>
+            </form>
 
-            <button
-              type="submit"
-              disabled={isSavingCategory}
-              className="inline-flex items-center gap-2 rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:opacity-60"
-            >
-              <Plus className="h-5 w-5" />
-              {isSavingCategory ? "Ajout..." : "Ajouter catégorie"}
-            </button>
-          </form>
-
-          <div className="mt-5 space-y-2">
-            {categories.length === 0 ? (
-              <p className="text-sm font-medium text-slate-500">
-                Aucune catégorie créée.
-              </p>
-            ) : (
-              categories.map((category) => (
-                <div
-                  key={category.id}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="h-3 w-3 shrink-0 rounded-full"
-                          style={{
-                            backgroundColor: category.color || "#2563eb",
-                          }}
-                        />
-                        <p className="truncate font-black text-slate-900">
-                          {category.name}
+            <div className="mt-5 space-y-2">
+              {categories.length === 0 ? (
+                <p className="text-sm font-medium text-slate-500">
+                  Aucune catégorie créée.
+                </p>
+              ) : (
+                categories.map((category) => (
+                  <div
+                    key={category.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-3 w-3 shrink-0 rounded-full"
+                            style={{
+                              backgroundColor: category.color || "#2563eb",
+                            }}
+                          />
+                          <p className="truncate font-black text-slate-900">
+                            {category.name}
+                          </p>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {category.description || "Sans description"}
                         </p>
                       </div>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {category.description || "Sans description"}
-                      </p>
+
+                      <span
+                        className={`rounded-full px-2 py-1 text-[10px] font-black ${
+                          category.is_active
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-slate-200 text-slate-600"
+                        }`}
+                      >
+                        {category.archived_at
+                          ? "Archivée"
+                          : category.is_active
+                            ? "Active"
+                            : "Inactive"}
+                      </span>
                     </div>
 
-                    <span
-                      className={`rounded-full px-2 py-1 text-[10px] font-black ${
-                        category.is_active
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-slate-200 text-slate-600"
-                      }`}
-                    >
-                      {category.archived_at
-                        ? "Archivée"
-                        : category.is_active
-                          ? "Active"
-                          : "Inactive"}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap justify-end gap-2">
-                    <IconActionButton
-                      title="Modifier"
-                      onClick={() => startEditCategory(category)}
-                      icon={<Pencil className="h-4 w-4" />}
-                    />
-
-                    {!category.archived_at && (
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
                       <IconActionButton
-                        title={category.is_active ? "Désactiver" : "Réactiver"}
-                        onClick={() => void toggleCategory(category)}
-                        disabled={changingId === category.id}
-                        icon={
-                          category.is_active ? (
-                            <X className="h-4 w-4" />
-                          ) : (
-                            <Check className="h-4 w-4" />
-                          )
-                        }
+                        title="Modifier"
+                        onClick={() => startEditCategory(category)}
+                        icon={<Pencil className="h-4 w-4" />}
                       />
-                    )}
 
-                    {!category.archived_at && (
+                      {!category.archived_at && (
+                        <IconActionButton
+                          title={category.is_active ? "Désactiver" : "Réactiver"}
+                          onClick={() => void toggleCategory(category)}
+                          disabled={changingId === category.id}
+                          icon={
+                            category.is_active ? (
+                              <X className="h-4 w-4" />
+                            ) : (
+                              <Check className="h-4 w-4" />
+                            )
+                          }
+                        />
+                      )}
+
+                      {!category.archived_at && (
+                        <IconActionButton
+                          title="Archiver"
+                          onClick={() => void handleArchiveCategory(category)}
+                          disabled={changingId === category.id}
+                          icon={<Archive className="h-4 w-4" />}
+                        />
+                      )}
+
                       <IconActionButton
-                        title="Archiver"
-                        onClick={() => void handleArchiveCategory(category)}
+                        title="Supprimer"
+                        tone="danger"
+                        onClick={() => void handleDeleteCategory(category)}
                         disabled={changingId === category.id}
-                        icon={<Archive className="h-4 w-4" />}
+                        icon={<Trash2 className="h-4 w-4" />}
                       />
-                    )}
-
-                    <IconActionButton
-                      title="Supprimer"
-                      tone="danger"
-                      onClick={() => void handleDeleteCategory(category)}
-                      disabled={changingId === category.id}
-                      icon={<Trash2 className="h-4 w-4" />}
-                    />
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 p-5">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-              <Building2 className="h-6 w-6" />
-            </div>
-
-            <div>
-              <h3 className="font-black text-slate-950">Fournisseurs</h3>
-              <p className="text-sm text-slate-500">
-                {isLoading ? "Chargement..." : `${suppliers.length} fournisseur(s)`}
-              </p>
+                ))
+              )}
             </div>
           </div>
+        )}
 
-          <form onSubmit={handleCreateSupplier} className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <input
-                value={supplierName}
-                onChange={(event) => setSupplierName(event.target.value)}
-                className="form-input"
-                placeholder="Nom fournisseur"
-              />
+        {showSuppliers && (
+          <div className="rounded-3xl border border-slate-200 p-5">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                <Building2 className="h-6 w-6" />
+              </div>
 
-              <input
-                value={supplierPhone}
-                onChange={(event) => setSupplierPhone(event.target.value)}
-                className="form-input"
-                placeholder="Téléphone"
-              />
-
-              <input
-                type="email"
-                value={supplierEmail}
-                onChange={(event) => setSupplierEmail(event.target.value)}
-                className="form-input"
-                placeholder="Email"
-              />
-
-              <input
-                value={supplierAddress}
-                onChange={(event) => setSupplierAddress(event.target.value)}
-                className="form-input"
-                placeholder="Adresse"
-              />
+              <div>
+                <h3 className="font-black text-slate-950">Fournisseurs</h3>
+                <p className="text-sm text-slate-500">
+                  {isLoading ? "Chargement..." : `${suppliers.length} fournisseur(s)`}
+                </p>
+              </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={isSavingSupplier}
-              className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-60"
-            >
-              <Save className="h-5 w-5" />
-              {isSavingSupplier ? "Ajout..." : "Ajouter fournisseur"}
-            </button>
-          </form>
+            <form onSubmit={handleCreateSupplier} className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <input
+                  value={supplierName}
+                  onChange={(event) => setSupplierName(event.target.value)}
+                  className="form-input"
+                  placeholder="Nom fournisseur"
+                />
 
-          <div className="mt-5 space-y-2">
-            {suppliers.length === 0 ? (
-              <p className="text-sm font-medium text-slate-500">
-                Aucun fournisseur créé.
-              </p>
-            ) : (
-              suppliers.map((supplier) => (
-                <div
-                  key={supplier.id}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-black text-slate-900">
-                        {supplier.name}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {supplier.phone || "Téléphone non renseigné"}
-                      </p>
-                      <p className="mt-1 truncate text-xs text-slate-500">
-                        {supplier.email || "Email non renseigné"}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {supplier.address || "Adresse non renseignée"}
-                      </p>
+                <input
+                  value={supplierPhone}
+                  onChange={(event) => setSupplierPhone(event.target.value)}
+                  className="form-input"
+                  placeholder="Téléphone"
+                />
+
+                <input
+                  type="email"
+                  value={supplierEmail}
+                  onChange={(event) => setSupplierEmail(event.target.value)}
+                  className="form-input"
+                  placeholder="Email"
+                />
+
+                <input
+                  value={supplierAddress}
+                  onChange={(event) => setSupplierAddress(event.target.value)}
+                  className="form-input"
+                  placeholder="Adresse"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSavingSupplier}
+                className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-60"
+              >
+                <Save className="h-5 w-5" />
+                {isSavingSupplier ? "Ajout..." : "Ajouter fournisseur"}
+              </button>
+            </form>
+
+            <div className="mt-5 space-y-2">
+              {suppliers.length === 0 ? (
+                <p className="text-sm font-medium text-slate-500">
+                  Aucun fournisseur créé.
+                </p>
+              ) : (
+                suppliers.map((supplier) => (
+                  <div
+                    key={supplier.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-black text-slate-900">
+                          {supplier.name}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {supplier.phone || "Téléphone non renseigné"}
+                        </p>
+                        <p className="mt-1 truncate text-xs text-slate-500">
+                          {supplier.email || "Email non renseigné"}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {supplier.address || "Adresse non renseignée"}
+                        </p>
+                      </div>
+
+                      <span
+                        className={`rounded-full px-2 py-1 text-[10px] font-black ${
+                          supplier.is_active
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-slate-200 text-slate-600"
+                        }`}
+                      >
+                        {supplier.archived_at
+                          ? "Archivé"
+                          : supplier.is_active
+                            ? "Actif"
+                            : "Inactif"}
+                      </span>
                     </div>
 
-                    <span
-                      className={`rounded-full px-2 py-1 text-[10px] font-black ${
-                        supplier.is_active
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-slate-200 text-slate-600"
-                      }`}
-                    >
-                      {supplier.archived_at
-                        ? "Archivé"
-                        : supplier.is_active
-                          ? "Actif"
-                          : "Inactif"}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap justify-end gap-2">
-                    <IconActionButton
-                      title="Modifier"
-                      onClick={() => startEditSupplier(supplier)}
-                      icon={<Pencil className="h-4 w-4" />}
-                    />
-
-                    {!supplier.archived_at && (
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
                       <IconActionButton
-                        title={supplier.is_active ? "Désactiver" : "Réactiver"}
-                        onClick={() => void toggleSupplier(supplier)}
-                        disabled={changingId === supplier.id}
-                        icon={
-                          supplier.is_active ? (
-                            <X className="h-4 w-4" />
-                          ) : (
-                            <Check className="h-4 w-4" />
-                          )
-                        }
+                        title="Modifier"
+                        onClick={() => startEditSupplier(supplier)}
+                        icon={<Pencil className="h-4 w-4" />}
                       />
-                    )}
 
-                    {!supplier.archived_at && (
+                      {!supplier.archived_at && (
+                        <IconActionButton
+                          title={supplier.is_active ? "Désactiver" : "Réactiver"}
+                          onClick={() => void toggleSupplier(supplier)}
+                          disabled={changingId === supplier.id}
+                          icon={
+                            supplier.is_active ? (
+                              <X className="h-4 w-4" />
+                            ) : (
+                              <Check className="h-4 w-4" />
+                            )
+                          }
+                        />
+                      )}
+
+                      {!supplier.archived_at && (
+                        <IconActionButton
+                          title="Archiver"
+                          onClick={() => void handleArchiveSupplier(supplier)}
+                          disabled={changingId === supplier.id}
+                          icon={<Archive className="h-4 w-4" />}
+                        />
+                      )}
+
                       <IconActionButton
-                        title="Archiver"
-                        onClick={() => void handleArchiveSupplier(supplier)}
+                        title="Supprimer"
+                        tone="danger"
+                        onClick={() => void handleDeleteSupplier(supplier)}
                         disabled={changingId === supplier.id}
-                        icon={<Archive className="h-4 w-4" />}
+                        icon={<Trash2 className="h-4 w-4" />}
                       />
-                    )}
-
-                    <IconActionButton
-                      title="Supprimer"
-                      tone="danger"
-                      onClick={() => void handleDeleteSupplier(supplier)}
-                      disabled={changingId === supplier.id}
-                      icon={<Trash2 className="h-4 w-4" />}
-                    />
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {editingCategory && (

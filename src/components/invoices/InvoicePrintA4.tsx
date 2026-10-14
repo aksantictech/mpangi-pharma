@@ -65,7 +65,7 @@ export default function InvoicePrintA4({
 
           <InfoBox
             label="Paiement"
-            value={formatPaymentMethod(invoice.payment_method)}
+            value={(invoice.payment_method_label || formatPaymentMethod(invoice.payment_method))}
           />
 
           <InfoBox

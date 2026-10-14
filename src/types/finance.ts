@@ -33,4 +33,7 @@ export type FinanceSummary = {
   estimatedProfit: number;
   salesCount: number;
   expensesCount: number;
+  /** Coût (prix d'achat) des produits prélevés dans la trousse de secours. */
+  kitCost?: number;
+  kitRequisitionsCount?: number;
 };

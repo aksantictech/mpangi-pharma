@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   Bell,
+  BriefcaseMedical,
   Boxes,
   Building2,
   CreditCard,
@@ -41,6 +42,7 @@ import {
   bindOfflineDataToUser,
   clearOfflinePharmacyData,
 } from "@/lib/offline/db";
+import { KIT_MODULE_LABEL } from "@/lib/constants";
 import { getActiveHref } from "@/lib/nav-active";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import {
@@ -131,6 +133,12 @@ const navigationItems: NavigationItem[] = [
     href: "/expirations",
     module: "expirations",
     icon: Bell,
+  },
+  {
+    label: KIT_MODULE_LABEL,
+    href: "/trousse",
+    module: "trousse",
+    icon: BriefcaseMedical,
   },
   {
     label: "Finances",

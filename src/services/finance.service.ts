@@ -59,6 +59,28 @@ export async function getFinanceSummary(
     throw new Error(expensesError.message);
   }
 
+  // Trousse de secours : produits prélevés pendant les gardes, valorisés au
+  // prix d'achat. Lecture tolérante : si la table n'existe pas encore
+  // (migration 0004 non appliquée), la finance reste calculée sans.
+  let kitCost = 0;
+  let kitRequisitionsCount = 0;
+
+  const { data: kitRows, error: kitError } = await supabase
+    .from("kit_requisitions")
+    .select("total_cost")
+    .eq("pharmacy_id", pharmacyId)
+    .eq("status", "completed")
+    .gte("created_at", startDateTime)
+    .lte("created_at", endDateTime);
+
+  if (!kitError) {
+    kitRequisitionsCount = kitRows?.length ?? 0;
+    kitCost = (kitRows ?? []).reduce(
+      (sum, row) => sum + Number(row.total_cost || 0),
+      0
+    );
+  }
+
   const salesRows = (sales ?? []) as Sale[];
   const expenseRows = (expenses ?? []) as Expense[];
 
@@ -87,9 +109,11 @@ export async function getFinanceSummary(
     totalCost,
     grossMargin,
     totalExpenses,
-    estimatedProfit: grossMargin - totalExpenses,
+    estimatedProfit: grossMargin - totalExpenses - kitCost,
     salesCount: salesRows.length,
     expensesCount: expenseRows.length,
+    kitCost,
+    kitRequisitionsCount,
   };
 }
 

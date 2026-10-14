@@ -183,7 +183,7 @@ export default function InvoiceDetailsPage() {
       invoiceNumber: invoice.invoice_number,
       date: invoice.created_at,
       customerName: invoice.customer_name || "Client comptoir",
-      paymentMethod: formatPaymentMethod(invoice.payment_method),
+      paymentMethod: (invoice.payment_method_label || formatPaymentMethod(invoice.payment_method)),
       currency: invoice.currency,
       items: invoice.items.map((item) => ({
         name: getItemName(item),
@@ -533,7 +533,7 @@ export default function InvoiceDetailsPage() {
 
             <InfoMetric
               title="Paiement"
-              value={formatPaymentMethod(invoice.payment_method)}
+              value={(invoice.payment_method_label || formatPaymentMethod(invoice.payment_method))}
               icon={<Receipt className="h-5 w-5 md:h-6 md:w-6" />}
             />
 

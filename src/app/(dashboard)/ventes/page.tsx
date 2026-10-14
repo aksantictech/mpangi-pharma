@@ -19,6 +19,10 @@ import {
 
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
 import {
+  baseMethodForKind,
+  getPaymentMethods,
+} from "@/services/payment-methods.service";
+import {
   createSale,
   getRecentSales,
   getSellableProducts,
@@ -29,6 +33,7 @@ import {
   getPendingOfflineSales,
 } from "@/services/offline-sales.service";
 
+import type { PharmacyPaymentMethod } from "@/types/kit";
 import type { PharmacyWithRole } from "@/types/pharmacy";
 import type {
   CartItem,
@@ -124,6 +129,11 @@ export default function SalesPage() {
   const [desktopPage, setDesktopPage] = useState(1);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash_cdf");
+  // Modes personnalisés (sociétés conventionnées…) configurés dans Paramètres.
+  const [customMethods, setCustomMethods] = useState<PharmacyPaymentMethod[]>(
+    []
+  );
+  const [customMethodId, setCustomMethodId] = useState("");
   const currency = "CDF";
   const [discount, setDiscount] = useState("0");
   const [customerName, setCustomerName] = useState("");
@@ -430,6 +440,28 @@ export default function SalesPage() {
     }
   }, [mobilePage, mobileTotalPages]);
 
+  useEffect(() => {
+    const pharmacyId = pharmacy?.id;
+
+    if (!pharmacyId) return;
+
+    let isMounted = true;
+
+    // Échec silencieux (hors ligne, migration pas encore appliquée) : la
+    // caisse reste utilisable avec les modes de paiement standard.
+    getPaymentMethods(pharmacyId, { onlyActive: true })
+      .then((methods) => {
+        if (isMounted) setCustomMethods(methods);
+      })
+      .catch(() => {
+        if (isMounted) setCustomMethods([]);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pharmacy?.id]);
+
   const subtotal = cart.reduce(
     (sum, item) => sum + item.quantity * item.unitPrice,
     0
@@ -442,8 +474,20 @@ export default function SalesPage() {
     exchangeRate > 0 ? total / exchangeRate : 0;
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  function handlePaymentMethodChange(method: PaymentMethod) {
-    setPaymentMethod(method);
+  function handlePaymentMethodChange(value: string) {
+    if (value.startsWith("custom:")) {
+      const id = value.slice("custom:".length);
+      const method = customMethods.find((item) => item.id === id);
+
+      if (method) {
+        setCustomMethodId(method.id);
+        setPaymentMethod(baseMethodForKind(method.kind));
+        return;
+      }
+    }
+
+    setCustomMethodId("");
+    setPaymentMethod(value as PaymentMethod);
   }
 
   function addToCart(product: SellableProduct) {
@@ -583,6 +627,7 @@ export default function SalesPage() {
           pharmacyId: pharmacy.id,
           items: cart,
           paymentMethod,
+          customPaymentMethodId: customMethodId || undefined,
           currency,
           discount: discountValue,
           customerName,
@@ -610,6 +655,7 @@ export default function SalesPage() {
         pharmacyId: pharmacy.id,
         items: cart,
         paymentMethod,
+        customPaymentMethodId: customMethodId || undefined,
         currency,
         discount: discountValue,
         customerName,
@@ -1068,11 +1114,11 @@ export default function SalesPage() {
 
                 <FormField label="Paiement">
                   <select
-                    value={paymentMethod}
+                    value={
+                      customMethodId ? `custom:${customMethodId}` : paymentMethod
+                    }
                     onChange={(event) =>
-                      handlePaymentMethodChange(
-                        event.target.value as PaymentMethod
-                      )
+                      handlePaymentMethodChange(event.target.value)
                     }
                     className="form-input"
                   >
@@ -1081,6 +1127,15 @@ export default function SalesPage() {
                         {method.label}
                       </option>
                     ))}
+                    {customMethods.length > 0 && (
+                      <optgroup label="Sociétés et autres modes">
+                        {customMethods.map((method) => (
+                          <option key={method.id} value={`custom:${method.id}`}>
+                            {method.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </FormField>
               </div>
@@ -1203,7 +1258,7 @@ export default function SalesPage() {
                     </div>
 
                     <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">
-                      {formatPaymentMethod(sale.payment_method)}
+                      {(sale.payment_method_label || formatPaymentMethod(sale.payment_method))}
                     </span>
                   </div>
 
@@ -1271,7 +1326,7 @@ export default function SalesPage() {
                         </td>
 
                         <td className="px-5 py-4 text-sm text-slate-600">
-                          {formatPaymentMethod(sale.payment_method)}
+                          {(sale.payment_method_label || formatPaymentMethod(sale.payment_method))}
                         </td>
 
                         <td className="px-5 py-4 font-black text-slate-950">

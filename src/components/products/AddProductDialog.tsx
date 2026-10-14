@@ -23,13 +23,18 @@ import {
   type ProductCategory,
   type Supplier,
 } from "@/services/products.service";
+import { getPharmacySettings } from "@/services/pharmacies.service";
 import {
   calculateAutomaticSellingPrice,
   getPricingRules,
 } from "@/services/pricing.service";
 
 import type { NationalProduct } from "@/types/national-product";
-import type { PricingRule, VatRate } from "@/types/product";
+import type {
+  PricingRoundingMode,
+  PricingRule,
+  VatRate,
+} from "@/types/product";
 
 type AddProductDialogProps = {
   pharmacyId: string;
@@ -165,6 +170,9 @@ export default function AddProductDialog({
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [pricingRules, setPricingRules] = useState<PricingRule[]>([]);
+  // Arrondi de l'indice de prix par défaut (Paramètres › Prix automatique).
+  const [fallbackRounding, setFallbackRounding] =
+    useState<PricingRoundingMode>("none");
 
   const [catalogueProducts, setCatalogueProducts] = useState<NationalProduct[]>(
     []
@@ -197,24 +205,43 @@ export default function AddProductDialog({
       setErrorMessage("");
 
       try {
-        const [categoriesData, suppliersData, filtersData, pricingRuleData] =
-          await Promise.all([
-            getProductCategories(pharmacyId),
-            getSuppliers(pharmacyId),
-            getNationalProductFilters(),
-            getPricingRules(pharmacyId),
-          ]);
+        const [
+          categoriesData,
+          suppliersData,
+          filtersData,
+          pricingRuleData,
+          settingsData,
+        ] = await Promise.all([
+          getProductCategories(pharmacyId),
+          getSuppliers(pharmacyId),
+          getNationalProductFilters(),
+          getPricingRules(pharmacyId),
+          getPharmacySettings(pharmacyId).catch(() => null),
+        ]);
 
         setCategories(categoriesData);
         setSuppliers(suppliersData);
         setFilterOptions(filtersData);
         setPricingRules(pricingRuleData);
 
+        const defaultCoefficient = Number(
+          settingsData?.default_price_coefficient ?? 0
+        );
+
         const defaultRule =
           pricingRuleData.find((rule) => rule.is_default) ??
           pricingRuleData[0];
 
-        if (defaultRule) {
+        if (defaultCoefficient > 0) {
+          // Indice configuré par la pharmacie : il s'applique d'office aux
+          // nouveaux produits (prix de vente = prix d'achat x indice).
+          setFallbackRounding(settingsData?.default_price_rounding ?? "none");
+          setForm((current) => ({
+            ...current,
+            autoPricingEnabled: true,
+            pricingCoefficient: String(defaultCoefficient),
+          }));
+        } else if (defaultRule) {
           setForm((current) => ({
             ...current,
             pricingRuleId: defaultRule.id,
@@ -263,7 +290,7 @@ export default function AddProductDialog({
         coefficient: Number(coefficient || 0),
         roundingMode:
           pricingRules.find((rule) => rule.id === form.pricingRuleId)
-            ?.rounding_mode ?? "none",
+            ?.rounding_mode ?? fallbackRounding,
       })
     );
   }
@@ -282,7 +309,7 @@ export default function AddProductDialog({
             calculateAutomaticSellingPrice({
               purchasePrice: Number(current.purchasePrice || 0),
               coefficient: Number(rule?.coefficient ?? 1),
-              roundingMode: rule?.rounding_mode ?? "none",
+              roundingMode: rule?.rounding_mode ?? fallbackRounding,
             })
           )
         : current.sellingPrice,
@@ -301,7 +328,7 @@ export default function AddProductDialog({
               roundingMode:
                 pricingRules.find(
                   (rule) => rule.id === current.pricingRuleId
-                )?.rounding_mode ?? "none",
+                )?.rounding_mode ?? fallbackRounding,
             })
           )
         : current.sellingPrice,

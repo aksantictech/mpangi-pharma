@@ -416,7 +416,7 @@ export default function InvoicesPage() {
                         </td>
 
                         <td className="px-5 py-4 text-sm font-semibold text-slate-600">
-                          {formatPaymentMethod(invoice.payment_method)}
+                          {(invoice.payment_method_label || formatPaymentMethod(invoice.payment_method))}
                         </td>
 
                         <td className="px-5 py-4 font-black text-slate-950">
@@ -497,7 +497,7 @@ export default function InvoicesPage() {
                 <td className="border p-2">{new Date(invoice.created_at).toLocaleString("fr-CD")}</td>
                 <td className="border p-2">{invoice.invoice_number}</td>
                 <td className="border p-2">{invoice.customer_name || "Comptoir"}</td>
-                <td className="border p-2">{formatPaymentMethod(invoice.payment_method)}</td>
+                <td className="border p-2">{(invoice.payment_method_label || formatPaymentMethod(invoice.payment_method))}</td>
                 <td className="border p-2 text-right">{formatMoney(Number(invoice.total_amount || 0), invoice.currency)}</td>
                 <td className="border p-2 text-right">{formatMoney(Number(invoice.gross_margin || 0), invoice.currency)}</td>
               </tr>
@@ -546,7 +546,7 @@ function MobileInvoiceCard({ invoice }: { invoice: Sale }) {
 
         <MiniInfo
           label="Paiement"
-          value={formatPaymentMethod(invoice.payment_method)}
+          value={(invoice.payment_method_label || formatPaymentMethod(invoice.payment_method))}
         />
 
         <MiniInfo

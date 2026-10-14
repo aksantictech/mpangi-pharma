@@ -50,12 +50,17 @@ export type Sale = {
   currency: string;
   exchange_rate: number;
   payment_method: PaymentMethod;
+  /** Mode de paiement personnalisé (société conventionnée…), si choisi en caisse. */
+  payment_method_id?: string | null;
+  payment_method_label?: string | null;
   status: SaleStatus;
   notes: string | null;
   created_at: string;
 };
 
 export type CreateSaleResult = {
+  /** Renseigné si l'étiquette du mode de paiement personnalisé n'a pas pu être posée. */
+  payment_label_warning?: string;
   sale_id: string;
   invoice_number: string;
   total_amount: number;

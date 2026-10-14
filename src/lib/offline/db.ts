@@ -25,6 +25,8 @@ export type OfflineSale = {
   local_invoice_number: string;
   customer_name: string | null;
   payment_method: PaymentMethod;
+  /** Mode de paiement personnalisé choisi hors ligne, étiqueté à la synchronisation. */
+  payment_method_id?: string | null;
   currency: string;
   discount: number;
   notes: string | null;

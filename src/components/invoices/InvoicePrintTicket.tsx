@@ -69,7 +69,7 @@ export default function InvoicePrintTicket({
       <div className="ticket-row">
         <span>Paiement</span>
         <span className="ticket-value">
-          {formatPaymentMethod(invoice.payment_method)}
+          {(invoice.payment_method_label || formatPaymentMethod(invoice.payment_method))}
         </span>
       </div>
 

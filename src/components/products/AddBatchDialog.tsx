@@ -10,6 +10,7 @@ import {
   getSuppliers,
   type Supplier,
 } from "@/services/products.service";
+import { getPharmacySettings } from "@/services/pharmacies.service";
 import {
   calculateAutomaticSellingPrice,
   getProductPricingContext,
@@ -66,9 +67,11 @@ export default function AddBatchDialog({
       setErrorMessage("");
 
       try {
-        const [supplierData, pricingContext] = await Promise.all([
+        const [supplierData, pricingContext, settings] = await Promise.all([
           getSuppliers(pharmacyId),
           getProductPricingContext(pharmacyId, product.product_id),
+          // Indice par défaut de la pharmacie (Paramètres › Prix automatique).
+          getPharmacySettings(pharmacyId).catch(() => null),
         ]);
 
         setSuppliers(supplierData);
@@ -76,10 +79,13 @@ export default function AddBatchDialog({
         const coefficient =
           pricingContext.pricing_coefficient ??
           pricingContext.pricing_rule?.coefficient ??
+          settings?.default_price_coefficient ??
           1;
 
         const roundingMode =
-          pricingContext.pricing_rule?.rounding_mode ?? "none";
+          pricingContext.pricing_rule?.rounding_mode ??
+          settings?.default_price_rounding ??
+          "none";
 
         setForm((current) => ({
           ...current,

@@ -20,7 +20,8 @@ export type AppModule =
   | "sauvegardes"
   | "synchronisation"
   | "compte"
-  | "abonnement";
+  | "abonnement"
+  | "trousse";
 
 const allRoles: PharmacyRole[] = [
   "owner",
@@ -72,6 +73,11 @@ const modulePermissions: Record<AppModule, PharmacyRole[]> = {
   // restants, blocage) ; seuls owner/manager peuvent déclarer un paiement
   // (imposé côté RLS, voir subscription_payments_insert_by_owners_managers).
   abonnement: allRoles,
+
+  // Trousse de secours (réquisitions pendant les gardes) : ouverte à tous les
+  // rôles, car chaque membre de l'équipe de garde peut avoir à enregistrer un
+  // prélèvement. L'annulation reste réservée côté base de données.
+  trousse: allRoles,
 };
 
 export function normalizeRole(role?: string | null): PharmacyRole | null {
@@ -159,6 +165,10 @@ export function getModuleFromPath(pathname: string): AppModule | null {
 
   if (pathname === "/abonnement" || pathname.startsWith("/abonnement/")) {
     return "abonnement";
+  }
+
+  if (pathname === "/trousse" || pathname.startsWith("/trousse/")) {
+    return "trousse";
   }
 
   return null;

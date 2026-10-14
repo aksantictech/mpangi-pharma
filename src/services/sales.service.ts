@@ -15,6 +15,8 @@ export type CreateSalePayload = {
   discount: number;
   customerName?: string;
   notes?: string;
+  /** Mode de paiement personnalisé (société conventionnée…) à étiqueter sur la vente. */
+  customPaymentMethodId?: string;
 };
 
 function emptyToNull(value?: string) {
@@ -64,9 +66,25 @@ export async function createSale(payload: CreateSalePayload) {
     throw new Error(error.message);
   }
 
-  const result = Array.isArray(data) ? data[0] : data;
+  const result = (Array.isArray(data) ? data[0] : data) as CreateSaleResult;
 
-  return result as CreateSaleResult;
+  // La vente est déjà enregistrée (mode de base, ex. « credit ») : un échec
+  // d'étiquetage ne doit pas la faire échouer, on le remonte en avertissement.
+  if (payload.customPaymentMethodId && result?.sale_id) {
+    const { error: labelError } = await supabase.rpc(
+      "set_sale_payment_method",
+      {
+        p_sale_id: result.sale_id,
+        p_method_id: payload.customPaymentMethodId,
+      }
+    );
+
+    if (labelError) {
+      result.payment_label_warning = labelError.message;
+    }
+  }
+
+  return result;
 }
 
 export async function getRecentSales(pharmacyId: string) {

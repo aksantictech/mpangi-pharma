@@ -5,11 +5,15 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   Building2,
+  Calculator,
   CreditCard,
   LayoutDashboard,
+  Layers3,
   Settings,
+  Truck,
   UserCircle,
   Users,
+  Wallet,
 } from "lucide-react";
 
 import {
@@ -48,6 +52,38 @@ const cards: SettingsCard[] = [
       "Voir, ajouter, modifier, désactiver et réinitialiser les accès des utilisateurs liés à la pharmacie active.",
     icon: Users,
     tone: "purple",
+  },
+  {
+    href: "/parametres/prix",
+    title: "Prix automatique",
+    description:
+      "Indice par défaut : le prix de vente est calculé automatiquement (prix d’achat × indice) à la création des produits.",
+    icon: Calculator,
+    tone: "blue",
+  },
+  {
+    href: "/parametres/fournisseurs",
+    title: "Fournisseurs",
+    description:
+      "Ajouter, modifier ou désactiver vos fournisseurs, utilisés dans les produits et les réceptions de stock.",
+    icon: Truck,
+    tone: "amber",
+  },
+  {
+    href: "/parametres/categories",
+    title: "Catégories de produits",
+    description:
+      "Organiser vos produits par catégorie, avec une couleur, pour filtrer plus vite.",
+    icon: Layers3,
+    tone: "purple",
+  },
+  {
+    href: "/parametres/paiements",
+    title: "Modes de paiement",
+    description:
+      "Voir la liste, ajouter des sociétés conventionnées ou d’autres modes, les modifier ou les désactiver.",
+    icon: Wallet,
+    tone: "emerald",
   },
   {
     href: "/abonnement",

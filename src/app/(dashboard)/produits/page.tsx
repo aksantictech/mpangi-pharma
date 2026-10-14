@@ -23,7 +23,6 @@ import AddProductDialog from "@/components/products/AddProductDialog";
 import ExpirationBadge from "@/components/products/ExpirationBadge";
 import ProductBatchesDialog from "@/components/products/ProductBatchesDialog";
 import ProductExcelActions from "@/components/products/ProductExcelActions";
-import ProductSetupPanel from "@/components/products/ProductSetupPanel";
 import StockStatusBadge from "@/components/products/StockStatusBadge";
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
 import {
@@ -533,7 +532,32 @@ export default function ProductsPage() {
           />
         </section>
 
-        <ProductSetupPanel pharmacyId={pharmacy.id} onChanged={loadData} />
+        <section className="flex flex-col gap-3 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between md:rounded-[2rem]">
+          <p className="text-sm font-semibold text-slate-600">
+            Catégories, fournisseurs et prix automatique se gèrent désormais
+            dans les Paramètres.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/parametres/categories"
+              className="rounded-2xl border border-slate-200 px-4 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50"
+            >
+              Catégories
+            </Link>
+            <Link
+              href="/parametres/fournisseurs"
+              className="rounded-2xl border border-slate-200 px-4 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50"
+            >
+              Fournisseurs
+            </Link>
+            <Link
+              href="/parametres/prix"
+              className="rounded-2xl border border-slate-200 px-4 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50"
+            >
+              Prix automatique
+            </Link>
+          </div>
+        </section>
 
         {prescriptionCount > 0 && (
           <section className="rounded-[1.5rem] border border-red-100 bg-red-50 p-4 md:rounded-[2rem] md:p-5">

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
+  BriefcaseMedical,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -20,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 
+import { KIT_MODULE_LABEL } from "@/lib/constants";
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
 import {
   createExpense,
@@ -92,6 +94,8 @@ const emptySummary: FinanceSummary = {
   estimatedProfit: 0,
   salesCount: 0,
   expensesCount: 0,
+  kitCost: 0,
+  kitRequisitionsCount: 0,
 };
 
 export default function FinancesPage() {
@@ -219,7 +223,8 @@ export default function FinancesPage() {
     const paymentMap = new Map<string, PaymentReportLine>();
 
     for (const sale of filteredSales) {
-      const method = sale.payment_method || "unknown";
+      // Les modes personnalisés (sociétés conventionnées) sont ventilés par nom.
+      const method = sale.payment_method_label || sale.payment_method || "unknown";
       const current = paymentMap.get(method) || {
         method,
         count: 0,
@@ -541,7 +546,7 @@ export default function FinancesPage() {
           </div>
         )}
 
-        <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 xl:grid-cols-5">
           <MetricCard
             title="Recettes"
             value={formatMoney(summary.totalSales, "CDF")}
@@ -573,6 +578,14 @@ export default function FinancesPage() {
             icon={<CreditCard className="h-5 w-5 md:h-6 md:w-6" />}
             tone="red"
           />
+
+          <MetricCard
+            title={KIT_MODULE_LABEL}
+            value={formatMoney(summary.kitCost ?? 0, "CDF")}
+            description={`${summary.kitRequisitionsCount ?? 0} prélèvement(s) · coût d’achat`}
+            icon={<BriefcaseMedical className="h-5 w-5 md:h-6 md:w-6" />}
+            tone="orange"
+          />
         </section>
 
         <section className={`rounded-[1.5rem] border p-4 md:rounded-[2rem] md:p-6 ${profitTone}`}>
@@ -587,7 +600,7 @@ export default function FinancesPage() {
               </h2>
 
               <p className="mt-2 text-xs font-semibold md:text-sm">
-                Bénéfice estimé = marge brute - dépenses.
+                Bénéfice estimé = marge brute - dépenses - {KIT_MODULE_LABEL.toLowerCase()}.
               </p>
             </div>
 
@@ -760,7 +773,7 @@ export default function FinancesPage() {
                         </td>
 
                         <td className="px-5 py-4 text-sm font-semibold text-slate-600">
-                          {formatPaymentMethod(sale.payment_method)}
+                          {(sale.payment_method_label || formatPaymentMethod(sale.payment_method))}
                         </td>
 
                         <td className="px-5 py-4 font-black text-slate-950">
@@ -1050,6 +1063,7 @@ export default function FinancesPage() {
           <PrintMetric label="Coût produits" value={formatMoney(summary.totalCost, "CDF")} />
           <PrintMetric label="Marge brute" value={formatMoney(summary.grossMargin, "CDF")} />
           <PrintMetric label="Dépenses" value={formatMoney(summary.totalExpenses, "CDF")} />
+          <PrintMetric label={KIT_MODULE_LABEL} value={formatMoney(summary.kitCost ?? 0, "CDF")} />
           <PrintMetric label="Résultat estimé" value={formatMoney(summary.estimatedProfit, "CDF")} />
           <PrintMetric label="Nombre de ventes" value={summary.salesCount.toString()} />
         </div>
@@ -1072,7 +1086,7 @@ export default function FinancesPage() {
                 <td className="border p-2">{new Date(sale.created_at).toLocaleString("fr-CD")}</td>
                 <td className="border p-2">{sale.invoice_number}</td>
                 <td className="border p-2">{sale.customer_name || "Comptoir"}</td>
-                <td className="border p-2">{formatPaymentMethod(sale.payment_method)}</td>
+                <td className="border p-2">{(sale.payment_method_label || formatPaymentMethod(sale.payment_method))}</td>
                 <td className="border p-2 text-right">{formatMoney(Number(sale.total_amount || 0), sale.currency)}</td>
                 <td className="border p-2 text-right">{formatMoney(Number(sale.gross_margin || 0), sale.currency)}</td>
               </tr>
@@ -1146,7 +1160,7 @@ function MobileSaleCard({ sale }: { sale: Sale }) {
         <MiniInfo label="Client" value={sale.customer_name || "Comptoir"} />
         <MiniInfo
           label="Paiement"
-          value={formatPaymentMethod(sale.payment_method)}
+          value={(sale.payment_method_label || formatPaymentMethod(sale.payment_method))}
         />
         <MiniInfo
           label="Total"

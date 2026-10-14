@@ -15,6 +15,7 @@ export type CreateOfflineSalePayload = {
   pharmacyId: string;
   items: CartItem[];
   paymentMethod: PaymentMethod;
+  customPaymentMethodId?: string;
   currency: string;
   discount: number;
   customerName?: string;
@@ -115,6 +116,7 @@ export async function createOfflineSale(payload: CreateOfflineSalePayload) {
     local_invoice_number: localInvoiceNumber,
     customer_name: payload.customerName?.trim() || null,
     payment_method: payload.paymentMethod,
+    payment_method_id: payload.customPaymentMethodId ?? null,
     currency: payload.currency,
     discount,
     notes: payload.notes?.trim() || null,
@@ -282,6 +284,7 @@ export async function syncPendingOfflineSalesToServer(
         pharmacyId,
         items: cartItems,
         paymentMethod: sale.payment_method,
+        customPaymentMethodId: sale.payment_method_id ?? undefined,
         currency: sale.currency,
         discount: sale.discount,
         customerName: sale.customer_name ?? undefined,
