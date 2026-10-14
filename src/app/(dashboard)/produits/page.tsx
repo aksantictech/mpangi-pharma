@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   Archive,
@@ -58,7 +59,16 @@ type ProductListItem = ProductStockSummary & {
   status: ProductStatus;
 };
 
+// useSearchParams impose une frontière Suspense à la construction.
 export default function ProductsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ProductsContent />
+    </Suspense>
+  );
+}
+
+function ProductsContent() {
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [products, setProducts] = useState<ProductListItem[]>([]);
   const [expirationAlerts, setExpirationAlerts] = useState<ExpirationAlert[]>(
@@ -66,7 +76,17 @@ export default function ProductsPage() {
   );
 
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  // Recherche pré-remplie par ?q= (palette Ctrl+K) et resynchronisée si l'URL
+  // change alors qu'on est déjà sur la page.
+  const urlQuery = useSearchParams().get("q") ?? "";
+  const [search, setSearch] = useState(urlQuery);
+  const [syncedUrlQuery, setSyncedUrlQuery] = useState(urlQuery);
+
+  if (urlQuery !== syncedUrlQuery) {
+    setSyncedUrlQuery(urlQuery);
+    setSearch(urlQuery);
+  }
+
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [originFilter, setOriginFilter] = useState("all");

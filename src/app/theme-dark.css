@@ -1,0 +1,138 @@
+/*
+ * Mode sombre de l'espace pharmacie.
+ *
+ * Activé par <html data-theme="dark"> (script de layout.tsx + ThemeToggle) et
+ * limité aux pages enveloppées par .theme-scope (DashboardShell) : le site
+ * public, la connexion et la console Super Admin restent clairs.
+ *
+ * Les pages utilisent des classes Tailwind en dur (bg-white, text-slate-950…).
+ * Plutôt que d'ajouter des variantes dark: partout, on redéfinit ici les
+ * variables de la palette Tailwind (qui sont lues par toutes les utilitaires)
+ * et on ne surcharge par classe que les cas où une même couleur sert à la fois
+ * de fond et de texte (white, slate-800/900/950, couleurs 600-900).
+ *
+ * Tout est sous @media screen : l'impression (factures, tickets) reste intacte.
+ */
+@media screen {
+  html[data-theme="dark"] .theme-scope {
+    color-scheme: dark;
+    --dk-card: #0f1a2e;
+    --dk-text: #e8eef7;
+    color: var(--dk-text);
+
+    --color-slate-50: #0a1120;
+    --color-slate-100: #121c31;
+    --color-slate-200: #1f2b43;
+    --color-slate-300: #34425c;
+    --color-slate-400: #7d8ba1;
+    --color-slate-500: #98a6ba;
+    --color-slate-600: #b1bdcf;
+    --color-slate-700: #cbd5e1;
+
+    --color-blue-50: color-mix(in oklab, var(--color-blue-500) 14%, #0a1120);
+    --color-blue-100: color-mix(in oklab, var(--color-blue-500) 22%, #0a1120);
+    --color-blue-200: color-mix(in oklab, var(--color-blue-500) 34%, #0a1120);
+    --color-red-50: color-mix(in oklab, var(--color-red-500) 14%, #0a1120);
+    --color-red-100: color-mix(in oklab, var(--color-red-500) 22%, #0a1120);
+    --color-red-200: color-mix(in oklab, var(--color-red-500) 34%, #0a1120);
+    --color-emerald-50: color-mix(in oklab, var(--color-emerald-500) 14%, #0a1120);
+    --color-emerald-100: color-mix(in oklab, var(--color-emerald-500) 22%, #0a1120);
+    --color-emerald-200: color-mix(in oklab, var(--color-emerald-500) 34%, #0a1120);
+    --color-amber-50: color-mix(in oklab, var(--color-amber-500) 14%, #0a1120);
+    --color-amber-100: color-mix(in oklab, var(--color-amber-500) 22%, #0a1120);
+    --color-amber-200: color-mix(in oklab, var(--color-amber-500) 34%, #0a1120);
+    --color-orange-50: color-mix(in oklab, var(--color-orange-500) 14%, #0a1120);
+    --color-orange-100: color-mix(in oklab, var(--color-orange-500) 22%, #0a1120);
+    --color-orange-200: color-mix(in oklab, var(--color-orange-500) 34%, #0a1120);
+    --color-purple-50: color-mix(in oklab, var(--color-purple-500) 14%, #0a1120);
+    --color-purple-100: color-mix(in oklab, var(--color-purple-500) 22%, #0a1120);
+    --color-purple-200: color-mix(in oklab, var(--color-purple-500) 34%, #0a1120);
+    --color-violet-50: color-mix(in oklab, var(--color-violet-500) 14%, #0a1120);
+    --color-violet-100: color-mix(in oklab, var(--color-violet-500) 22%, #0a1120);
+    --color-violet-200: color-mix(in oklab, var(--color-violet-500) 34%, #0a1120);
+    --color-teal-50: color-mix(in oklab, var(--color-teal-500) 14%, #0a1120);
+    --color-teal-100: color-mix(in oklab, var(--color-teal-500) 22%, #0a1120);
+    --color-teal-200: color-mix(in oklab, var(--color-teal-500) 34%, #0a1120);
+    --color-rose-50: color-mix(in oklab, var(--color-rose-500) 14%, #0a1120);
+    --color-rose-100: color-mix(in oklab, var(--color-rose-500) 22%, #0a1120);
+    --color-rose-200: color-mix(in oklab, var(--color-rose-500) 34%, #0a1120);
+  }
+
+  /* Fonds blancs (cartes, menus, champs) */
+  html[data-theme="dark"] .theme-scope .bg-white,
+  html[data-theme="dark"] .theme-scope [class*="bg-white/"] {
+    background-color: var(--dk-card);
+  }
+
+  /* Textes sombres devenus illisibles sur fond sombre */
+  html[data-theme="dark"] .theme-scope .text-slate-800,
+  html[data-theme="dark"] .theme-scope .text-slate-900,
+  html[data-theme="dark"] .theme-scope .text-slate-950,
+  html[data-theme="dark"] .theme-scope .text-black {
+    color: var(--dk-text);
+  }
+
+  /* Textes très clairs posés sur des fonds de couleur : à ne pas assombrir */
+  html[data-theme="dark"] .theme-scope .text-blue-50 { color: #eff6ff; }
+  html[data-theme="dark"] .theme-scope .text-blue-100 { color: #dbeafe; }
+  html[data-theme="dark"] .theme-scope .text-slate-100 { color: #f1f5f9; }
+
+  html[data-theme="dark"] .theme-scope .text-blue-600 { color: var(--color-blue-300); }
+  html[data-theme="dark"] .theme-scope .text-blue-700 { color: var(--color-blue-300); }
+  html[data-theme="dark"] .theme-scope .text-blue-800 { color: var(--color-blue-300); }
+  html[data-theme="dark"] .theme-scope .text-blue-900 { color: var(--color-blue-300); }
+  html[data-theme="dark"] .theme-scope .text-red-600 { color: var(--color-red-300); }
+  html[data-theme="dark"] .theme-scope .text-red-700 { color: var(--color-red-300); }
+  html[data-theme="dark"] .theme-scope .text-red-800 { color: var(--color-red-300); }
+  html[data-theme="dark"] .theme-scope .text-red-900 { color: var(--color-red-300); }
+  html[data-theme="dark"] .theme-scope .text-emerald-600 { color: var(--color-emerald-300); }
+  html[data-theme="dark"] .theme-scope .text-emerald-700 { color: var(--color-emerald-300); }
+  html[data-theme="dark"] .theme-scope .text-emerald-800 { color: var(--color-emerald-300); }
+  html[data-theme="dark"] .theme-scope .text-emerald-900 { color: var(--color-emerald-300); }
+  html[data-theme="dark"] .theme-scope .text-amber-600 { color: var(--color-amber-300); }
+  html[data-theme="dark"] .theme-scope .text-amber-700 { color: var(--color-amber-300); }
+  html[data-theme="dark"] .theme-scope .text-amber-800 { color: var(--color-amber-300); }
+  html[data-theme="dark"] .theme-scope .text-amber-900 { color: var(--color-amber-300); }
+  html[data-theme="dark"] .theme-scope .text-orange-600 { color: var(--color-orange-300); }
+  html[data-theme="dark"] .theme-scope .text-orange-700 { color: var(--color-orange-300); }
+  html[data-theme="dark"] .theme-scope .text-orange-800 { color: var(--color-orange-300); }
+  html[data-theme="dark"] .theme-scope .text-orange-900 { color: var(--color-orange-300); }
+  html[data-theme="dark"] .theme-scope .text-purple-600 { color: var(--color-purple-300); }
+  html[data-theme="dark"] .theme-scope .text-purple-700 { color: var(--color-purple-300); }
+  html[data-theme="dark"] .theme-scope .text-purple-800 { color: var(--color-purple-300); }
+  html[data-theme="dark"] .theme-scope .text-purple-900 { color: var(--color-purple-300); }
+  html[data-theme="dark"] .theme-scope .text-violet-600 { color: var(--color-violet-300); }
+  html[data-theme="dark"] .theme-scope .text-violet-700 { color: var(--color-violet-300); }
+  html[data-theme="dark"] .theme-scope .text-violet-800 { color: var(--color-violet-300); }
+  html[data-theme="dark"] .theme-scope .text-violet-900 { color: var(--color-violet-300); }
+  html[data-theme="dark"] .theme-scope .text-teal-600 { color: var(--color-teal-300); }
+  html[data-theme="dark"] .theme-scope .text-teal-700 { color: var(--color-teal-300); }
+  html[data-theme="dark"] .theme-scope .text-teal-800 { color: var(--color-teal-300); }
+  html[data-theme="dark"] .theme-scope .text-teal-900 { color: var(--color-teal-300); }
+  html[data-theme="dark"] .theme-scope .text-rose-600 { color: var(--color-rose-300); }
+  html[data-theme="dark"] .theme-scope .text-rose-700 { color: var(--color-rose-300); }
+  html[data-theme="dark"] .theme-scope .text-rose-800 { color: var(--color-rose-300); }
+  html[data-theme="dark"] .theme-scope .text-rose-900 { color: var(--color-rose-300); }
+
+  /* Champs de formulaire (classe .form-input de globals.css) */
+  html[data-theme="dark"] .theme-scope .form-input {
+    background: var(--dk-card);
+    border-color: #2a3852;
+    color: var(--dk-text);
+  }
+
+  html[data-theme="dark"] .theme-scope .form-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 4px rgb(59 130 246 / 0.25);
+  }
+
+  html[data-theme="dark"] .theme-scope .form-input::placeholder {
+    color: #6b7a92;
+  }
+
+  html[data-theme="dark"] .theme-scope input,
+  html[data-theme="dark"] .theme-scope textarea,
+  html[data-theme="dark"] .theme-scope select {
+    color-scheme: dark;
+  }
+}

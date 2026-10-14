@@ -74,6 +74,10 @@ export const viewport: Viewport = {
   // (Lighthouse) et empêche les personnes malvoyantes d'agrandir la page.
 };
 
+// Applique le thème mémorisé avant le premier affichage pour éviter un éclair
+// de page claire. Sans effet hors de l'espace pharmacie (voir theme-dark.css).
+const THEME_INIT_SCRIPT = `try{if(localStorage.getItem("mpangi_theme")==="dark"){document.documentElement.dataset.theme="dark"}}catch(e){}`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -84,7 +88,17 @@ export default function RootLayout({
     // html { font-family: var(--font-geist-sans) }. Posées sur <body>, elles
     // n'existaient pas à ce niveau et le navigateur retombait sur sa police
     // par défaut à empattements.
-    <html lang="fr" className={`${geistSans.variable} ${geistMono.variable}`}>
+    // suppressHydrationWarning : le script ci-dessous pose data-theme avant
+    // l'hydratation (choix clair/sombre mémorisé), ce que React verrait sinon
+    // comme une différence avec le HTML serveur.
+    <html
+      lang="fr"
+      className={`${geistSans.variable} ${geistMono.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="antialiased">
         <PwaRegister />
         {children}

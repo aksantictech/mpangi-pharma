@@ -17,6 +17,7 @@ import {
   Menu,
   UploadCloud,
   MoreHorizontal,
+  Search,
   Package,
   ReceiptText,
   Settings,
@@ -32,7 +33,9 @@ import AppLogo from "@/components/branding/AppLogo";
 import PharmacyOpeningStatusBadge from "@/components/pharmacies/PharmacyOpeningStatusBadge";
 import OfflineStatusBar from "@/components/offline/OfflineStatusBar";
 import NotificationsBell from "@/components/layout/NotificationsBell";
+import CommandPalette from "@/components/layout/CommandPalette";
 import ProfileMenu from "@/components/layout/ProfileMenu";
+import ThemeToggle from "@/components/layout/ThemeToggle";
 import {
   canAccessModule,
   canAccessPath,
@@ -228,6 +231,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [pharmacies, setPharmacies] = useState<PharmacyWithRole[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [accessWarning, setAccessWarning] = useState("");
@@ -591,6 +595,20 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
     };
   }, [pathname, router]);
 
+  // Ctrl/Cmd + K : ouvre ou ferme la recherche rapide depuis n'importe quelle page.
+  useEffect(() => {
+    function handleShortcut(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIsSearchOpen((open) => !open);
+      }
+    }
+
+    window.addEventListener("keydown", handleShortcut);
+
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, []);
+
   async function handlePharmacyChange(pharmacyId: string) {
     try {
       await setActivePharmacy(pharmacyId);
@@ -619,7 +637,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="theme-scope min-h-screen bg-slate-50">
       {!isCompactMode && (
         <aside className="fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white">
           <div className="border-b border-slate-100 p-4">
@@ -762,6 +780,8 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
+              <ThemeToggle className="hidden sm:inline-flex" />
+
               <NotificationsBell alerts={alerts} />
 
               <ProfileMenu
@@ -866,6 +886,22 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
                     </p>
                   </div>
                 )}
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    setIsSearchOpen(true);
+                  }}
+                  className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700"
+                >
+                  <Search className="h-5 w-5" />
+                  Rechercher
+                </button>
+
+                <ThemeToggle variant="row" />
               </div>
 
               <div className="mt-5">
@@ -1007,6 +1043,20 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
             </div>
 
             <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsSearchOpen(true)}
+                className="flex min-h-11 w-64 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-left text-sm font-semibold text-slate-400 hover:bg-slate-50"
+              >
+                <Search className="h-4 w-4" />
+                <span className="flex-1">Rechercher…</span>
+                <kbd className="rounded-md border border-slate-200 px-1.5 py-0.5 text-[11px] font-black">
+                  Ctrl K
+                </kbd>
+              </button>
+
+              <ThemeToggle />
+
               <NotificationsBell alerts={alerts} />
 
               <ProfileMenu
@@ -1026,6 +1076,28 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
         <OfflineStatusBar pharmacyId={pharmacy?.id ?? null} />
         {children}
       </div>
+
+      {isSearchOpen && (
+        <CommandPalette
+          pages={visibleNavigationItems.map((item) => ({
+            label: item.label,
+            href: item.href,
+            icon: item.icon,
+          }))}
+          pharmacyId={pharmacy?.id ?? null}
+          canSearchProducts={canAccessModule(
+            pharmacy?.role,
+            "produits",
+            isPlatformAdmin
+          )}
+          canSearchInvoices={canAccessModule(
+            pharmacy?.role,
+            "factures",
+            isPlatformAdmin
+          )}
+          onClose={() => setIsSearchOpen(false)}
+        />
+      )}
     </div>
   );
 }
