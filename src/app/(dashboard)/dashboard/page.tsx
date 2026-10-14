@@ -186,11 +186,15 @@ export default function DashboardPage() {
                 hasAddress: Boolean(
                   currentPharmacy.address && currentPharmacy.phone
                 ),
-                productCount: stockData.length,
-                totalQuantity: stockData.reduce(
-                  (sum, product) => sum + Number(product.total_quantity || 0),
-                  0
-                ),
+                productCount: stockData.filter(
+                  (product) => product.status !== "archived"
+                ).length,
+                totalQuantity: stockData
+                  .filter((product) => product.status !== "archived")
+                  .reduce(
+                    (sum, product) => sum + Number(product.total_quantity || 0),
+                    0
+                  ),
               }).catch(() => null)
             : Promise.resolve(null),
         ]);
@@ -212,14 +216,23 @@ export default function DashboardPage() {
     loadDashboard();
   }, []);
 
-  const totalProducts = products.length;
+  // Les produits archivés sont retirés du catalogue : ils ne comptent ni dans
+  // les indicateurs ni dans les alertes de rupture.
+  const activeProducts = products.filter(
+    (product) => product.status !== "archived"
+  );
 
-  const totalQuantity = products.reduce(
+  const totalProducts = activeProducts.length;
+  const productsInStock = activeProducts.filter(
+    (product) => Number(product.total_quantity || 0) > 0
+  ).length;
+
+  const totalQuantity = activeProducts.reduce(
     (sum, product) => sum + Number(product.total_quantity || 0),
     0
   );
 
-  const lowStockCount = products.filter(
+  const lowStockCount = activeProducts.filter(
     (product) => product.stock_status === "low_stock"
   ).length;
 
@@ -294,7 +307,7 @@ export default function DashboardPage() {
   const showSetup =
     setup !== null && !setupDismissed && doneSteps < setupSteps.length;
 
-  const restockProducts = products
+  const restockProducts = activeProducts
     .filter(
       (product) =>
         product.stock_status === "out_of_stock" ||
@@ -476,7 +489,7 @@ export default function DashboardPage() {
           </section>
         )}
 
-        <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           {trend && (
             <>
               <MetricCard
@@ -508,21 +521,32 @@ export default function DashboardPage() {
             </>
           )}
 
-          {canViewProducts && !trend && (
+          {canViewProducts && (
             <MetricCard
-              title="Produits"
-              value={totalProducts.toString()}
+              title="Produits disponibles"
+              value={totalProducts.toLocaleString("fr-CD")}
               icon={<Package className="h-5 w-5 md:h-6 md:w-6" />}
               tone="blue"
+              footer={
+                <span className="text-xs font-semibold text-slate-400">
+                  dont {productsInStock.toLocaleString("fr-CD")} en stock ·
+                  hors archivés
+                </span>
+              }
             />
           )}
 
-          {canViewStock && !trend && (
+          {canViewStock && (
             <MetricCard
-              title="Quantité en stock"
+              title="Quantité totale en stock"
               value={totalQuantity.toLocaleString("fr-CD")}
               icon={<Boxes className="h-5 w-5 md:h-6 md:w-6" />}
               tone="green"
+              footer={
+                <span className="text-xs font-semibold text-slate-400">
+                  toutes unités confondues
+                </span>
+              }
             />
           )}
 
