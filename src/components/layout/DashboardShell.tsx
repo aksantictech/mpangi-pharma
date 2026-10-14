@@ -13,6 +13,7 @@ import {
   CreditCard,
   Database,
   FileText,
+  LifeBuoy,
   LayoutDashboard,
   LineChart,
   Menu,
@@ -170,6 +171,12 @@ const navigationItems: NavigationItem[] = [
     href: "/parametres",
     module: "parametres",
     icon: Settings,
+  },
+  {
+    label: "Aide",
+    href: "/aide",
+    module: "aide",
+    icon: LifeBuoy,
   },
   {
     label: "Abonnement",

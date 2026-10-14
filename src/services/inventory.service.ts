@@ -4,7 +4,7 @@ import {
   type InventoryMovementInput,
   type InventoryProductInput,
 } from "@/lib/inventory";
-import { getProductStock } from "@/services/products.service";
+import { getProducts, getProductStock } from "@/services/products.service";
 import { getAllActiveBatches } from "@/services/stock.service";
 
 const PAGE_SIZE = 1000;
@@ -49,14 +49,25 @@ export async function getMovementsSince(
   );
 }
 
-/** Produits avec leurs lots actifs, prêts pour buildInventoryLines. */
+/**
+ * Produits avec leurs lots actifs, prêts pour buildInventoryLines.
+ *
+ * La vue v_product_stock ne porte que la quantité (pas la catégorie, le
+ * fournisseur ni l'ordonnance) : la fiche produit vient de la table products
+ * et la quantité de la vue, comme sur la page Produits.
+ */
 export async function getInventoryProducts(
   pharmacyId: string
 ): Promise<InventoryProductInput[]> {
-  const [stock, batches] = await Promise.all([
+  const [products, stock, batches] = await Promise.all([
+    getProducts(pharmacyId),
     getProductStock(pharmacyId),
     getAllActiveBatches(pharmacyId),
   ]);
+
+  const quantityByProduct = new Map(
+    stock.map((row) => [row.product_id, Number(row.total_quantity || 0)])
+  );
 
   const batchesByProduct = new Map<string, InventoryProductInput["batches"]>();
 
@@ -73,20 +84,20 @@ export async function getInventoryProducts(
     batchesByProduct.set(batch.product_id, list);
   }
 
-  return stock.map((row) => ({
-    productId: row.product_id,
-    name: row.name,
-    genericName: row.generic_name,
-    dosage: row.dosage,
-    form: row.form,
-    unit: row.unit,
-    categoryId: row.category_id ?? null,
-    categoryName: row.category_name ?? null,
-    supplierName: row.supplier_name ?? null,
-    minStock: Number(row.min_stock || 0),
-    requiresPrescription: Boolean(row.requires_prescription),
-    status: row.status,
-    currentQuantity: Number(row.total_quantity || 0),
-    batches: batchesByProduct.get(row.product_id) ?? [],
+  return products.map((product) => ({
+    productId: product.id,
+    name: product.name,
+    genericName: product.generic_name,
+    dosage: product.dosage,
+    form: product.form,
+    unit: product.unit,
+    categoryId: product.category_id,
+    categoryName: product.category?.name ?? null,
+    supplierName: product.supplier?.name ?? null,
+    minStock: Number(product.min_stock || 0),
+    requiresPrescription: Boolean(product.requires_prescription),
+    status: product.status,
+    currentQuantity: quantityByProduct.get(product.id) ?? 0,
+    batches: batchesByProduct.get(product.id) ?? [],
   }));
 }

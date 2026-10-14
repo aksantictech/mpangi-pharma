@@ -22,7 +22,8 @@ export type AppModule =
   | "compte"
   | "abonnement"
   | "trousse"
-  | "inventaire";
+  | "inventaire"
+  | "aide";
 
 const allRoles: PharmacyRole[] = [
   "owner",
@@ -83,6 +84,9 @@ const modulePermissions: Record<AppModule, PharmacyRole[]> = {
   // Inventaire (situation du stock, valorisation, impression) : réservé à la
   // direction et au pharmacien, qui engagent la responsabilité du stock.
   inventaire: ["owner", "manager", "pharmacist"],
+
+  // Guides pratiques : utiles à tous les rôles.
+  aide: allRoles,
 };
 
 export function normalizeRole(role?: string | null): PharmacyRole | null {
@@ -178,6 +182,10 @@ export function getModuleFromPath(pathname: string): AppModule | null {
 
   if (pathname === "/inventaire" || pathname.startsWith("/inventaire/")) {
     return "inventaire";
+  }
+
+  if (pathname === "/aide" || pathname.startsWith("/aide/")) {
+    return "aide";
   }
 
   return null;

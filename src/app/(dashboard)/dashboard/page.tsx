@@ -13,6 +13,7 @@ import {
   Check,
   Circle,
   FileText,
+  LifeBuoy,
   LineChart,
   Package,
   Receipt,
@@ -275,6 +276,7 @@ export default function DashboardPage() {
     { href: "/expirations", module: "expirations", icon: <CalendarClock className={icon} />, title: "Expirations" },
     { href: "/trousse", module: "trousse", icon: <BriefcaseMedical className={icon} />, title: KIT_MODULE_LABEL },
     { href: "/finances", module: "finances", icon: <LineChart className={icon} />, title: "Finances" },
+    { href: "/aide", module: "aide", icon: <LifeBuoy className={icon} />, title: "Aide" },
   ];
 
   const quickActions = allQuickActions.filter((item) =>
@@ -462,7 +464,7 @@ export default function DashboardPage() {
         )}
 
         {quickActions.length > 0 && (
-          <section className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+          <section className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
             {quickActions.map((item) => (
               <QuickActionLink
                 key={item.href}

@@ -259,6 +259,11 @@ function waitForImages(doc: Document, timeoutMs = 4000) {
 
 /** Ouvre la boîte d'impression du navigateur pour le rapport donné. */
 export async function printReport(options: ReportOptions): Promise<void> {
+  await printHtmlDocument(buildReportHtml(options));
+}
+
+/** Imprime un document HTML complet via un iframe isolé (sans les styles de l'application). */
+export async function printHtmlDocument(html: string): Promise<void> {
   const iframe = document.createElement("iframe");
 
   iframe.setAttribute("aria-hidden", "true");
@@ -282,7 +287,7 @@ export async function printReport(options: ReportOptions): Promise<void> {
   }
 
   printDocument.open();
-  printDocument.write(buildReportHtml(options));
+  printDocument.write(html);
   printDocument.close();
 
   await waitForImages(printDocument);
