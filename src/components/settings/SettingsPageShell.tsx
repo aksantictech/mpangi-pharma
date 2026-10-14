@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingBlocks } from "@/components/ui/PageLoading";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft, type LucideIcon } from "lucide-react";
@@ -85,8 +86,9 @@ export default function SettingsPageShell({
         </header>
 
         {isLoading && (
-          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500">
-            Chargement...
+          <div role="status" aria-busy="true">
+            <span className="sr-only">Chargement...</span>
+            <LoadingBlocks variant="detail" />
           </div>
         )}
 

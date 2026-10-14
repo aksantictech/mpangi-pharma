@@ -1,10 +1,10 @@
 "use client";
 
+import { useSuccessToast } from "@/components/ui/Toast";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   Building2,
   Check,
-  CheckCircle2,
   Landmark,
   Lock,
   Pencil,
@@ -79,7 +79,8 @@ function PaymentMethodsManager({ pharmacy }: { pharmacy: PharmacyWithRole }) {
   const [isSaving, setIsSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  // Succès : notification éphémère (voir components/ui/Toast) plutôt qu'un bandeau.
+  const setSuccessMessage = useSuccessToast();
 
   const load = useCallback(async () => {
     try {
@@ -176,13 +177,6 @@ function PaymentMethodsManager({ pharmacy }: { pharmacy: PharmacyWithRole }) {
       {errorMessage && (
         <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
           {errorMessage}
-        </div>
-      )}
-
-      {successMessage && (
-        <div className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
-          <CheckCircle2 className="h-5 w-5 shrink-0" />
-          {successMessage}
         </div>
       )}
 

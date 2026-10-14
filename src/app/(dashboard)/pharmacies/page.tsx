@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingBlocks } from "@/components/ui/PageLoading";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   BadgeDollarSign,
@@ -297,11 +298,10 @@ export default function PharmaciesPage() {
         )}
 
         {isLoading ? (
-          <section className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm md:rounded-[2rem] md:p-8">
-            <p className="font-semibold text-slate-500">
-              Chargement des pharmacies...
-            </p>
-          </section>
+          <div role="status" aria-busy="true">
+            <span className="sr-only">Chargement des pharmacies...</span>
+            <LoadingBlocks variant="list" />
+          </div>
         ) : !hasPharmacies ? (
           <section className="rounded-[1.5rem] border border-blue-100 bg-blue-50 p-5 md:rounded-[2rem] md:p-8">
             <div className="flex flex-col items-start gap-4 md:flex-row md:items-center md:gap-5">

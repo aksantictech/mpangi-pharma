@@ -1,9 +1,9 @@
 "use client";
 
+import { useSuccessToast } from "@/components/ui/Toast";
 import { useState } from "react";
 import {
   Ban,
-  CheckCircle2,
   Eye,
   Pencil,
   RefreshCcw,
@@ -60,7 +60,8 @@ export default function ProductBatchesDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  // Succès : notification éphémère (voir components/ui/Toast) plutôt qu'un bandeau.
+  const setSuccessMessage = useSuccessToast();
 
   async function loadData() {
     setIsLoading(true);
@@ -254,13 +255,6 @@ export default function ProductBatchesDialog({
             {errorMessage && (
               <div className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
                 {errorMessage}
-              </div>
-            )}
-
-            {successMessage && (
-              <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
-                {successMessage}
               </div>
             )}
 

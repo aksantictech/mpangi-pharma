@@ -1,5 +1,7 @@
 "use client";
 
+import { useSuccessToast } from "@/components/ui/Toast";
+import PageLoading from "@/components/ui/PageLoading";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   Banknote,
@@ -62,7 +64,8 @@ export default function AbonnementPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  // Succès : notification éphémère (voir components/ui/Toast) plutôt qu'un bandeau.
+  const setSuccessMessage = useSuccessToast();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [method, setMethod] = useState<SubscriptionPaymentMethod>("mobile_money");
@@ -148,15 +151,7 @@ export default function AbonnementPage() {
   }
 
   if (isLoading) {
-    return (
-      <main className="min-h-screen bg-slate-50 p-3 md:p-6">
-        <div className="mx-auto max-w-5xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="font-semibold text-slate-500">
-            Chargement de l’abonnement...
-          </p>
-        </div>
-      </main>
-    );
+    return <PageLoading label="Chargement de l’abonnement..." variant="cards" />;
   }
 
   if (!pharmacy) {
@@ -207,13 +202,6 @@ export default function AbonnementPage() {
         {errorMessage && (
           <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
             {errorMessage}
-          </div>
-        )}
-
-        {successMessage && (
-          <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
-            <CheckCircle2 className="h-5 w-5 shrink-0" />
-            {successMessage}
           </div>
         )}
 

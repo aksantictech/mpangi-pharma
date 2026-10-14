@@ -2,12 +2,13 @@
 
 "use client";
 
+import PageLoading from "@/components/ui/PageLoading";
+import { useSuccessToast } from "@/components/ui/Toast";
 import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
   Building2,
-  CheckCircle2,
   ImagePlus,
   RefreshCcw,
   Save,
@@ -99,7 +100,8 @@ export default function GeneralSettingsPage() {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  // Succès : notification éphémère (voir components/ui/Toast) plutôt qu'un bandeau.
+  const setSuccessMessage = useSuccessToast();
 
   async function loadData() {
     setIsLoading(true);
@@ -385,12 +387,6 @@ export default function GeneralSettingsPage() {
         </header>
 
         {errorMessage && <Message tone="error">{errorMessage}</Message>}
-        {successMessage && (
-          <Message tone="success">
-            <CheckCircle2 className="h-5 w-5 shrink-0" />
-            {successMessage}
-          </Message>
-        )}
 
         {!canEdit && (
           <Message tone="warning">
@@ -780,13 +776,7 @@ export default function GeneralSettingsPage() {
 }
 
 function LoadingState({ label }: { label: string }) {
-  return (
-    <main className="min-h-screen bg-slate-50 p-3 md:p-6">
-      <div className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-        <p className="font-semibold text-slate-500">{label}</p>
-      </div>
-    </main>
-  );
+  return <PageLoading label={label} variant="detail" />;
 }
 
 function EmptyState({

@@ -1,11 +1,12 @@
 "use client";
 
+import { useSuccessToast } from "@/components/ui/Toast";
+import PageLoading from "@/components/ui/PageLoading";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   AlertTriangle,
   Boxes,
   CalendarClock,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -129,7 +130,8 @@ export default function StockPage() {
     useState<CorrectionFormState>(initialCorrectionForm);
 
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  // Succès : notification éphémère (voir components/ui/Toast) plutôt qu'un bandeau.
+  const setSuccessMessage = useSuccessToast();
 
   async function loadData() {
     setIsLoading(true);
@@ -569,13 +571,7 @@ export default function StockPage() {
   }
 
   if (isLoading) {
-    return (
-      <main className="min-h-screen bg-slate-50 p-3 md:p-6">
-        <div className="mx-auto max-w-7xl rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm md:rounded-[2rem] md:p-8">
-          <p className="font-semibold text-slate-500">Chargement du stock...</p>
-        </div>
-      </main>
-    );
+    return <PageLoading label="Chargement du stock..." variant="list" />;
   }
 
   if (!pharmacy) {
@@ -639,13 +635,6 @@ export default function StockPage() {
           <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
             {errorMessage}
-          </div>
-        )}
-
-        {successMessage && (
-          <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
-            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
-            {successMessage}
           </div>
         )}
 

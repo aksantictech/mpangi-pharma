@@ -1,5 +1,6 @@
 "use client";
 
+import PageLoading from "@/components/ui/PageLoading";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -143,15 +144,7 @@ export default function VatReportPage() {
   }
 
   if (isLoading) {
-    return (
-      <main className="min-h-screen bg-slate-50 p-3 md:p-6">
-        <div className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="font-semibold text-slate-500">
-            Chargement du rapport TVA...
-          </p>
-        </div>
-      </main>
-    );
+    return <PageLoading label="Chargement du rapport TVA..." variant="cards" />;
   }
 
   if (!pharmacy) {

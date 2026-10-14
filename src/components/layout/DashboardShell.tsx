@@ -36,6 +36,7 @@ import NotificationsBell from "@/components/layout/NotificationsBell";
 import CommandPalette from "@/components/layout/CommandPalette";
 import ProfileMenu from "@/components/layout/ProfileMenu";
 import ThemeToggle from "@/components/layout/ThemeToggle";
+import { ToastProvider } from "@/components/ui/Toast";
 import {
   canAccessModule,
   canAccessPath,
@@ -637,6 +638,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   }
 
   return (
+    <ToastProvider>
     <div className="theme-scope min-h-screen bg-slate-50">
       {!isCompactMode && (
         <aside className="fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white">
@@ -1099,6 +1101,7 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
         />
       )}
     </div>
+    </ToastProvider>
   );
 }
 

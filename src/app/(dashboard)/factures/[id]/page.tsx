@@ -1,5 +1,6 @@
 "use client";
 
+import PageLoading from "@/components/ui/PageLoading";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -367,15 +368,7 @@ export default function InvoiceDetailsPage() {
 }
 
   if (isLoading) {
-    return (
-      <main className="min-h-screen bg-slate-50 p-3 md:p-6">
-        <div className="mx-auto max-w-5xl rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm md:rounded-[2rem] md:p-8">
-          <p className="font-semibold text-slate-500">
-            Chargement de la facture...
-          </p>
-        </div>
-      </main>
-    );
+    return <PageLoading label="Chargement de la facture..." variant="detail" />;
   }
 
   if (!pharmacy || !invoice) {

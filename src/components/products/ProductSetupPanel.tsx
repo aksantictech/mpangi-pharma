@@ -1,5 +1,6 @@
 "use client";
 
+import { useSuccessToast } from "@/components/ui/Toast";
 import { useEffect, useState } from "react";
 import {
   Archive,
@@ -98,7 +99,8 @@ export default function ProductSetupPanel({
   const [changingId, setChangingId] = useState<string | null>(null);
 
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  // Succès : notification éphémère (voir components/ui/Toast) plutôt qu'un bandeau.
+  const setSuccessMessage = useSuccessToast();
 
   async function loadData() {
     setIsLoading(true);
@@ -502,13 +504,6 @@ export default function ProductSetupPanel({
       {errorMessage && (
         <div className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
           {errorMessage}
-        </div>
-      )}
-
-      {successMessage && (
-        <div className="mb-5 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
-          <Check className="h-5 w-5" />
-          {successMessage}
         </div>
       )}
 

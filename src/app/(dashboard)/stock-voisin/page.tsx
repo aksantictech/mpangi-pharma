@@ -1,9 +1,9 @@
 "use client";
 
+import { useSuccessToast } from "@/components/ui/Toast";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
-  CheckCircle2,
   ChevronDown,
   ChevronUp,
   MapPin,
@@ -58,7 +58,8 @@ export default function NeighborStockPage() {
   const [requestingId, setRequestingId] = useState("");
 
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  // Succès : notification éphémère (voir components/ui/Toast) plutôt qu'un bandeau.
+  const setSuccessMessage = useSuccessToast();
 
   const selectedProduct = useMemo(
     () => products.find((product) => product.id === selectedProductId) ?? null,
@@ -265,12 +266,6 @@ export default function NeighborStockPage() {
         {errorMessage && (
           <Notice tone="error" icon={<AlertTriangle className="h-5 w-5" />}>
             {errorMessage}
-          </Notice>
-        )}
-
-        {successMessage && (
-          <Notice tone="success" icon={<CheckCircle2 className="h-5 w-5" />}>
-            {successMessage}
           </Notice>
         )}
 

@@ -1,10 +1,11 @@
  "use client";
 
+import { useSuccessToast } from "@/components/ui/Toast";
+import PageLoading from "@/components/ui/PageLoading";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   ArrowLeft,
-  CheckCircle2,
   RefreshCcw,
   UserPlus,
   Users,
@@ -54,7 +55,8 @@ export default function UsersSettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [changingId, setChangingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  // Succès : notification éphémère (voir components/ui/Toast) plutôt qu'un bandeau.
+  const setSuccessMessage = useSuccessToast();
 
   async function loadData() {
     setIsLoading(true);
@@ -209,15 +211,7 @@ export default function UsersSettingsPage() {
   }
 
   if (isLoading) {
-    return (
-      <main className="min-h-screen bg-slate-50 p-3 md:p-6">
-        <div className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-          <p className="font-semibold text-slate-500">
-            Chargement des utilisateurs...
-          </p>
-        </div>
-      </main>
-    );
+    return <PageLoading label="Chargement des utilisateurs..." variant="list" />;
   }
 
   if (!pharmacy) {
@@ -284,13 +278,6 @@ export default function UsersSettingsPage() {
         {errorMessage && (
           <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
             {errorMessage}
-          </div>
-        )}
-
-        {successMessage && (
-          <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
-            <CheckCircle2 className="h-5 w-5 shrink-0" />
-            {successMessage}
           </div>
         )}
 
