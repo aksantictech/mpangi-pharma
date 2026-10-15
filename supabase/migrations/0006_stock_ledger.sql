@@ -42,27 +42,11 @@ as $$
 $$;
 
 -- 1. Rattrapage ---------------------------------------------------------
-
-create temporary table _ledger_gaps on commit drop as
-select
-  b.id as batch_id,
-  b.pharmacy_id,
-  b.product_id,
-  b.purchase_price,
-  b.selling_price,
-  b.created_at,
-  b.updated_at,
-  b.quantity_available - coalesce(m.net, 0) as diff,
-  coalesce(m.has_entry, false) as has_entry
-from public.product_batches b
-left join lateral (
-  select
-    sum(public.stock_movement_effect(sm.movement_type::text, sm.quantity)) as net,
-    bool_or(sm.movement_type::text = 'supplier_entry') as has_entry
-  from public.stock_movements sm
-  where sm.batch_id = b.id
-) m on true
-where b.quantity_available - coalesce(m.net, 0) <> 0;
+--
+-- Trois requêtes indépendantes, chacune recalcule les écarts (pas de table
+-- temporaire : l'éditeur SQL de Supabase exécute les instructions une par une
+-- et la détruirait). Les cas sont disjoints et chaque requête corrige ce
+-- qu'elle insère : relancer le script n'ajoute rien.
 
 -- Stock entré sans mouvement d'entrée : entrée à la date de création du lot.
 insert into public.stock_movements (
@@ -73,7 +57,21 @@ select
   g.pharmacy_id, g.product_id, g.batch_id, 'supplier_entry', g.diff,
   g.purchase_price, g.selling_price, 'ledger_backfill',
   'Entrée de stock (mouvement régularisé)', null, g.created_at
-from _ledger_gaps g
+from (
+  select
+    b.id as batch_id, b.pharmacy_id, b.product_id, b.purchase_price,
+    b.selling_price, b.created_at, b.updated_at,
+    b.quantity_available - coalesce(m.net, 0) as diff,
+    coalesce(m.has_entry, false) as has_entry
+  from public.product_batches b
+  left join lateral (
+    select
+      sum(public.stock_movement_effect(sm.movement_type::text, sm.quantity)) as net,
+      bool_or(sm.movement_type::text = 'supplier_entry') as has_entry
+    from public.stock_movements sm
+    where sm.batch_id = b.id
+  ) m on true
+) g
 where g.diff > 0 and not g.has_entry;
 
 -- Quantité ajoutée plus tard sans mouvement.
@@ -85,7 +83,21 @@ select
   g.pharmacy_id, g.product_id, g.batch_id, 'adjustment_in', g.diff,
   g.purchase_price, g.selling_price, 'ledger_backfill',
   'Correction de quantité (mouvement régularisé)', null, g.updated_at
-from _ledger_gaps g
+from (
+  select
+    b.id as batch_id, b.pharmacy_id, b.product_id, b.purchase_price,
+    b.selling_price, b.created_at, b.updated_at,
+    b.quantity_available - coalesce(m.net, 0) as diff,
+    coalesce(m.has_entry, false) as has_entry
+  from public.product_batches b
+  left join lateral (
+    select
+      sum(public.stock_movement_effect(sm.movement_type::text, sm.quantity)) as net,
+      bool_or(sm.movement_type::text = 'supplier_entry') as has_entry
+    from public.stock_movements sm
+    where sm.batch_id = b.id
+  ) m on true
+) g
 where g.diff > 0 and g.has_entry;
 
 -- Quantité retirée sans mouvement (correction ou retrait de lot).
@@ -97,7 +109,19 @@ select
   g.pharmacy_id, g.product_id, g.batch_id, 'adjustment_out', abs(g.diff),
   g.purchase_price, g.selling_price, 'ledger_backfill',
   'Retrait de quantité (mouvement régularisé)', null, g.updated_at
-from _ledger_gaps g
+from (
+  select
+    b.id as batch_id, b.pharmacy_id, b.product_id, b.purchase_price,
+    b.selling_price, b.created_at, b.updated_at,
+    b.quantity_available - coalesce(m.net, 0) as diff
+  from public.product_batches b
+  left join lateral (
+    select
+      sum(public.stock_movement_effect(sm.movement_type::text, sm.quantity)) as net
+    from public.stock_movements sm
+    where sm.batch_id = b.id
+  ) m on true
+) g
 where g.diff < 0;
 
 -- 2. Garde-fou ----------------------------------------------------------
