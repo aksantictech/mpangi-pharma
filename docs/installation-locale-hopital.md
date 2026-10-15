@@ -2,6 +2,29 @@
 
 *Mpangi Pharma — dossier technique. Date : 14 octobre 2026.*
 
+## Mise à jour du 15 octobre 2026 — vos réponses et la phase 1
+
+**Vos réponses.** Coupures de plusieurs heures ; hors-ligne : ventes, consultation des produits et du stock ; **un seul poste** ; **pas de personnel de maintenance**, un simple portable.
+
+**Recommandation révisée : l'option A (poste renforcé), pas le serveur local.** Un serveur local complet demande des sauvegardes, des mises à jour et un dépannage que personne ne pourra assurer sur place, et la réplication à double sens ne se justifie que si plusieurs machines écrivent en même temps. Ici une seule machine travaille hors-ligne et les téléphones restent en ligne. L'option B (chapitres 4 à 7) reste valable pour une évolution future.
+
+**Phase 1 — résultats de l'audit de la base en ligne.**
+
+1. **Numéros de facture : rien à changer.** Ils ont déjà la forme `PRÉFIXE-AAAAMMJJHHMMSS-XXXX` (date, heure et suffixe aléatoire), par exemple `FAC-20260701054458-83A8`. Les 20 factures existantes n'ont aucun doublon, et deux appareils ne peuvent pas produire le même numéro. Le préfixe propre à un nœud prévu au chapitre 7 est donc inutile ici.
+2. **Mouvements de stock manquants : défaut réel, corrigé par la migration `0006_stock_ledger.sql`.** Sur 40 lots, 3 n'étaient pas couverts par leurs mouvements. Cause établie grâce au journal d'audit : les fonctions **« Ajouter un lot / Entrée stock »** et **« Corriger quantité »** modifient les lots sans écrire de mouvement. L'historique des mouvements n'a donc jamais montré les réceptions faites après la création d'un produit, ni les corrections.
+   - La migration **rattrape** les 3 mouvements manquants (un par lot, à la bonne date) ;
+   - elle installe un **garde-fou en base** : à la fin de chaque opération, si un lot n'est pas couvert par ses mouvements, un mouvement de régularisation est ajouté (entrée, ajustement + ou -), avec l'utilisateur qui a agi ;
+   - le garde-fou ne réécrit aucune fonction existante et **ne peut pas faire échouer** une opération de stock (toute erreur devient un avertissement).
+   - **Test** : 7 scénarios sur une base PostgreSQL jetable (rattrapage exact et répétable, lot ajouté sans mouvement, correction vers le bas et vers le haut, vente correcte non dupliquée, entrée correcte non dupliquée, lot supprimé, panne interne du garde-fou). Elle n'a **pas encore été exécutée sur la base en ligne** : c'est la prochaine étape, avec une vérification en lecture seule ensuite.
+3. **Pourquoi c'est la bonne base de départ** : l'inventaire par période, la fiabilité du stock hors-ligne et toute synchronisation future exigent que *stock du lot = somme de ses mouvements*.
+
+**Prochaines étapes de l'option A** (environ 2 à 3 semaines, indicatif) :
+- démarrage de l'application **sans internet** (mise en cache de l'application dans le navigateur) ;
+- copie locale des **produits, lots et stock** pour les consulter hors-ligne, avec la date de dernière mise à jour affichée ;
+- ventes hors-ligne (existantes) rendues plus sûres : plus d'effacement à la déconnexion tant que des ventes attendent, avertissement avant fermeture ;
+- indicateur clair « en ligne / hors-ligne / synchronisation en cours / n ventes en attente », et procédure écrite de reprise après coupure ;
+- tests de coupure sur le portable réel.
+
 ## 1. En bref
 
 **Le besoin.** La machine de la pharmacie de l'hôpital doit fonctionner même sans internet, avec toutes ses données en local. Dès que la connexion revient, elle se synchronise avec le serveur en ligne, dans les deux sens. Pendant ce temps, les téléphones connectés à internet utilisent directement le serveur en ligne.
