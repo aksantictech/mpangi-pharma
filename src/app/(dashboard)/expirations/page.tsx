@@ -1,5 +1,6 @@
 "use client";
 
+import { isReadOnlyRole } from "@/lib/account-type";
 import { formatDisplayMoney, useDisplayCurrency } from "@/lib/currency";
 import { useSuccessToast } from "@/components/ui/Toast";
 import PageLoading from "@/components/ui/PageLoading";
@@ -41,6 +42,8 @@ export default function ExpirationsPage() {
   // Re-rendu quand la devise d'affichage (CDF/USD/EUR) change.
   useDisplayCurrency();
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
+  // Compte de consultation (propriétaire réseau) : aucune action de modification.
+  const readOnly = isReadOnlyRole(pharmacy?.role);
   const [alerts, setAlerts] = useState<ExpirationAlert[]>([]);
 
   const [search, setSearch] = useState("");
@@ -334,6 +337,7 @@ export default function ExpirationsPage() {
               mobileAlerts.map((alert) => (
                 <MobileExpirationCard
                   key={alert.batch_id}
+                  readOnly={readOnly}
                   alert={alert}
                   isRemoving={isRemoving === alert.batch_id}
                   onRemove={() => handleRemoveBatch(alert)}
@@ -425,6 +429,7 @@ export default function ExpirationsPage() {
                         </td>
 
                         <td className="px-5 py-4">
+                          {readOnly ? null : (
                           <div className="flex flex-wrap gap-2">
                             <Link
                               href="/stock"
@@ -445,6 +450,7 @@ export default function ExpirationsPage() {
                                 : "Retirer"}
                             </button>
                           </div>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -460,10 +466,13 @@ export default function ExpirationsPage() {
 }
 
 function MobileExpirationCard({
+  readOnly,
   alert,
   isRemoving,
   onRemove,
 }: {
+  /** Compte de consultation : pas d'action sur les lots. */
+  readOnly: boolean;
   alert: ExpirationAlert;
   isRemoving: boolean;
   onRemove: () => void;
@@ -513,6 +522,7 @@ function MobileExpirationCard({
         />
       </div>
 
+      {!readOnly && (
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Link
           href="/stock"
@@ -531,6 +541,7 @@ function MobileExpirationCard({
           {isRemoving ? "Retrait..." : "Retirer"}
         </button>
       </div>
+      )}
     </article>
   );
 }

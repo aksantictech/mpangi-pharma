@@ -1,5 +1,6 @@
 "use client";
 
+import { isReadOnlyRole } from "@/lib/account-type";
 import { formatDisplayMoney, useDisplayCurrency } from "@/lib/currency";
 import { useSuccessToast } from "@/components/ui/Toast";
 import PageLoading from "@/components/ui/PageLoading";
@@ -107,6 +108,8 @@ export default function FinancesPage() {
   const defaultRange = useMemo(() => getCurrentMonthRange(), []);
 
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
+  // Compte de consultation (propriétaire réseau) : aucune action de modification.
+  const readOnly = isReadOnlyRole(pharmacy?.role);
   const [summary, setSummary] = useState<FinanceSummary>(emptySummary);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -482,14 +485,16 @@ export default function FinancesPage() {
   <FileText className="h-5 w-5" />
   Rapport TVA
 </Link>
-              <button
-                type="button"
-                onClick={() => setIsDialogOpen(true)}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-100 hover:bg-blue-800 md:self-end"
-              >
-                <Plus className="h-5 w-5" />
-                Ajouter dépense
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => setIsDialogOpen(true)}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-100 hover:bg-blue-800 md:self-end"
+                >
+                  <Plus className="h-5 w-5" />
+                  Ajouter dépense
+                </button>
+              )}
             </div>
           </div>
         </header>
@@ -806,14 +811,16 @@ export default function FinancesPage() {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsDialogOpen(true)}
-              className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 md:inline-flex"
-            >
-              <Plus className="h-5 w-5" />
-              Nouvelle dépense
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() => setIsDialogOpen(true)}
+                className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 md:inline-flex"
+              >
+                <Plus className="h-5 w-5" />
+                Nouvelle dépense
+              </button>
+            )}
           </div>
 
           <div className="space-y-2 xl:hidden">

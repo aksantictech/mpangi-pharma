@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   LineChart,
   Menu,
+  Network,
   UploadCloud,
   MoreHorizontal,
   Search,
@@ -98,6 +99,12 @@ const navigationItems: NavigationItem[] = [
     href: "/dashboard",
     module: "dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    label: "Vue réseau",
+    href: "/reseau",
+    module: "reseau",
+    icon: Network,
   },
   {
     label: "Pharmacies",
@@ -342,8 +349,11 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   );
   const [isSubscriptionLoaded, setIsSubscriptionLoaded] = useState(false);
 
-  const visibleNavigationItems = navigationItems.filter((item) =>
-    canAccessModule(pharmacy?.role, item.module, isPlatformAdmin)
+  const visibleNavigationItems = navigationItems.filter(
+    (item) =>
+      canAccessModule(pharmacy?.role, item.module, isPlatformAdmin) &&
+      // La vue réseau n'a de sens qu'avec au moins deux pharmacies.
+      (item.href !== "/reseau" || pharmacies.length > 1)
   );
 
   // Abonnement et Mon compte restent dans visibleNavigationItems (titre de
@@ -1383,6 +1393,7 @@ function shortMobileLabel(label: string) {
 
 function formatRole(role?: string | null) {
   const labels: Record<string, string> = {
+    network_owner: "Propriétaire réseau",
     owner: "Propriétaire",
     manager: "Gérant",
     pharmacist: "Pharmacien",

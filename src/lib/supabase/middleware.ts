@@ -24,6 +24,7 @@ const protectedRoutes = [
   "/synchronisation",
   "/abonnement",
   "/stock-voisin",
+  "/reseau",
 ];
 
 const authRoutes = ["/connexion", "/inscription"];

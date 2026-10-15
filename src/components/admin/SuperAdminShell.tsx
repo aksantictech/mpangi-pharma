@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Network,
   ShieldCheck,
   Store,
   X,
@@ -38,6 +39,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/admin", label: "Vue d’ensemble", icon: LayoutDashboard },
   { href: "/admin/pharmacies", label: "Pharmacies", icon: Building2 },
+  { href: "/admin/reseaux", label: "Comptes réseau", icon: Network },
   { href: "/admin/abonnements", label: "Abonnements", icon: CreditCard },
   {
     href: "/admin/catalogue-produits",

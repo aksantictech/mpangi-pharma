@@ -1,4 +1,5 @@
 export type PharmacyRole =
+  | "network_owner"
   | "owner"
   | "manager"
   | "pharmacist"
@@ -23,7 +24,8 @@ export type AppModule =
   | "abonnement"
   | "trousse"
   | "inventaire"
-  | "aide";
+  | "aide"
+  | "reseau";
 
 const allRoles: PharmacyRole[] = [
   "owner",
@@ -34,12 +36,19 @@ const allRoles: PharmacyRole[] = [
   "accountant",
 ];
 
+// Propriétaire réseau (voir lib/account-type.ts) : supervision en consultation.
+const withNetworkOwner: PharmacyRole[] = [...allRoles, "network_owner"];
+
 const modulePermissions: Record<AppModule, PharmacyRole[]> = {
-  dashboard: allRoles,
+  dashboard: withNetworkOwner,
 
   pharmacies: ["owner", "manager"],
 
-  produits: ["owner", "manager", "pharmacist", "stock_manager"],
+  // Vue d'ensemble de plusieurs pharmacies (l'entrée de menu n'apparaît que
+  // si la personne en a au moins deux).
+  reseau: ["owner", "manager", "network_owner"],
+
+  produits: ["owner", "manager", "pharmacist", "stock_manager", "network_owner"],
 
   stock: ["owner", "manager", "pharmacist", "stock_manager"],
 
@@ -55,9 +64,9 @@ const modulePermissions: Record<AppModule, PharmacyRole[]> = {
     "stock_manager",
   ],
 
-  expirations: ["owner", "manager", "pharmacist", "stock_manager"],
+  expirations: ["owner", "manager", "pharmacist", "stock_manager", "network_owner"],
 
-  finances: ["owner", "manager", "accountant"],
+  finances: ["owner", "manager", "accountant", "network_owner"],
 
   // Les paramètres de la pharmacie sont réservés au propriétaire
   // et au gérant. Le super administrateur passe par le bypass
@@ -69,12 +78,12 @@ const modulePermissions: Record<AppModule, PharmacyRole[]> = {
 
   sauvegardes: [],
 
-  compte: allRoles,
+  compte: withNetworkOwner,
 
   // Tout le monde doit pouvoir voir l'état de l'abonnement (jours
   // restants, blocage) ; seuls owner/manager peuvent déclarer un paiement
   // (imposé côté RLS, voir subscription_payments_insert_by_owners_managers).
-  abonnement: allRoles,
+  abonnement: withNetworkOwner,
 
   // Trousse de secours (réquisitions pendant les gardes) : ouverte à tous les
   // rôles, car chaque membre de l'équipe de garde peut avoir à enregistrer un
@@ -83,16 +92,17 @@ const modulePermissions: Record<AppModule, PharmacyRole[]> = {
 
   // Inventaire (situation du stock, valorisation, impression) : réservé à la
   // direction et au pharmacien, qui engagent la responsabilité du stock.
-  inventaire: ["owner", "manager", "pharmacist"],
+  inventaire: ["owner", "manager", "pharmacist", "network_owner"],
 
   // Guides pratiques : utiles à tous les rôles.
-  aide: allRoles,
+  aide: withNetworkOwner,
 };
 
 export function normalizeRole(role?: string | null): PharmacyRole | null {
   if (!role) return null;
 
   if (
+    role === "network_owner" ||
     role === "owner" ||
     role === "manager" ||
     role === "pharmacist" ||
@@ -186,6 +196,10 @@ export function getModuleFromPath(pathname: string): AppModule | null {
 
   if (pathname === "/aide" || pathname.startsWith("/aide/")) {
     return "aide";
+  }
+
+  if (pathname === "/reseau" || pathname.startsWith("/reseau/")) {
+    return "reseau";
   }
 
   return null;

@@ -23,6 +23,7 @@ import {
 
 import AddBatchDialog from "@/components/products/AddBatchDialog";
 import AddProductDialog from "@/components/products/AddProductDialog";
+import { isReadOnlyRole } from "@/lib/account-type";
 import EditProductDialog from "@/components/products/EditProductDialog";
 import ExpirationBadge from "@/components/products/ExpirationBadge";
 import ProductBatchesDialog from "@/components/products/ProductBatchesDialog";
@@ -72,6 +73,7 @@ export default function ProductsPage() {
 function ProductsContent() {
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [products, setProducts] = useState<ProductListItem[]>([]);
+  const readOnly = isReadOnlyRole(pharmacy?.role);
   const [expirationAlerts, setExpirationAlerts] = useState<ExpirationAlert[]>(
     []
   );
@@ -467,14 +469,16 @@ function ProductsContent() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:flex xl:items-center xl:justify-end">
-              <ProductExcelActions
-                pharmacyId={pharmacy.id}
-                onCompleted={loadData}
-              />
+            {!readOnly && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:flex xl:items-center xl:justify-end">
+                <ProductExcelActions
+                  pharmacyId={pharmacy.id}
+                  onCompleted={loadData}
+                />
 
-              <AddProductDialog pharmacyId={pharmacy.id} onCreated={loadData} />
-            </div>
+                <AddProductDialog pharmacyId={pharmacy.id} onCreated={loadData} />
+              </div>
+            )}
           </div>
         </header>
 
@@ -484,6 +488,7 @@ function ProductsContent() {
           </div>
         )}
 
+        {!readOnly && (
         <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm md:rounded-[2rem] md:p-5">
           <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
             <div>
@@ -517,6 +522,7 @@ function ProductsContent() {
             </div>
           </div>
         </section>
+        )}
 
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           <MetricCard
@@ -745,6 +751,7 @@ function ProductsContent() {
               mobileProducts.map((product) => (
                 <MobileProductCard
                   key={product.product_id}
+                  readOnly={readOnly}
                   pharmacyId={pharmacy.id}
                   product={product}
                   onChanged={loadData}
@@ -859,6 +866,7 @@ function ProductsContent() {
                         </td>
 
                         <td className="px-5 py-4">
+                          {readOnly ? null : (
                           <div className="flex flex-wrap items-center gap-2">
                             <ProductBatchesDialog
                               pharmacyId={pharmacy.id}
@@ -899,6 +907,7 @@ function ProductsContent() {
                               }
                             />
                           </div>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -938,6 +947,7 @@ function ProductsContent() {
 }
 
 function MobileProductCard({
+  readOnly,
   pharmacyId,
   product,
   onChanged,
@@ -947,6 +957,8 @@ function MobileProductCard({
   onDelete,
   isChanging,
 }: {
+  /** Compte de consultation (propriétaire réseau) : aucune action de modification. */
+  readOnly: boolean;
   pharmacyId: string;
   product: ProductListItem;
   onChanged: () => void;
@@ -1008,6 +1020,8 @@ function MobileProductCard({
         </div>
       </div>
 
+      {!readOnly && (
+        <>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <ProductBatchesDialog
           pharmacyId={pharmacyId}
@@ -1063,6 +1077,8 @@ function MobileProductCard({
           Supprimer
         </button>
       </div>
+        </>
+      )}
     </article>
   );
 }

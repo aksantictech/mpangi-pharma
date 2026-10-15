@@ -32,6 +32,7 @@ const CACHEABLE_PAGE_PREFIXES = [
   "/factures",
   "/synchronisation",
   "/inventaire",
+  "/reseau",
   "/aide",
   "/finances",
   "/trousse",

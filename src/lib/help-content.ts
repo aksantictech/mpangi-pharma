@@ -24,6 +24,7 @@ export type HelpGuideId =
   | "stock"
   | "vente"
   | "comptable"
+  | "reseau"
   | "tous";
 
 export type HelpGuide = {
@@ -658,6 +659,67 @@ export const helpGuides: HelpGuide[] = [
     ],
   },
   {
+    id: "reseau",
+    title: "Propriétaire de plusieurs pharmacies",
+    tab: "Réseau",
+    subtitle:
+      "Superviser toutes vos pharmacies depuis un seul compte : consultation uniquement, sans caisse ni factures.",
+    tasks: [
+      {
+        id: "reseau-vue",
+        title: "Voir toutes vos pharmacies d’un coup",
+        summary:
+          "La **Vue réseau** compare ventes, stock et alertes de chaque pharmacie.",
+        steps: [
+          "Ouvrez **Vue réseau** dans le menu.",
+          "En haut, lisez les totaux de tout le réseau : ventes du jour et des 7 jours, valeur du stock, produits disponibles, quantité en stock, alertes.",
+          "En dessous, chaque pharmacie a sa carte avec ses propres chiffres. Les ruptures et les lots expirés sont affichés en rouge.",
+          "Touchez **Actualiser** pour recharger les chiffres.",
+        ],
+        tips: [
+          "Une carte « Données de stock indisponibles » veut dire que l’abonnement de cette pharmacie est expiré ou que la connexion a échoué.",
+        ],
+        link: { label: "Ouvrir la Vue réseau", href: "/reseau" },
+      },
+      {
+        id: "reseau-changer",
+        title: "Passer d’une pharmacie à l’autre",
+        summary:
+          "Le tableau de bord, les produits, les finances et l’inventaire montrent la pharmacie active.",
+        steps: [
+          "Sur la **Vue réseau**, touchez **Ouvrir cette pharmacie** sous la carte voulue.",
+          "Le **Tableau de bord** s’ouvre pour cette pharmacie. Vous pouvez aussi changer de pharmacie avec le sélecteur en haut du menu.",
+          "Consultez ensuite **Produits**, **Expirations**, **Finances**, **Rapport TVA** ou **Inventaire** : tout concerne la pharmacie choisie.",
+        ],
+      },
+      {
+        id: "reseau-alertes",
+        title: "Suivre les produits, les alertes et les expirations",
+        summary: "Repérer ce qui manque et ce qui va se périmer.",
+        steps: [
+          "Dans **Produits**, filtrez sur les ruptures et les stocks faibles ; la liste montre la quantité disponible de chaque produit.",
+          "Dans **Expirations**, voyez les lots expirés et ceux qui expirent bientôt.",
+          "Ces écrans sont en consultation : pour corriger un stock ou retirer un lot, demandez au gérant de la pharmacie.",
+        ],
+        link: { label: "Ouvrir Produits", href: "/produits" },
+      },
+      {
+        id: "reseau-finances",
+        title: "Finances, TVA et inventaire",
+        summary: "Les chiffres et les documents à imprimer.",
+        steps: [
+          "**Finances** : choisissez une période pour les ventes, les dépenses et le résultat.",
+          "**Rapport TVA** : la TVA collectée sur la période.",
+          "**Inventaire** : choisissez une période et des filtres, puis **Imprimer** pour le document avec le logo de la pharmacie.",
+        ],
+        tips: [
+          "Utilisez le bouton de devise en haut pour afficher les montants en CDF, USD ou EUR.",
+        ],
+        link: { label: "Ouvrir Finances", href: "/finances" },
+      },
+    ],
+  },
+  {
     id: "tous",
     title: "Pour tous",
     tab: "Pour tous",
@@ -762,6 +824,8 @@ export function defaultGuideForRole(role?: string | null): HelpGuideId {
       return "vente";
     case "accountant":
       return "comptable";
+    case "network_owner":
+      return "reseau";
     default:
       return "tous";
   }

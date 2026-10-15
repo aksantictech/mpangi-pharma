@@ -5,6 +5,7 @@ import {
   getCachedPharmacies,
   getCachedPlatformAdmin,
 } from "@/lib/offline/identity";
+import { applyAccountType } from "@/lib/account-type";
 import { isOfflineError } from "@/lib/offline/network";
 import { cachedRead } from "@/lib/offline/read-cache";
 import { createSupabaseClient } from "@/lib/supabase/client";
@@ -122,7 +123,8 @@ export async function getMyPharmacies(): Promise<PharmacyWithRole[]> {
 
       return {
         ...pharmacy,
-        role: item.role,
+        // Compte réseau : l'interface affiche « network_owner » (vue réduite).
+        role: applyAccountType(item.role, user.app_metadata?.account_type),
       };
     })
     // Une pharmacie désactivée ou archivée par le Super Admin doit
