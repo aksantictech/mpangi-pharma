@@ -1,3 +1,4 @@
+import { cachedRead } from "@/lib/offline/read-cache";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import type {
   AddStockBatchPayload,
@@ -14,7 +15,30 @@ function emptyToNull(value?: string) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export async function getStockMovements(pharmacyId: string) {
+// Copie locale : on garde les 1000 mouvements les plus récents (l'écran en
+// charge jusqu'à 5000 en ligne) pour ne pas alourdir l'appareil.
+export function getStockMovements(pharmacyId: string) {
+  return cachedRead(pharmacyId, "stock_movements", () => fetchStockMovements(pharmacyId), {
+    toCache: (rows) => rows.slice(0, 1000),
+  });
+}
+
+/** Met à jour la copie locale de l'historique sans recharger les 5000 lignes de l'écran. */
+export function refreshStockMovementsCopy(pharmacyId: string) {
+  return cachedRead(
+    pharmacyId,
+    "stock_movements",
+    () => fetchStockMovements(pharmacyId, 1000)
+  );
+}
+
+export function getAllActiveBatches(pharmacyId: string) {
+  return cachedRead(pharmacyId, "active_batches", () =>
+    fetchAllActiveBatches(pharmacyId)
+  );
+}
+
+async function fetchStockMovements(pharmacyId: string, limit = 5000) {
   const supabase = createSupabaseClient();
 
   const { data, error } = await supabase
@@ -22,7 +46,7 @@ export async function getStockMovements(pharmacyId: string) {
     .select("*")
     .eq("pharmacy_id", pharmacyId)
     .order("created_at", { ascending: false })
-    .limit(5000);
+    .limit(limit);
 
   if (error) {
     throw new Error(error.message);
@@ -31,7 +55,7 @@ export async function getStockMovements(pharmacyId: string) {
   return data as StockMovement[];
 }
 
-export async function getAllActiveBatches(pharmacyId: string) {
+async function fetchAllActiveBatches(pharmacyId: string) {
   const supabase = createSupabaseClient();
 
   const { data, error } = await supabase

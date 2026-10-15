@@ -1,3 +1,4 @@
+import { cachedRead } from "@/lib/offline/read-cache";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
 import type { NationalProduct } from "@/types/national-product";
@@ -344,7 +345,36 @@ export async function findDuplicateProductInPharmacy(payload: {
   return (duplicate ?? null) as ProductDuplicateCandidate | null;
 }
 
-export async function getProducts(pharmacyId: string) {
+// Lectures avec copie locale : consultables sans internet (lib/offline/read-cache.ts).
+export function getProducts(pharmacyId: string) {
+  return cachedRead(pharmacyId, "products", () => fetchProducts(pharmacyId));
+}
+
+export function getProductStock(pharmacyId: string) {
+  return cachedRead(pharmacyId, "product_stock", () =>
+    fetchProductStock(pharmacyId)
+  );
+}
+
+export function getExpirationAlerts(pharmacyId: string) {
+  return cachedRead(pharmacyId, "expiration_alerts", () =>
+    fetchExpirationAlerts(pharmacyId)
+  );
+}
+
+export function getProductCategories(pharmacyId: string, activeOnly = true) {
+  return cachedRead(pharmacyId, `categories:${activeOnly}`, () =>
+    fetchProductCategories(pharmacyId, activeOnly)
+  );
+}
+
+export function getSuppliers(pharmacyId: string, activeOnly = true) {
+  return cachedRead(pharmacyId, `suppliers:${activeOnly}`, () =>
+    fetchSuppliers(pharmacyId, activeOnly)
+  );
+}
+
+async function fetchProducts(pharmacyId: string) {
   const supabase = createSupabaseClient();
 
   const { data, error } = await supabase
@@ -374,7 +404,7 @@ export async function getProducts(pharmacyId: string) {
   return data as Product[];
 }
 
-export async function getProductStock(pharmacyId: string) {
+async function fetchProductStock(pharmacyId: string) {
   const supabase = createSupabaseClient();
 
   const { data, error } = await supabase
@@ -406,7 +436,7 @@ export async function getProductBatches(productId: string) {
   return data as ProductBatch[];
 }
 
-export async function getExpirationAlerts(pharmacyId: string) {
+async function fetchExpirationAlerts(pharmacyId: string) {
   const supabase = createSupabaseClient();
 
   const { data, error } = await supabase
@@ -423,7 +453,7 @@ export async function getExpirationAlerts(pharmacyId: string) {
   return data as ExpirationAlert[];
 }
 
-export async function getProductCategories(
+async function fetchProductCategories(
   pharmacyId: string,
   activeOnly = true
 ) {
@@ -449,7 +479,7 @@ export async function getProductCategories(
   return data as ProductCategory[];
 }
 
-export async function getSuppliers(
+async function fetchSuppliers(
   pharmacyId: string,
   activeOnly = true
 ) {

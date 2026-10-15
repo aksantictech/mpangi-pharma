@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 
 import CurrencySwitcher from "@/components/layout/CurrencySwitcher";
+import { isServerReachable, useConnectivity } from "@/lib/offline/connectivity";
+import { isOfflineError } from "@/lib/offline/network";
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
 import {
   baseMethodForKind,
@@ -34,8 +36,10 @@ import {
 } from "@/services/sales.service";
 import { getOfflineSellableProducts } from "@/services/offline-cache.service";
 import {
+  createLocalInvoiceNumber,
   createOfflineSale,
   getPendingOfflineSales,
+  saleReferenceNote,
 } from "@/services/offline-sales.service";
 
 import type { PharmacyPaymentMethod } from "@/types/kit";
@@ -75,12 +79,10 @@ type PendingOfflineSaleForDisplay = {
 };
 const CURRENT_PHARMACY_CACHE_KEY = "mpangi_pharma_current_pharmacy";
 
+// « En ligne » = le serveur répond (pas seulement le Wi-Fi) ; voir
+// lib/offline/connectivity.ts.
 function getOnlineState() {
-  if (typeof navigator === "undefined") {
-    return true;
-  }
-
-  return navigator.onLine;
+  return isServerReachable();
 }
 
 function cacheCurrentPharmacy(pharmacy: PharmacyWithRole) {
@@ -150,7 +152,8 @@ export default function SalesPage() {
   const [customerName, setCustomerName] = useState("");
   const [notes, setNotes] = useState("");
 
-  const [isOnline, setIsOnline] = useState(true);
+  const { online: serverReachable } = useConnectivity();
+  const isOnline = serverReachable && getOnlineState();
   const [productsSource, setProductsSource] = useState<"online" | "offline">(
     "online"
   );
@@ -166,7 +169,6 @@ export default function SalesPage() {
     setErrorMessage("");
 
     const onlineNow = getOnlineState();
-    setIsOnline(onlineNow);
 
     try {
       let currentPharmacy: PharmacyWithRole | null = null;
@@ -256,22 +258,6 @@ export default function SalesPage() {
     }
   }
 
-
-  useEffect(() => {
-    function updateNetworkStatus() {
-      setIsOnline(getOnlineState());
-    }
-
-    updateNetworkStatus();
-
-    window.addEventListener("online", updateNetworkStatus);
-    window.addEventListener("offline", updateNetworkStatus);
-
-    return () => {
-      window.removeEventListener("online", updateNetworkStatus);
-      window.removeEventListener("offline", updateNetworkStatus);
-    };
-  }, []);
 
   useEffect(() => {
     loadData();
@@ -700,16 +686,58 @@ export default function SalesPage() {
         return;
       }
 
-      const result = await createSale({
-        pharmacyId: pharmacy.id,
-        items: cart,
-        paymentMethod,
-        customPaymentMethodId: customMethodId || undefined,
-        currency,
-        discount: discountValue,
-        customerName,
-        notes,
-      });
+      // Référence de la vente, envoyée aussi au serveur : si la connexion
+      // tombe en plein envoi, elle permet de retrouver la vente côté serveur
+      // à la synchronisation et d'éviter un doublon.
+      const localRef = createLocalInvoiceNumber();
+
+      let result;
+
+      try {
+        result = await createSale({
+          pharmacyId: pharmacy.id,
+          items: cart,
+          paymentMethod,
+          customPaymentMethodId: customMethodId || undefined,
+          currency,
+          discount: discountValue,
+          customerName,
+          notes: [notes.trim(), saleReferenceNote(localRef)]
+            .filter(Boolean)
+            .join("\n\n"),
+        });
+      } catch (error) {
+        // Internet a coupé pendant la vente : on ne la perd pas, elle est
+        // enregistrée sur l'appareil (ticket provisoire) et partira dès le
+        // retour de la connexion.
+        if (!isOfflineError(error)) throw error;
+
+        const offlineResult = await createOfflineSale({
+          pharmacyId: pharmacy.id,
+          items: cart,
+          paymentMethod,
+          customPaymentMethodId: customMethodId || undefined,
+          currency,
+          discount: discountValue,
+          customerName,
+          notes,
+          localInvoiceNumber: localRef,
+        });
+
+        setSuccessMessage(
+          `Connexion perdue : vente enregistrée sur cet appareil. Ticket provisoire ${
+            offlineResult.localInvoiceNumber
+          } · Total ${formatMoney(
+            Number(offlineResult.totalAmount),
+            offlineResult.currency
+          )}. Elle sera envoyée dès le retour d’internet.`
+        );
+
+        resetAfterSale();
+
+        await loadData();
+        return;
+      }
 
       const saleId = getCreatedSaleId(result);
 

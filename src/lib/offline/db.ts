@@ -2,6 +2,8 @@
 
 import Dexie, { type Table } from "dexie";
 
+import { clearCachedIdentity } from "@/lib/offline/identity";
+
 import type { PaymentMethod, SellableProduct } from "@/types/sale";
 
 export type LocalSellableProduct = SellableProduct & {
@@ -77,7 +79,21 @@ export type OfflineSyncLog = {
   created_at: string;
 };
 
+/**
+ * Copie locale d'une lecture du serveur (liste de produits, lots, mouvements…),
+ * pour pouvoir la consulter sans internet. Voir lib/offline/read-cache.ts.
+ */
+export type ReadCacheEntry = {
+  /** `${pharmacy_id}|${name}` */
+  key: string;
+  pharmacy_id: string;
+  name: string;
+  data: unknown;
+  cached_at: string;
+};
+
 class MpangiOfflineDatabase extends Dexie {
+  readCache!: Table<ReadCacheEntry, string>;
   sellableProducts!: Table<LocalSellableProduct, string>;
   offlineSales!: Table<OfflineSale, string>;
   offlineSaleItems!: Table<OfflineSaleItem, string>;
@@ -106,6 +122,18 @@ class MpangiOfflineDatabase extends Dexie {
       syncState: "id, pharmacy_id, key, status, last_synced_at",
       syncLogs: "id, pharmacy_id, type, status, created_at",
     });
+
+    // v3 : copie locale des lectures (produits, stock, lots…).
+    this.version(3).stores({
+      sellableProducts:
+        "local_id, pharmacy_id, product_id, name, generic_name, barcode, cached_at",
+      offlineSales:
+        "id, pharmacy_id, device_id, status, created_at, synced_at, server_sale_id",
+      offlineSaleItems: "id, offline_sale_id, pharmacy_id, product_id",
+      syncState: "id, pharmacy_id, key, status, last_synced_at",
+      syncLogs: "id, pharmacy_id, type, status, created_at",
+      readCache: "key, pharmacy_id, name, cached_at",
+    });
   }
 }
 
@@ -119,11 +147,14 @@ const CURRENT_PHARMACY_CACHE_KEY = "mpangi_pharma_current_pharmacy";
 export async function clearOfflinePharmacyData() {
   await offlineDb.transaction(
     "rw",
-    offlineDb.sellableProducts,
-    offlineDb.offlineSales,
-    offlineDb.offlineSaleItems,
-    offlineDb.syncState,
-    offlineDb.syncLogs,
+    [
+      offlineDb.sellableProducts,
+      offlineDb.offlineSales,
+      offlineDb.offlineSaleItems,
+      offlineDb.syncState,
+      offlineDb.syncLogs,
+      offlineDb.readCache,
+    ],
     async () => {
       await Promise.all([
         offlineDb.sellableProducts.clear(),
@@ -131,9 +162,12 @@ export async function clearOfflinePharmacyData() {
         offlineDb.offlineSaleItems.clear(),
         offlineDb.syncState.clear(),
         offlineDb.syncLogs.clear(),
+        offlineDb.readCache.clear(),
       ]);
     }
   );
+
+  clearCachedIdentity();
 
   if (typeof window !== "undefined") {
     window.localStorage.removeItem(OFFLINE_OWNER_KEY);

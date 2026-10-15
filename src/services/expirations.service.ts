@@ -1,7 +1,14 @@
+import { cachedRead } from "@/lib/offline/read-cache";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import type { ExpirationAlert } from "@/types/product";
 
-export async function getExpirationAlertsList(pharmacyId: string) {
+export function getExpirationAlertsList(pharmacyId: string) {
+  return cachedRead(pharmacyId, "expiration_alerts_list", () =>
+    fetchExpirationAlertsList(pharmacyId)
+  );
+}
+
+async function fetchExpirationAlertsList(pharmacyId: string) {
   const supabase = createSupabaseClient();
 
   const { data, error } = await supabase

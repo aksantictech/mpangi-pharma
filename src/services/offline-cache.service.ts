@@ -42,10 +42,55 @@ export async function syncSellableProductsToOffline(pharmacyId: string) {
 
     await offlineDb.transaction(
       "rw",
-      offlineDb.sellableProducts,
-      offlineDb.syncState,
-      offlineDb.syncLogs,
+      [
+        offlineDb.sellableProducts,
+        offlineDb.offlineSales,
+        offlineDb.offlineSaleItems,
+        offlineDb.syncState,
+        offlineDb.syncLogs,
+      ],
       async () => {
+        // Ventes faites hors-ligne et pas encore reçues par le serveur : leurs
+        // quantités ne sont pas dans le stock que le serveur vient de renvoyer.
+        // On les retire à nouveau, sinon la caisse pourrait revendre ce stock.
+        const pendingSales = await offlineDb.offlineSales
+          .where("pharmacy_id")
+          .equals(pharmacyId)
+          .filter((sale) =>
+            ["pending_sync", "syncing", "sync_failed", "conflict"].includes(
+              sale.status
+            )
+          )
+          .toArray();
+
+        const pendingQuantity = new Map<string, number>();
+
+        for (const sale of pendingSales) {
+          const items = await offlineDb.offlineSaleItems
+            .where("offline_sale_id")
+            .equals(sale.id)
+            .toArray();
+
+          for (const item of items) {
+            pendingQuantity.set(
+              item.product_id,
+              (pendingQuantity.get(item.product_id) ?? 0) +
+                Number(item.quantity || 0)
+            );
+          }
+        }
+
+        for (const product of cachedProducts) {
+          const pending = pendingQuantity.get(product.product_id);
+
+          if (pending) {
+            product.total_quantity = Math.max(
+              Number(product.total_quantity || 0) - pending,
+              0
+            );
+          }
+        }
+
         await offlineDb.sellableProducts
           .where("pharmacy_id")
           .equals(pharmacyId)
@@ -139,7 +184,9 @@ export async function getPendingOfflineSalesCount(pharmacyId: string) {
     .where("pharmacy_id")
     .equals(pharmacyId)
     .filter((sale) =>
-      ["pending_sync", "sync_failed", "conflict"].includes(sale.status)
+      ["pending_sync", "syncing", "sync_failed", "conflict"].includes(
+        sale.status
+      )
     )
     .count();
 }

@@ -12,11 +12,19 @@ import {
 } from "lucide-react";
 
 import {
+  RECONNECTED_EVENT,
+  useConnectivity,
+} from "@/lib/offline/connectivity";
+import {
   getPendingOfflineSalesCount,
   getProductOfflineSyncState,
-  syncSellableProductsToOffline,
 } from "@/services/offline-cache.service";
-import { syncPendingOfflineSalesToServer } from "@/services/offline-sales.service";
+import {
+  getLocalCopyDate,
+  refreshLocalCopy,
+  refreshLocalCopyIfStale,
+  syncEverything,
+} from "@/services/offline-sync-manager";
 
 import type { OfflineSyncState } from "@/lib/offline/db";
 
@@ -25,7 +33,12 @@ type OfflineStatusBarProps = {
 };
 
 export default function OfflineStatusBar({ pharmacyId }: OfflineStatusBarProps) {
-  const [isOnline, setIsOnline] = useState(true);
+  // Connexion au SERVEUR (internet), pas seulement au Wi-Fi : voir
+  // lib/offline/connectivity.ts.
+  const { online: serverReachable } = useConnectivity();
+  const isOnline =
+    serverReachable &&
+    (typeof navigator === "undefined" || navigator.onLine !== false);
   const [syncState, setSyncState] = useState<OfflineSyncState | null>(null);
   const [pendingSalesCount, setPendingSalesCount] = useState(0);
 
@@ -51,22 +64,6 @@ export default function OfflineStatusBar({ pharmacyId }: OfflineStatusBarProps) 
   }, [pharmacyId]);
 
   useEffect(() => {
-    function updateNetworkStatus() {
-      setIsOnline(navigator.onLine);
-    }
-
-    updateNetworkStatus();
-
-    window.addEventListener("online", updateNetworkStatus);
-    window.addEventListener("offline", updateNetworkStatus);
-
-    return () => {
-      window.removeEventListener("online", updateNetworkStatus);
-      window.removeEventListener("offline", updateNetworkStatus);
-    };
-  }, []);
-
-  useEffect(() => {
     refreshLocalStats();
 
     const intervalId = window.setInterval(() => {
@@ -88,6 +85,66 @@ export default function OfflineStatusBar({ pharmacyId }: OfflineStatusBarProps) 
     };
   }, [refreshLocalStats]);
 
+  // Synchronisation automatique : au retour d'internet, puis régulièrement.
+  //  - ventes en attente : envoyées dès que possible (toutes les minutes sinon) ;
+  //  - copie locale : rafraîchie si elle a plus de 10 minutes, pour qu'elle
+  //    soit à jour au moment où internet coupera.
+  useEffect(() => {
+    if (!pharmacyId) return;
+
+    let isMounted = true;
+
+    async function autoSync(force: boolean) {
+      if (!isMounted || !isOnline) return;
+
+      try {
+        const pending = await getPendingOfflineSalesCount(pharmacyId!);
+
+        if (pending > 0 || force) {
+          await syncEverything(pharmacyId!);
+        } else {
+          await refreshLocalCopyIfStale(pharmacyId!);
+        }
+      } catch {
+        // Silencieux : le prochain passage réessaiera.
+      } finally {
+        if (isMounted) await refreshLocalStats();
+      }
+    }
+
+    void autoSync(false);
+
+    const intervalId = window.setInterval(() => void autoSync(false), 60_000);
+
+    function handleReconnected() {
+      void autoSync(true);
+    }
+
+    window.addEventListener(RECONNECTED_EVENT, handleReconnected);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener(RECONNECTED_EVENT, handleReconnected);
+    };
+  }, [pharmacyId, isOnline, refreshLocalStats]);
+
+  // Fermer l'application avec des ventes non envoyées : le navigateur
+  // demande confirmation (les ventes restent enregistrées sur l'appareil, mais
+  // elles ne sont pas encore au serveur).
+  useEffect(() => {
+    if (pendingSalesCount === 0) return;
+
+    function warnBeforeLeaving(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [pendingSalesCount]);
+
   async function handleSyncProducts() {
     if (!pharmacyId) return;
 
@@ -100,9 +157,13 @@ export default function OfflineStatusBar({ pharmacyId }: OfflineStatusBarProps) 
     setMessage("");
 
     try {
-      const result = await syncSellableProductsToOffline(pharmacyId);
+      await refreshLocalCopy(pharmacyId);
 
-      setMessage(`${result.count} produit(s) disponibles hors-ligne.`);
+      const state = await getProductOfflineSyncState(pharmacyId);
+
+      setMessage(
+        `${state?.count ?? 0} produit(s) disponibles hors-ligne. Copie du stock à jour.`
+      );
       await refreshLocalStats();
     } catch (error) {
       setMessage(
@@ -127,7 +188,7 @@ export default function OfflineStatusBar({ pharmacyId }: OfflineStatusBarProps) 
     setMessage("");
 
     try {
-      const result = await syncPendingOfflineSalesToServer(pharmacyId);
+      const result = await syncEverything(pharmacyId);
 
       const summary = [
         `Traitées : ${result.attemptedCount}`,
@@ -153,12 +214,15 @@ export default function OfflineStatusBar({ pharmacyId }: OfflineStatusBarProps) 
     return null;
   }
 
-  const lastSyncText = syncState?.last_synced_at
-    ? new Date(syncState.last_synced_at).toLocaleString("fr-CD")
+  // Date de la dernière copie COMPLÈTE (produits, stock, lots…).
+  const copyAt = getLocalCopyDate(pharmacyId) ?? syncState?.last_synced_at ?? null;
+
+  const lastSyncText = copyAt
+    ? new Date(copyAt).toLocaleString("fr-CD")
     : "Jamais";
 
-  const shortLastSyncText = syncState?.last_synced_at
-    ? new Date(syncState.last_synced_at).toLocaleTimeString("fr-CD", {
+  const shortLastSyncText = copyAt
+    ? new Date(copyAt).toLocaleTimeString("fr-CD", {
         hour: "2-digit",
         minute: "2-digit",
       })
@@ -211,6 +275,12 @@ export default function OfflineStatusBar({ pharmacyId }: OfflineStatusBarProps) 
               <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-600">
                 Produits : {productCount} · Sync : {shortLastSyncText}
               </p>
+
+              {!isOnline && (
+                <p className="mt-0.5 text-[11px] font-bold text-amber-800">
+                  Ventes possibles. Produits et stock : consultation seulement.
+                </p>
+              )}
 
               {message && (
                 <p className="mt-1 line-clamp-2 text-[11px] font-bold text-slate-700">
@@ -287,13 +357,23 @@ export default function OfflineStatusBar({ pharmacyId }: OfflineStatusBarProps) 
                     isOnline ? "text-emerald-800" : "text-amber-800"
                   }`}
                 >
-                  {isOnline ? "Mode en ligne" : "Mode hors-ligne"}
+                  {isOnline
+                    ? "Mode en ligne · synchronisation automatique"
+                    : "Mode hors-ligne : vous travaillez sur la copie de cet appareil"}
                 </p>
 
                 <p className="mt-1 text-xs font-semibold text-slate-600">
-                  Produits offline : {productCount} · Dernière synchro :{" "}
+                  Produits offline : {productCount} · Copie du stock du :{" "}
                   {lastSyncText}
                 </p>
+
+                {!isOnline && (
+                  <p className="mt-1 text-xs font-bold text-amber-800">
+                    Ventes possibles. Produits et stock : consultation seulement
+                    (copie du {lastSyncText}) ; les modifications reprendront au
+                    retour d’internet.
+                  </p>
+                )}
 
                 {pendingSalesCount > 0 && (
                   <p className="mt-1 inline-flex items-center gap-1 text-xs font-black text-amber-700">

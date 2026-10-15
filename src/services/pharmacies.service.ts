@@ -1,3 +1,12 @@
+import { isServerReachable } from "@/lib/offline/connectivity";
+import {
+  cachePlatformAdmin,
+  cacheUserPharmacies,
+  getCachedPharmacies,
+  getCachedPlatformAdmin,
+} from "@/lib/offline/identity";
+import { isOfflineError } from "@/lib/offline/network";
+import { cachedRead } from "@/lib/offline/read-cache";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import type { Pharmacy, PharmacyWithRole } from "@/types/pharmacy";
 import type { PharmacySettings, PharmacyMember } from "@/types/settings";
@@ -72,6 +81,12 @@ export async function getMyPharmacies(): Promise<PharmacyWithRole[]> {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
+    // Sans internet, le serveur ne peut pas confirmer l'utilisateur : on garde
+    // les pharmacies connues au lieu de conclure « aucune pharmacie ».
+    if (isOfflineError(userError) || !isServerReachable()) {
+      return getCachedPharmacies() ?? [];
+    }
+
     return [];
   }
 
@@ -88,6 +103,12 @@ export async function getMyPharmacies(): Promise<PharmacyWithRole[]> {
     .order("created_at", { ascending: true });
 
   if (error) {
+    if (isOfflineError(error)) {
+      const cached = getCachedPharmacies();
+
+      if (cached) return cached;
+    }
+
     throw new Error(error.message);
   }
 
@@ -112,9 +133,14 @@ export async function getMyPharmacies(): Promise<PharmacyWithRole[]> {
       (pharmacy) => Boolean(pharmacy?.is_active) && !pharmacy?.archived_at
     ) as PharmacyWithRole[];
 
-  return Array.from(
+  const result = Array.from(
     new Map(pharmacies.map((pharmacy) => [pharmacy.id, pharmacy])).values()
   );
+
+  // Dernière réponse connue, pour reprendre le travail si internet coupe.
+  cacheUserPharmacies(user.id, result);
+
+  return result;
 }
 
 export async function getCurrentPharmacy(): Promise<PharmacyWithRole | null> {
@@ -294,7 +320,13 @@ export async function updatePharmacy(payload: UpdatePharmacyPayload) {
   return data as Pharmacy;
 }
 
-export async function getPharmacySettings(pharmacyId: string) {
+export function getPharmacySettings(pharmacyId: string) {
+  return cachedRead(pharmacyId, "settings", () =>
+    fetchPharmacySettings(pharmacyId)
+  );
+}
+
+async function fetchPharmacySettings(pharmacyId: string) {
   const supabase = createSupabaseClient();
 
   const { data, error } = await supabase
@@ -419,7 +451,9 @@ export async function isCurrentUserPlatformAdmin() {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    return false;
+    return isOfflineError(userError) || !isServerReachable()
+      ? getCachedPlatformAdmin()
+      : false;
   }
 
   const { data, error } = await supabase
@@ -431,8 +465,10 @@ export async function isCurrentUserPlatformAdmin() {
 
     
   if (error) {
-    return false;
+    return isOfflineError(error) ? getCachedPlatformAdmin() : false;
   }
+
+  cachePlatformAdmin(Boolean(data));
 
   return Boolean(data);
 }

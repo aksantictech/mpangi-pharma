@@ -7,6 +7,8 @@ import {
   type OfflineSale,
   type OfflineSaleItem,
 } from "@/lib/offline/db";
+import { isOfflineError } from "@/lib/offline/network";
+import { createSupabaseClient } from "@/lib/supabase/client";
 import { createSale } from "@/services/sales.service";
 
 import type { CartItem, PaymentMethod } from "@/types/sale";
@@ -20,6 +22,12 @@ export type CreateOfflineSalePayload = {
   discount: number;
   customerName?: string;
   notes?: string;
+  /**
+   * Référence locale de la vente, quand elle a déjà été envoyée au serveur
+   * (tentative en ligne dont la réponse s'est perdue). Elle permet de
+   * retrouver la vente côté serveur et d'éviter un doublon à la synchronisation.
+   */
+  localInvoiceNumber?: string;
 };
 
 export type SyncOfflineSalesResult = {
@@ -34,7 +42,7 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function createLocalInvoiceNumber() {
+export function createLocalInvoiceNumber() {
   const date = new Date();
 
   const datePart = [
@@ -53,6 +61,42 @@ function createLocalInvoiceNumber() {
 
   return `OFF-${datePart}-${timePart}-${randomPart}`;
 }
+
+/** Note ajoutée à la vente côté serveur : sert de repère anti-doublon. */
+export function saleReferenceNote(localInvoiceNumber: string) {
+  return `Réf. caisse : ${localInvoiceNumber}`;
+}
+
+/**
+ * Cherche sur le serveur une vente déjà créée pour cette référence locale.
+ * Évite le doublon quand le serveur a bien enregistré la vente mais que la
+ * réponse n'est jamais arrivée (coupure en plein envoi).
+ */
+async function findServerSaleByLocalRef(
+  pharmacyId: string,
+  localInvoiceNumber: string
+) {
+  const supabase = createSupabaseClient();
+
+  const { data, error } = await supabase
+    .from("sales")
+    .select("id, invoice_number")
+    .eq("pharmacy_id", pharmacyId)
+    .ilike("notes", `%${localInvoiceNumber}%`)
+    .limit(1);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data && data.length > 0
+    ? { id: String(data[0].id), invoiceNumber: String(data[0].invoice_number) }
+    : null;
+}
+
+// Une vente « en cours d'envoi » depuis plus longtemps que cela est considérée
+// comme interrompue (application fermée, coupure) : on la reprend.
+const STALE_SYNCING_MS = 90_000;
 
 function productLocalId(pharmacyId: string, productId: string) {
   return `${pharmacyId}:${productId}`;
@@ -99,7 +143,8 @@ export async function createOfflineSale(payload: CreateOfflineSalePayload) {
   const createdAt = nowIso();
   const deviceId = getOfflineDeviceId();
   const offlineSaleId = createOfflineId("offline_sale");
-  const localInvoiceNumber = createLocalInvoiceNumber();
+  const localInvoiceNumber =
+    payload.localInvoiceNumber ?? createLocalInvoiceNumber();
 
   const subtotal = payload.items.reduce(
     (sum, item) => sum + item.quantity * item.unitPrice,
@@ -165,9 +210,10 @@ export async function createOfflineSale(payload: CreateOfflineSalePayload) {
         );
 
         if (!localProduct) {
-          throw new Error(
-            `Produit introuvable dans le cache offline : ${item.name}`
-          );
+          // Produit absent de la copie locale (copie jamais faite) : la
+          // quantité a déjà été contrôlée à l'ajout au panier, la vente est
+          // enregistrée et le stock sera recalculé par le serveur.
+          continue;
         }
 
         const currentQuantity = Number(localProduct.total_quantity || 0);
@@ -215,12 +261,33 @@ export async function getPendingOfflineSales(pharmacyId: string) {
     .where("pharmacy_id")
     .equals(pharmacyId)
     .filter((sale) =>
-      ["pending_sync", "sync_failed", "conflict"].includes(sale.status)
+      ["pending_sync", "syncing", "sync_failed", "conflict"].includes(
+        sale.status
+      )
     )
     .toArray();
 }
 
-export async function syncPendingOfflineSalesToServer(
+let salesSyncInFlight: Promise<SyncOfflineSalesResult> | null = null;
+
+/**
+ * Envoie les ventes en attente. Un seul envoi à la fois : un second appel
+ * (synchronisation automatique + bouton) attend le premier au lieu de
+ * renvoyer les mêmes ventes.
+ */
+export function syncPendingOfflineSalesToServer(
+  pharmacyId: string
+): Promise<SyncOfflineSalesResult> {
+  if (salesSyncInFlight) return salesSyncInFlight;
+
+  salesSyncInFlight = runSalesSync(pharmacyId).finally(() => {
+    salesSyncInFlight = null;
+  });
+
+  return salesSyncInFlight;
+}
+
+async function runSalesSync(
   pharmacyId: string
 ): Promise<SyncOfflineSalesResult> {
   const result: SyncOfflineSalesResult = {
@@ -234,7 +301,12 @@ export async function syncPendingOfflineSalesToServer(
   const pendingSales = await offlineDb.offlineSales
     .where("pharmacy_id")
     .equals(pharmacyId)
-    .filter((sale) => ["pending_sync", "sync_failed"].includes(sale.status))
+    .filter(
+      (sale) =>
+        ["pending_sync", "sync_failed"].includes(sale.status) ||
+        (sale.status === "syncing" &&
+          Date.now() - new Date(sale.updated_at).getTime() > STALE_SYNCING_MS)
+    )
     .toArray();
 
   result.attemptedCount = pendingSales.length;
@@ -280,18 +352,31 @@ export async function syncPendingOfflineSalesToServer(
         };
       }) as CartItem[];
 
-      const serverSale = await createSale({
+      // Anti-doublon : la vente existe-t-elle déjà sur le serveur ?
+      const existingServerSale = await findServerSaleByLocalRef(
         pharmacyId,
-        items: cartItems,
-        paymentMethod: sale.payment_method,
-        customPaymentMethodId: sale.payment_method_id ?? undefined,
-        currency: sale.currency,
-        discount: sale.discount,
-        customerName: sale.customer_name ?? undefined,
-        notes: sale.notes
-          ? `${sale.notes}\n\nSynchronisée depuis vente offline : ${sale.local_invoice_number}`
-          : `Synchronisée depuis vente offline : ${sale.local_invoice_number}`,
-      });
+        sale.local_invoice_number
+      );
+
+      const serverSale = existingServerSale
+        ? {
+            sale_id: existingServerSale.id,
+            invoice_number: existingServerSale.invoiceNumber,
+          }
+        : await createSale({
+            pharmacyId,
+            items: cartItems,
+            paymentMethod: sale.payment_method,
+            customPaymentMethodId: sale.payment_method_id ?? undefined,
+            currency: sale.currency,
+            discount: sale.discount,
+            customerName: sale.customer_name ?? undefined,
+            notes: sale.notes
+              ? `${sale.notes}
+
+${saleReferenceNote(sale.local_invoice_number)}`
+              : saleReferenceNote(sale.local_invoice_number),
+          });
 
       const syncedAt = nowIso();
 
@@ -336,6 +421,24 @@ export async function syncPendingOfflineSalesToServer(
         error instanceof Error
           ? error.message
           : `Impossible de synchroniser ${sale.local_invoice_number}.`;
+
+      // Connexion perdue pendant l'envoi : ce n'est ni un échec ni un conflit,
+      // la vente reste simplement en attente et on arrête là (inutile
+      // d'essayer les suivantes). Le repère anti-doublon couvre le cas où le
+      // serveur aurait quand même enregistré celle-ci.
+      if (isOfflineError(error)) {
+        await offlineDb.offlineSales.update(sale.id, {
+          status: "pending_sync",
+          updated_at: failedAt,
+        });
+
+        result.failedCount += 1;
+        result.messages.push(
+          "Connexion perdue : les ventes restantes seront envoyées dès le retour d’internet."
+        );
+
+        break;
+      }
 
       const isConflict = isStockConflictError(message);
 

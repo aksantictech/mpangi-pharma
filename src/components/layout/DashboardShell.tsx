@@ -52,12 +52,17 @@ import {
 import { KIT_MODULE_LABEL } from "@/lib/constants";
 import { setExchangeRates } from "@/lib/currency";
 import { getActiveHref } from "@/lib/nav-active";
+import { isServerReachable } from "@/lib/offline/connectivity";
+import { isOfflineError } from "@/lib/offline/network";
+import { warmOfflinePagesIfDue } from "@/lib/offline/warm";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import {
   getCurrentUserAccount,
   mustCurrentUserChangePassword,
 } from "@/services/account.service";
 import { getExpirationAlertsList } from "@/services/expirations.service";
+import { getPendingOfflineSalesCount } from "@/services/offline-cache.service";
+import { syncPendingOfflineSalesToServer } from "@/services/offline-sales.service";
 import {
   clearStoredActivePharmacyId,
   getCurrentPharmacy,
@@ -226,6 +231,8 @@ function getErrorMessage(error: unknown) {
 }
 
 function isNetworkError(error: unknown) {
+  if (isOfflineError(error)) return true;
+
   const message = getErrorMessage(error).toLowerCase();
 
   return (
@@ -619,6 +626,16 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
     }
   }, [pharmacy]);
 
+  // Prépare le démarrage sans internet : les pages de l'espace pharmacie sont
+  // gardées sur l'appareil (service worker), au plus une fois toutes les 6 h.
+  const warmHrefs = visibleNavigationItems.map((item) => item.href).join(",");
+
+  useEffect(() => {
+    if (!pharmacy || !warmHrefs || !isServerReachable()) return;
+
+    warmOfflinePagesIfDue(warmHrefs.split(","));
+  }, [pharmacy, warmHrefs]);
+
   // Ctrl/Cmd + K : ouvre ou ferme la recherche rapide depuis n'importe quelle page.
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
@@ -646,6 +663,42 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   }
 
   async function handleSignOut() {
+    // Ventes faites hors-ligne et pas encore reçues par le serveur : se
+    // déconnecter efface les données de l'appareil, elles seraient perdues.
+    if (pharmacy) {
+      let pending = await getPendingOfflineSalesCount(pharmacy.id);
+
+      if (pending > 0 && isServerReachable()) {
+        try {
+          await syncPendingOfflineSalesToServer(pharmacy.id);
+        } catch {
+          // On re-vérifie juste après.
+        }
+
+        pending = await getPendingOfflineSalesCount(pharmacy.id);
+      }
+
+      if (pending > 0) {
+        if (!isServerReachable()) {
+          window.alert(
+            `Déconnexion impossible : ${pending} vente(s) faite(s) hors-ligne ne sont pas encore envoyées au serveur. ` +
+              "Rétablissez internet, laissez la synchronisation se terminer, puis déconnectez-vous."
+          );
+
+          return;
+        }
+
+        const confirmed = window.confirm(
+          `${pending} vente(s) n’ont pas pu être envoyées au serveur (conflit de stock ou erreur).` +
+            `
+
+Se déconnecter les EFFACERA définitivement. Continuer la déconnexion ?`
+        );
+
+        if (!confirmed) return;
+      }
+    }
+
     setIsSigningOut(true);
 
     clearStoredActivePharmacyId();

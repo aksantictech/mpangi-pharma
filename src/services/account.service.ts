@@ -1,3 +1,6 @@
+import { isServerReachable } from "@/lib/offline/connectivity";
+import { cacheAccount, getCachedAccount } from "@/lib/offline/identity";
+import { isOfflineError } from "@/lib/offline/network";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
 export type CurrentUserAccount = {
@@ -16,6 +19,13 @@ export async function getCurrentUserAccount(): Promise<CurrentUserAccount> {
   } = await supabase.auth.getUser();
 
   if (userError) {
+    // Sans internet : dernier profil connu (nom affiché dans l'en-tête).
+    const cached = getCachedAccount();
+
+    if (cached && (isOfflineError(userError) || !isServerReachable())) {
+      return cached;
+    }
+
     throw new Error(userError.message);
   }
 
@@ -30,15 +40,23 @@ export async function getCurrentUserAccount(): Promise<CurrentUserAccount> {
     .maybeSingle();
 
   if (profileError) {
+    const cached = getCachedAccount();
+
+    if (cached && isOfflineError(profileError)) return cached;
+
     throw new Error(profileError.message);
   }
 
-  return {
+  const account: CurrentUserAccount = {
     userId: user.id,
     email: user.email,
     fullName: profile?.full_name ?? null,
     mustChangePassword: Boolean(profile?.must_change_password),
   };
+
+  cacheAccount(account);
+
+  return account;
 }
 
 export async function updateCurrentUserFullName(fullName: string) {

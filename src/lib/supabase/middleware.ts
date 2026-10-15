@@ -15,6 +15,15 @@ const protectedRoutes = [
   "/finances",
   "/parametres",
   "/compte",
+  // Pages de l'espace pharmacie qui n'étaient pas dans la liste : sans session,
+  // on renvoie à la connexion comme pour les autres (les données restent
+  // protégées par la base ; ceci évite seulement de servir la coquille).
+  "/inventaire",
+  "/aide",
+  "/trousse",
+  "/synchronisation",
+  "/abonnement",
+  "/stock-voisin",
 ];
 
 const authRoutes = ["/connexion", "/inscription"];

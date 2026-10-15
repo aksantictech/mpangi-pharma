@@ -573,24 +573,28 @@ export const helpGuides: HelpGuide[] = [
       },
       {
         id: "hors-ligne",
-        title: "Vendre sans internet",
-        summary: "La caisse continue de fonctionner et enregistre les ventes sur le terminal.",
+        title: "Vendre quand internet est coupé",
+        summary:
+          "La caisse continue de fonctionner : les ventes sont gardées sur l’appareil puis envoyées toutes seules au retour d’internet.",
         steps: [
-          "Avant la coupure, quand vous avez internet : cliquez sur **Synchroniser produits** pour mettre les produits sur le terminal.",
-          "Si la connexion tombe, la caisse affiche **Mode hors-ligne** : vendez normalement, le bouton devient **Enregistrer hors-ligne**.",
-          "Vous recevez un ticket provisoire pour chaque vente.",
-          "Dès que la connexion revient, cliquez sur **Synchroniser ventes** pour envoyer les ventes au serveur.",
+          "Rien à faire avant la coupure : quand internet fonctionne, l’application met à jour toute seule la copie des produits et du stock de cet appareil (environ toutes les 10 minutes).",
+          "Quand internet coupe, la barre en haut passe à **Mode hors-ligne : vous travaillez sur la copie de cet appareil**. Vous pouvez vendre normalement : le bouton devient **Enregistrer hors-ligne** et un ticket provisoire est donné.",
+          "Si la coupure arrive **au moment** où vous touchez **Encaisser**, la vente n’est pas perdue : elle est enregistrée sur l’appareil avec le message « Connexion perdue : vente enregistrée sur cet appareil ».",
+          "Pendant la coupure, **Produits**, **Stock**, **Expirations** et le **Tableau de bord** restent consultables avec la copie de l’appareil (la date de la copie est affichée). Les modifications (entrée de stock, nouveau produit, correction) attendent le retour d’internet.",
+          "Dès que la connexion revient, les ventes en attente sont envoyées automatiquement (rien à cliquer) et la copie est rafraîchie. Le nombre de **ventes en attente** disparaît de la barre quand tout est parti.",
         ],
         tips: [
-          "Ne vous déconnectez pas du compte tant que des ventes hors-ligne sont en attente.",
-          "La page **Synchronisation** liste les ventes en attente et leur état.",
+          "Si l’ordinateur redémarre pendant la coupure, l’application s’ouvre quand même, à condition de l’avoir déjà ouverte avec internet sur cet appareil.",
+          "Pendant la coupure, ne vous déconnectez pas et n’effacez pas les données du navigateur : l’application refuse la déconnexion tant que des ventes n’ont pas été envoyées.",
+          "Si vous fermez la fenêtre avec des ventes en attente, le navigateur demande confirmation : elles restent enregistrées sur l’appareil, mais pas encore au serveur.",
+          "Un stock vendu sur l’appareil et sur un téléphone en même temps peut devenir négatif au retour d’internet : la vente est alors signalée « en conflit » dans Synchronisation et le gérant régularise le stock.",
         ],
         link: { label: "Ouvrir Synchronisation", href: "/synchronisation" },
       },
       {
         id: "annuler-locale",
         title: "Annuler une vente faite hors-ligne",
-        summary: "Possible tant que la vente n’a pas été synchronisée.",
+        summary: "Possible tant que la vente n’a pas été envoyée au serveur.",
         steps: [
           "Ouvrez **Synchronisation**.",
           "Trouvez la vente en attente et cliquez sur **Annuler vente locale**, puis confirmez.",
@@ -688,6 +692,25 @@ export const helpGuides: HelpGuide[] = [
       },
       {
         id: "installer",
+        title: "Préparer le poste de la pharmacie pour le mode hors-ligne",
+        summary:
+          "À faire une seule fois sur l’ordinateur ou le portable qui doit continuer à vendre pendant les coupures d’internet.",
+        steps: [
+          "Utilisez **Google Chrome** ou **Microsoft Edge** à jour, jamais en navigation privée.",
+          "Avec internet, ouvrez l’application et connectez-vous. Cliquez sur l’icône **Installer** à droite de la barre d’adresse (ou menu du navigateur, **Installer l’application**), puis ouvrez l’application installée depuis son icône.",
+          "Ouvrez une fois chacune des pages dont vous aurez besoin : **Caisse**, **Produits**, **Stock**, **Expirations**, **Synchronisation**. L’application les garde alors pour s’ouvrir sans internet.",
+          "Vérifiez dans la barre en haut : **Mode en ligne · synchronisation automatique** et une date de **Copie du stock** récente. Cliquez sur **Synchroniser produits** si la copie est ancienne ou à « Jamais ».",
+          "Test à faire avec le responsable : débranchez internet (Wi-Fi ou câble), fermez puis rouvrez l’application, faites une vente, puis rebranchez et vérifiez que la vente apparaît dans **Factures**.",
+        ],
+        tips: [
+          "N’effacez jamais les « données de navigation » de ce navigateur : cela supprime la copie locale et les ventes en attente.",
+          "Verrouillez la session Windows quand personne n’est devant l’appareil : les données de la copie sont lisibles sans mot de passe tant que la session est ouverte.",
+          "Un seul poste doit servir de caisse hors-ligne. Les autres téléphones travaillent directement en ligne.",
+        ],
+        link: { label: "Ouvrir Synchronisation", href: "/synchronisation" },
+      },
+      {
+        id: "installer-android",
         title: "Installer l’application sur Android",
         summary: "Pour utiliser la caisse comme une vraie application.",
         steps: [
@@ -704,8 +727,9 @@ export const helpGuides: HelpGuide[] = [
           "**Un produit n’apparaît pas en caisse** : il n’a pas de stock disponible ou pas de prix de vente. Vérifiez ses lots dans Produits.",
           "**La vente d’un lot est refusée** : le lot est périmé ou a été retiré de la vente (voir Expirations).",
           "**Un message dit que l’abonnement est expiré** : le propriétaire ou le gérant doit régulariser dans Paramètres > Abonnement.",
-          "**La page ne charge pas** : vérifiez la connexion, puis touchez le bouton d’actualisation. En caisse, le mode hors-ligne prend le relais.",
-          "**Les ventes hors-ligne ne partent pas** : ouvrez Synchronisation et cliquez sur Synchroniser ventes une fois la connexion stable.",
+          "**La page ne charge pas** : vérifiez la connexion, puis touchez le bouton d’actualisation. En caisse, le mode hors-ligne prend le relais et Produits / Stock s’ouvrent avec la copie de l’appareil.",
+          "**Les ventes hors-ligne ne partent pas** : elles partent toutes seules quand la connexion revient. Sinon ouvrez Synchronisation et cliquez sur Synchroniser ventes. Une vente « en conflit » (stock insuffisant) est à voir avec le gérant.",
+          "**Déconnexion impossible** : des ventes faites hors-ligne ne sont pas encore envoyées. Rétablissez internet, attendez que le nombre de ventes en attente tombe à zéro, puis déconnectez-vous.",
           "**USD ou EUR est grisé** : le taux de change n’est pas renseigné dans Paramètres > Ma pharmacie.",
         ],
       },
