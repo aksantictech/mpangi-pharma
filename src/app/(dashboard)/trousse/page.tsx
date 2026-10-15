@@ -23,6 +23,10 @@ import {
   createKitRequisition,
   getKitRequisitions,
 } from "@/services/kit.service";
+import {
+  DEFAULT_KIT_SERVICES,
+  getKitServices,
+} from "@/services/kit-services.service";
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
 import { getSellableProducts } from "@/services/sales.service";
 
@@ -35,15 +39,6 @@ const PERIODS = [
   { days: 30, label: "30 jours" },
   { days: 90, label: "90 jours" },
   { days: 365, label: "12 mois" },
-];
-
-const DEPARTMENT_SUGGESTIONS = [
-  "Urgences",
-  "Maternité",
-  "Pédiatrie",
-  "Bloc opératoire",
-  "Hospitalisation",
-  "Garde de nuit",
 ];
 
 const DAY_MS = 86_400_000;
@@ -69,6 +64,8 @@ export default function KitPage() {
   const [pharmacy, setPharmacy] = useState<PharmacyWithRole | null>(null);
   const [products, setProducts] = useState<SellableProduct[]>([]);
   const [requisitions, setRequisitions] = useState<KitRequisition[]>([]);
+  // Services et gardes définis dans Paramètres (vide = services courants par défaut).
+  const [serviceNames, setServiceNames] = useState<string[]>([]);
   const [days, setDays] = useState(30);
   // Instant de référence des calculs (fixé au chargement : le rendu reste pur).
   const [referenceTime, setReferenceTime] = useState(() => Date.now());
@@ -94,10 +91,14 @@ export default function KitPage() {
       // On charge 2 périodes pour comparer avec la période précédente.
       const since = new Date(Date.now() - 2 * days * DAY_MS).toISOString();
 
-      const [requisitionData, productData] = await Promise.all([
+      const [requisitionData, productData, serviceData] = await Promise.all([
         getKitRequisitions(current.id, since),
         getSellableProducts(current.id).catch(() => [] as SellableProduct[]),
+        // La liste est facultative : si elle ne charge pas, on garde les valeurs par défaut.
+        getKitServices(current.id, { onlyActive: true }).catch(() => []),
       ]);
+
+      setServiceNames(serviceData.map((service) => service.name));
 
       setRequisitions(requisitionData);
       setProducts(productData);
@@ -501,8 +502,12 @@ export default function KitPage() {
           products={products}
           knownDepartments={Array.from(
             new Set([
-              ...DEPARTMENT_SUGGESTIONS,
-              ...requisitions.map((item) => item.department).filter(Boolean),
+              ...(serviceNames.length > 0
+                ? serviceNames
+                : [
+                    ...DEFAULT_KIT_SERVICES.map((item) => item.name),
+                    ...requisitions.map((item) => item.department).filter(Boolean),
+                  ]),
             ])
           ) as string[]}
           onClose={() => setIsFormOpen(false)}

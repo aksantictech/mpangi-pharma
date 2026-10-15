@@ -62,6 +62,22 @@ export const helpGuides: HelpGuide[] = [
         link: { label: "Ouvrir Ma pharmacie", href: "/parametres/general" },
       },
       {
+        id: "services-gardes",
+        title: "Définir les services et les gardes de la Trousse de secours",
+        summary:
+          "La liste « Service / garde » du formulaire de la Trousse de secours est la vôtre.",
+        steps: [
+          "Ouvrez **Paramètres**, puis la carte **Services et gardes**.",
+          "Saisissez le **Nom** (ex. Réanimation, Garde de week-end), choisissez le **Type** (Service ou Garde) et cliquez sur **Ajouter**. Les boutons d’**Ajout rapide** proposent les services courants en un clic.",
+          "Utilisez le crayon pour modifier, l’interrupteur pour désactiver sans supprimer, la corbeille pour supprimer.",
+          "Dans la **Trousse de secours**, le champ **Service / garde** propose maintenant votre liste.",
+        ],
+        tips: [
+          "Les réquisitions déjà enregistrées gardent le nom du service tel qu’il était : modifier ou supprimer un service ne change pas l’historique.",
+        ],
+        link: { label: "Ouvrir Services et gardes", href: "/parametres/services" },
+      },
+      {
         id: "taux-change",
         title: "Régler les taux de change USD et EUR",
         summary:

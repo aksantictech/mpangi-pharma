@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Layers3,
   Settings,
+  Stethoscope,
   Truck,
   UserCircle,
   Users,
@@ -84,6 +85,14 @@ const cards: SettingsCard[] = [
       "Voir la liste, ajouter des sociétés conventionnées ou d’autres modes, les modifier ou les désactiver.",
     icon: Wallet,
     tone: "emerald",
+  },
+  {
+    href: "/parametres/services",
+    title: "Services et gardes",
+    description:
+      "Définir les services (Urgences, Maternité…) et les gardes proposés dans la Trousse de secours.",
+    icon: Stethoscope,
+    tone: "blue",
   },
   {
     href: "/abonnement",

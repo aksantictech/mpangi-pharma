@@ -31,6 +31,20 @@ export type KitRequisition = {
   kit_requisition_items?: KitRequisitionItem[];
 };
 
+export type KitServiceKind = "service" | "garde";
+
+export type PharmacyKitService = {
+  id: string;
+  pharmacy_id: string;
+  name: string;
+  kind: KitServiceKind;
+  notes: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type PaymentMethodKind = "convention" | "mobile" | "bank" | "other";
 
 export type PharmacyPaymentMethod = {
