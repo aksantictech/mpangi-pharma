@@ -204,9 +204,9 @@ export const helpGuides: HelpGuide[] = [
         steps: [
           "Ouvrez **Paramètres > Utilisateurs de ma pharmacie**.",
           "Pour un nouvel employé : email, téléphone, **Mot de passe temporaire**, rôle, puis **Ajouter**.",
-          "Pour changer le nom, le téléphone ou le **rôle** d’une personne (par exemple de Caissier à Pharmacien) : cliquez sur **Modifier** sur sa ligne, choisissez le nouveau rôle et regardez la liste « Ce rôle donne accès à » avant d’**Enregistrer**.",
+          "Pour changer le **rôle** d’une personne (par exemple de Caissier à Pharmacien), contactez l’administrateur Aksantic : seul le Super Admin peut modifier un rôle.",
           "Si quelqu’un oublie son mot de passe : cliquez sur **Réinitialiser** sur sa ligne et donnez-lui le nouveau mot de passe temporaire.",
-          "Les droits dépendent du rôle, pas de la personne : on ne règle pas les accès un par un. Seul le propriétaire peut nommer un gérant, et un gérant ne peut pas modifier un autre gérant.",
+          "Les droits dépendent du rôle, pas de la personne : on ne règle pas les accès un par un.",
           "Si quelqu’un quitte la pharmacie : cliquez sur **Désactiver** sur sa ligne, il ne pourra plus accéder à la pharmacie.",
         ],
         link: { label: "Ouvrir Utilisateurs", href: "/parametres/utilisateurs" },

@@ -9,6 +9,7 @@ import {
   BriefcaseMedical,
   Boxes,
   Building2,
+  ChevronDown,
   ClipboardList,
   CreditCard,
   Database,
@@ -199,6 +200,77 @@ const navigationItems: NavigationItem[] = [
   },
 ];
 
+/**
+ * Rubriques regroupées dans le menu pour gagner de la place : un seul bouton
+ * déroule ses pages. Une rubrique est placée à l'emplacement de sa première
+ * page. Si le rôle ne voit qu'une seule de ses pages, elle s'affiche comme un
+ * lien ordinaire.
+ */
+type NavGroup = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  hrefs: string[];
+};
+
+const navigationGroups: NavGroup[] = [
+  {
+    id: "produits-stock",
+    label: "Produits & stock",
+    icon: Package,
+    hrefs: ["/produits", "/stock", "/stock-voisin", "/expirations"],
+  },
+  {
+    id: "ventes-factures",
+    label: "Ventes & factures",
+    icon: ShoppingCart,
+    hrefs: ["/ventes", "/factures"],
+  },
+  {
+    id: "finances-tva",
+    label: "Finances & TVA",
+    icon: LineChart,
+    hrefs: ["/finances", "/finances/tva"],
+  },
+];
+
+type NavEntry =
+  | { type: "item"; item: NavigationItem }
+  | { type: "group"; group: NavGroup; items: NavigationItem[] };
+
+function buildNavEntries(items: NavigationItem[]): NavEntry[] {
+  const entries: NavEntry[] = [];
+  const placedGroups = new Set<string>();
+
+  for (const item of items) {
+    const group = navigationGroups.find((candidate) =>
+      candidate.hrefs.includes(item.href)
+    );
+
+    if (!group) {
+      entries.push({ type: "item", item });
+      continue;
+    }
+
+    if (placedGroups.has(group.id)) continue;
+
+    placedGroups.add(group.id);
+
+    // Pages de la rubrique visibles pour ce rôle, dans l'ordre de la rubrique.
+    const members = group.hrefs
+      .map((href) => items.find((candidate) => candidate.href === href))
+      .filter((candidate): candidate is NavigationItem => Boolean(candidate));
+
+    entries.push(
+      members.length > 1
+        ? { type: "group", group, items: members }
+        : { type: "item", item: members[0] ?? item }
+    );
+  }
+
+  return entries;
+}
+
 const mobileMainHrefs = ["/dashboard", "/produits", "/ventes", "/stock-voisin"];
 
 function canStayWithoutActivePharmacy(pathname: string) {
@@ -293,6 +365,33 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
     pathname,
     visibleNavigationItems.map((item) => item.href)
   );
+
+  const sidebarEntries = buildNavEntries(sidebarNavigationItems);
+  const mobileMoreEntries = buildNavEntries(mobileMoreNavigationItems);
+
+  // Rubriques dépliées. La rubrique de la page courante s'ouvre toute seule à
+  // chaque changement de page ; les autres restent repliées sauf si on les ouvre.
+  const activeGroupId = navigationGroups.find((group) =>
+    group.hrefs.includes(activeHref ?? "")
+  )?.id;
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  const [syncedGroupKey, setSyncedGroupKey] = useState("");
+
+  if (syncedGroupKey !== `${pathname}|${activeGroupId ?? ""}`) {
+    setSyncedGroupKey(`${pathname}|${activeGroupId ?? ""}`);
+
+    if (activeGroupId && !expandedGroups.includes(activeGroupId)) {
+      setExpandedGroups([...expandedGroups, activeGroupId]);
+    }
+  }
+
+  function toggleGroup(groupId: string) {
+    setExpandedGroups((current) =>
+      current.includes(groupId)
+        ? current.filter((id) => id !== groupId)
+        : [...current, groupId]
+    );
+  }
 
   const pageTitle =
     visibleNavigationItems.find((item) => item.href === activeHref)?.label ??
@@ -769,23 +868,76 @@ Se déconnecter les EFFACERA définitivement. Continuer la déconnexion ?`
           </div>
 
           <nav className="flex-1 space-y-1 overflow-y-auto p-4">
-            {sidebarNavigationItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = item.href === activeHref;
+            {sidebarEntries.map((entry) => {
+              if (entry.type === "item") {
+                const Icon = entry.item.icon;
+                const isActive = entry.item.href === activeHref;
+
+                return (
+                  <Link
+                    key={entry.item.href}
+                    href={entry.item.href}
+                    className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black transition ${
+                      isActive
+                        ? "bg-blue-700 text-white shadow-lg shadow-blue-100"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    {entry.item.label}
+                  </Link>
+                );
+              }
+
+              const GroupIcon = entry.group.icon;
+              const isOpen = expandedGroups.includes(entry.group.id);
+              const containsActive = entry.items.some(
+                (item) => item.href === activeHref
+              );
 
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black transition ${
-                    isActive
-                      ? "bg-blue-700 text-white shadow-lg shadow-blue-100"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-                  }`}
-                >
-                  <Icon className="h-5 w-5" />
-                  {item.label}
-                </Link>
+                <div key={entry.group.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(entry.group.id)}
+                    aria-expanded={isOpen}
+                    className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black transition ${
+                      containsActive
+                        ? "bg-blue-50 text-blue-800"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                    }`}
+                  >
+                    <GroupIcon className="h-5 w-5" />
+                    <span className="flex-1">{entry.group.label}</span>
+                    <ChevronDown
+                      className={`h-4 w-4 transition ${isOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+
+                  {isOpen && (
+                    <div className="ml-5 mt-1 space-y-1 border-l border-slate-200 pl-3">
+                      {entry.items.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = item.href === activeHref;
+
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-black transition ${
+                              isActive
+                                ? "bg-blue-700 text-white shadow-lg shadow-blue-100"
+                                : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                            }`}
+                          >
+                            <Icon className="h-4 w-4" />
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </nav>
@@ -996,24 +1148,50 @@ Se déconnecter les EFFACERA définitivement. Continuer la déconnexion ?`
                 </p>
 
                 <nav className="grid grid-cols-2 gap-3">
-                  {mobileMoreNavigationItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = item.href === activeHref;
+                  {mobileMoreEntries.map((entry) => {
+                    const items =
+                      entry.type === "item" ? [entry.item] : entry.items;
 
                     return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setIsMobileMenuOpen(false)}
-                        className={`flex min-h-20 flex-col justify-center gap-2 rounded-3xl border px-4 py-4 text-sm font-black ${
-                          isActive
-                            ? "border-blue-700 bg-blue-700 text-white"
-                            : "border-slate-200 bg-white text-slate-700"
-                        }`}
+                      <div
+                        key={
+                          entry.type === "item"
+                            ? entry.item.href
+                            : entry.group.id
+                        }
+                        className={
+                          entry.type === "group"
+                            ? "col-span-2 grid grid-cols-2 gap-3"
+                            : "contents"
+                        }
                       >
-                        <Icon className="h-5 w-5" />
-                        {item.label}
-                      </Link>
+                        {entry.type === "group" && (
+                          <p className="col-span-2 -mb-1 mt-2 text-xs font-black uppercase tracking-[0.15em] text-slate-400">
+                            {entry.group.label}
+                          </p>
+                        )}
+
+                        {items.map((item) => {
+                          const Icon = item.icon;
+                          const isActive = item.href === activeHref;
+
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              onClick={() => setIsMobileMenuOpen(false)}
+                              className={`flex min-h-20 flex-col justify-center gap-2 rounded-3xl border px-4 py-4 text-sm font-black ${
+                                isActive
+                                  ? "border-blue-700 bg-blue-700 text-white"
+                                  : "border-slate-200 bg-white text-slate-700"
+                              }`}
+                            >
+                              <Icon className="h-5 w-5" />
+                              {item.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
                     );
                   })}
                 </nav>

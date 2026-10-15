@@ -6,14 +6,11 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   ArrowLeft,
-  Pencil,
   RefreshCcw,
   UserPlus,
   Users,
 } from "lucide-react";
 
-import EditMemberDialog from "@/components/settings/EditMemberDialog";
-import { getCachedAccount } from "@/lib/offline/identity";
 import { canManageUsers } from "@/lib/permissions";
 import {
   createPharmacyMember,
@@ -57,7 +54,6 @@ export default function UsersSettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [changingId, setChangingId] = useState<string | null>(null);
-  const [editingMember, setEditingMember] = useState<PharmacyMember | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   // Succès : notification éphémère (voir components/ui/Toast) plutôt qu'un bandeau.
   const setSuccessMessage = useSuccessToast();
@@ -303,15 +299,6 @@ export default function UsersSettingsPage() {
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {members.map((member) => {
               const editable = canManage && member.role !== "owner";
-
-              // Le serveur refuse ces cas ; on ne propose pas le bouton :
-              // soi-même, et (pour un gérant) un autre gérant.
-              const isSelf = getCachedAccount()?.userId === member.user_id;
-              const canEditRole =
-                editable &&
-                !isSelf &&
-                !(pharmacy.role === "manager" && member.role === "manager");
-
               return (
                 <article
                   key={member.id}
@@ -345,23 +332,7 @@ export default function UsersSettingsPage() {
                   </div>
 
                   {editable && (
-                    <div
-                      className={`mt-4 grid gap-2 border-t border-slate-200 pt-4 ${
-                        canEditRole ? "grid-cols-3" : "grid-cols-2"
-                      }`}
-                    >
-                      {canEditRole && (
-                        <button
-                          type="button"
-                          onClick={() => setEditingMember(member)}
-                          disabled={changingId === member.id}
-                          className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-blue-50 px-3 py-3 text-xs font-black text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Modifier
-                        </button>
-                      )}
-
+                    <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-200 pt-4">
                       <button
                         type="button"
                         onClick={() => void handleReset(member)}
@@ -395,21 +366,6 @@ export default function UsersSettingsPage() {
           </div>
         </section>
       </div>
-
-      {editingMember && (
-        <EditMemberDialog
-          key={editingMember.id}
-          member={editingMember}
-          pharmacyId={pharmacy.id}
-          canAssignManager={pharmacy.role === "owner"}
-          onClose={() => setEditingMember(null)}
-          onSaved={(message) => {
-            setEditingMember(null);
-            setSuccessMessage(message);
-            void loadData();
-          }}
-        />
-      )}
 
       {isDialogOpen && (
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/50 p-3 backdrop-blur-sm md:items-center">

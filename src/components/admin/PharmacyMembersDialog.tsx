@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { CheckCircle2, KeyRound, Power, PowerOff, UserPlus, Users, X } from "lucide-react";
+import { CheckCircle2, KeyRound, Pencil, Power, PowerOff, UserPlus, Users, X } from "lucide-react";
+
+import EditMemberDialog from "@/components/settings/EditMemberDialog";
 
 import { getAdminPharmacyMembers } from "@/services/admin-pharmacies.service";
 import {
@@ -52,6 +54,7 @@ export default function PharmacyMembersDialog({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [changingId, setChangingId] = useState<string | null>(null);
+  const [editingMember, setEditingMember] = useState<PharmacyMember | null>(null);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -386,7 +389,17 @@ export default function PharmacyMembersDialog({
                 </div>
 
                 {editable && (
-                  <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-200 pt-4">
+                  <div className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-200 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setEditingMember(member)}
+                      disabled={isBusy}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-blue-50 px-3 py-2.5 text-xs font-black text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Modifier
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => void handleReset(member)}
@@ -429,6 +442,21 @@ export default function PharmacyMembersDialog({
           )}
         </div>
       </div>
+
+      {editingMember && (
+        <EditMemberDialog
+          key={editingMember.id}
+          member={editingMember}
+          pharmacyId={pharmacy.id}
+          canAssignManager
+          onClose={() => setEditingMember(null)}
+          onSaved={(message) => {
+            setEditingMember(null);
+            setSuccessMessage(message);
+            void loadMembers(pharmacy.id);
+          }}
+        />
+      )}
     </div>
   );
 }
