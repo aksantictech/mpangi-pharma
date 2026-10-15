@@ -218,7 +218,7 @@ const navigationGroups: NavGroup[] = [
     id: "produits-stock",
     label: "Produits & stock",
     icon: Package,
-    hrefs: ["/produits", "/stock", "/stock-voisin", "/expirations"],
+    hrefs: ["/produits", "/stock", "/inventaire", "/stock-voisin", "/expirations"],
   },
   {
     id: "ventes-factures",
