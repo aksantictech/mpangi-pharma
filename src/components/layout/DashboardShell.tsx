@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSidebarHidden } from "@/lib/use-sidebar-hidden";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
@@ -31,6 +32,8 @@ import {
   Warehouse,
   X,
   type LucideIcon,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 
 import AppLogo from "@/components/branding/AppLogo";
@@ -339,6 +342,8 @@ export default function DashboardShell({ children }: { children: ReactNode }) {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [accessWarning, setAccessWarning] = useState("");
   const [isCompactMode, setIsCompactMode] = useState(true);
+  // Menu latéral masquable sur grand écran (choix mémorisé sur l'appareil).
+  const [isSidebarHidden, setSidebarHidden] = useSidebarHidden();
 
   const [accountName, setAccountName] = useState("");
   const [accountEmail, setAccountEmail] = useState("");
@@ -826,7 +831,13 @@ Se déconnecter les EFFACERA définitivement. Continuer la déconnexion ?`
     <ToastProvider>
     <div className="theme-scope min-h-screen bg-slate-50">
       {!isCompactMode && (
-        <aside className="fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white">
+        <aside
+          aria-hidden={isSidebarHidden}
+          inert={isSidebarHidden}
+          className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white transition-transform duration-200 ${
+            isSidebarHidden ? "-translate-x-full" : "translate-x-0"
+          }`}
+        >
           <div className="border-b border-slate-100 p-4">
             {pharmacies.length > 1 ? (
               <select
@@ -1285,10 +1296,31 @@ Se déconnecter les EFFACERA définitivement. Continuer la déconnexion ?`
         </nav>
       )}
 
-      <div className={isCompactMode ? "pb-28" : "pl-72"}>
+      <div
+        className={
+          isCompactMode
+            ? "pb-28"
+            : `transition-[padding] duration-200 ${isSidebarHidden ? "pl-0" : "pl-72"}`
+        }
+      >
         {!isCompactMode && (
           <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4">
             <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => setSidebarHidden(!isSidebarHidden)}
+                aria-label={isSidebarHidden ? "Afficher le menu" : "Masquer le menu"}
+                title={isSidebarHidden ? "Afficher le menu" : "Masquer le menu"}
+                aria-pressed={isSidebarHidden}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                {isSidebarHidden ? (
+                  <PanelLeftOpen className="h-5 w-5" />
+                ) : (
+                  <PanelLeftClose className="h-5 w-5" />
+                )}
+              </button>
+
               {!isOnDashboard && (
                 <Link
                   href="/dashboard"
