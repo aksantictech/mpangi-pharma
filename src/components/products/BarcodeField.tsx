@@ -16,6 +16,9 @@ type BarcodeDetectorConstructor = {
   getSupportedFormats?: () => Promise<string[]>;
 };
 
+// Pause avant de relire le même code en mode continu (évite les doublons).
+const REPEAT_PAUSE_MS = 2500;
+
 const PRODUCT_FORMATS = [
   "ean_13",
   "ean_8",
@@ -26,6 +29,15 @@ const PRODUCT_FORMATS = [
   "itf",
   "codabar",
 ];
+
+/** La caméra peut lire les codes-barres (Chrome Android, ChromeOS, macOS). */
+export function canScanWithCamera() {
+  return (
+    typeof window !== "undefined" &&
+    Boolean(getDetectorConstructor()) &&
+    Boolean(navigator.mediaDevices?.getUserMedia)
+  );
+}
 
 function getDetectorConstructor() {
   return (
@@ -122,12 +134,22 @@ export default function BarcodeField({
   );
 }
 
-function CameraScanner({
+/**
+ * Fenêtre de lecture par caméra. En mode `continuous` (caisse), elle reste
+ * ouverte après chaque lecture pour enchaîner les produits : le même code
+ * n'est pas relu avant `REPEAT_PAUSE_MS`, et `message` affiche le résultat de
+ * la dernière lecture.
+ */
+export function CameraScanner({
   onDetected,
   onClose,
+  continuous = false,
+  message,
 }: {
   onDetected: (code: string) => void;
   onClose: () => void;
+  continuous?: boolean;
+  message?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
@@ -144,6 +166,8 @@ function CameraScanner({
     let stream: MediaStream | null = null;
     let timer: number | undefined;
     let isActive = true;
+    let lastCode = "";
+    let lastCodeAt = 0;
 
     async function start() {
       try {
@@ -182,9 +206,23 @@ function CameraScanner({
             const found = codes.find((code) => code.rawValue);
 
             if (found) {
-              navigator.vibrate?.(80);
-              onDetectedRef.current(found.rawValue);
-              return;
+              if (!continuous) {
+                navigator.vibrate?.(80);
+                onDetectedRef.current(found.rawValue);
+                return;
+              }
+
+              const now = Date.now();
+
+              if (
+                found.rawValue !== lastCode ||
+                now - lastCodeAt > REPEAT_PAUSE_MS
+              ) {
+                lastCode = found.rawValue;
+                onDetectedRef.current(found.rawValue);
+              }
+
+              lastCodeAt = now;
             }
           } catch {
             // Image pas encore prête : on réessaie au prochain passage.
@@ -218,6 +256,7 @@ function CameraScanner({
 
       stream?.getTracks().forEach((track) => track.stop());
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -247,6 +286,15 @@ function CameraScanner({
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {message && (
+          <p
+            role="status"
+            className="mx-4 mb-3 rounded-xl bg-slate-100 px-3 py-2 text-sm font-bold text-slate-800"
+          >
+            {message}
+          </p>
+        )}
 
         {error ? (
           <p className="px-4 pb-5 text-sm font-semibold text-red-700">{error}</p>

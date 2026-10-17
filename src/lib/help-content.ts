@@ -531,11 +531,14 @@ export const helpGuides: HelpGuide[] = [
         title: "Vendre avec le lecteur de code-barres",
         summary: "Plus rapide que la recherche au clavier.",
         steps: [
-          "Cliquez dans la barre de recherche de la caisse.",
-          "Scannez le code-barres du produit avec le lecteur : le produit est ajouté au panier tout de suite.",
-          "Recommencez pour chaque produit.",
+          "Ouvrez la caisse : inutile de cliquer dans la recherche, le lecteur fonctionne directement.",
+          "Scannez le code-barres du produit avec le lecteur : le produit est ajouté au panier tout de suite, avec un bip de confirmation et un message vert.",
+          "Recommencez pour chaque produit. Scanner deux fois le même produit ajoute une unité de plus.",
+          "Sur téléphone ou tablette, touchez **Scanner** à côté de la recherche pour utiliser la caméra : elle reste ouverte pour enchaîner plusieurs produits.",
         ],
         tips: [
+          "Un message rouge s’affiche si le code est inconnu, ou si le produit n’a pas de stock ou de prix.",
+          "La case **Scan direct** sous la recherche active ou désactive cet ajout automatique (choix mémorisé sur l’appareil).",
           "Si le code-barres n’est pas reconnu, le produit n’a peut-être pas de code dans sa fiche : demandez au gestionnaire de stock de l’ajouter.",
         ],
         link: { label: "Ouvrir la caisse", href: "/ventes" },

@@ -3,7 +3,7 @@
 import { formatDisplayMoney, useDisplayCurrency } from "@/lib/currency";
 import PageLoading from "@/components/ui/PageLoading";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -13,6 +13,7 @@ import {
   Printer,
   Receipt,
   RefreshCcw,
+  ScanLine,
   Search,
   ShoppingCart,
   SlidersHorizontal,
@@ -22,6 +23,15 @@ import {
 } from "lucide-react";
 
 import CurrencySwitcher from "@/components/layout/CurrencySwitcher";
+import {
+  CameraScanner,
+  canScanWithCamera,
+} from "@/components/products/BarcodeField";
+import { findProductByBarcode, playScanBeep } from "@/lib/barcode";
+import {
+  useBarcodeScanner,
+  useScanToCartSetting,
+} from "@/lib/use-barcode-scanner";
 import { isServerReachable, useConnectivity } from "@/lib/offline/connectivity";
 import { isOfflineError } from "@/lib/offline/network";
 import { getCurrentPharmacy } from "@/services/pharmacies.service";
@@ -139,6 +149,14 @@ export default function SalesPage() {
   // repart de la première page sans avoir besoin d'un effet de remise à zéro.
   const [pager, setPager] = useState({ key: "", count: PAGE_SIZE });
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Scan code-barres : ajout direct au panier (option mémorisée sur l'appareil).
+  const [scanToCart, setScanToCart] = useScanToCartSetting();
+  const [scanNotice, setScanNotice] = useState<{
+    tone: "ok" | "error";
+    text: string;
+  } | null>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const scanNoticeTimer = useRef<number | undefined>(undefined);
   const [cartOpen, setCartOpen] = useState(false);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash_cdf");
@@ -440,21 +458,72 @@ export default function SalesPage() {
     setStockFilter("available");
   }
 
-  // Pistolet code-barres / saisie rapide : Entrée ajoute le produit dont le
-  // code-barres correspond exactement, ou l'unique résultat de la recherche.
+  function openCamera() {
+    if (!canScanWithCamera()) {
+      showScanNotice(
+        "error",
+        "La caméra ne peut pas lire les codes-barres sur cet appareil. Utilisez un lecteur de code-barres."
+      );
+      return;
+    }
+
+    setIsCameraOpen(true);
+  }
+
+  function showScanNotice(tone: "ok" | "error", text: string) {
+    window.clearTimeout(scanNoticeTimer.current);
+    setScanNotice({ tone, text });
+    scanNoticeTimer.current = window.setTimeout(() => setScanNotice(null), 3500);
+  }
+
+  // Un code-barres a été lu (lecteur ou caméra) : le produit correspondant
+  // est cherché dans TOUT le catalogue (même si un filtre le masque) et ajouté
+  // au panier. Les refus (stock, prix) s'affichent via addToCart.
+  function handleScan(code: string) {
+    const product = findProductByBarcode(products, code);
+
+    if (!product) {
+      playScanBeep("error");
+      showScanNotice("error", `Aucun produit avec le code-barres ${code}.`);
+      return;
+    }
+
+    const added = addToCart(product);
+
+    playScanBeep(added ? "ok" : "error");
+
+    if (added) {
+      showScanNotice("ok", `${product.name} ajouté au panier.`);
+    } else {
+      showScanNotice("error", `${product.name} : ajout impossible.`);
+    }
+  }
+
+  // Lecteur USB / Bluetooth, même sans cliquer dans la recherche.
+  useBarcodeScanner(handleScan, scanToCart && !isCameraOpen);
+
+  // Saisie rapide dans la recherche : Entrée ajoute le produit dont le
+  // code-barres correspond exactement (option « Scan direct »), ou l'unique
+  // résultat de la recherche.
   function handleSearchKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (event.key !== "Enter") return;
 
-    const typed = search.trim().toLowerCase();
+    const typed = search.trim();
 
     if (!typed) return;
 
-    const byBarcode = filteredProducts.find(
-      (product) => String(product.barcode ?? "").toLowerCase() === typed
-    );
-    const match =
-      byBarcode ??
-      (filteredProducts.length === 1 ? filteredProducts[0] : undefined);
+    if (scanToCart) {
+      const byBarcode = findProductByBarcode(products, typed);
+
+      if (byBarcode || /^\d{6,}$/.test(typed)) {
+        event.preventDefault();
+        handleScan(typed);
+        setSearch("");
+        return;
+      }
+    }
+
+    const match = filteredProducts.length === 1 ? filteredProducts[0] : undefined;
 
     if (!match) return;
 
@@ -513,7 +582,7 @@ export default function SalesPage() {
     setPaymentMethod(value as PaymentMethod);
   }
 
-  function addToCart(product: SellableProduct) {
+  function addToCart(product: SellableProduct): boolean {
     setErrorMessage("");
     setSuccessMessage("");
     setCreatedInvoiceHref("");
@@ -523,12 +592,12 @@ export default function SalesPage() {
 
     if (availableQuantity <= 0) {
       setErrorMessage("Ce produit n’a pas de stock disponible.");
-      return;
+      return false;
     }
 
     if (unitPrice <= 0) {
       setErrorMessage("Ce produit n’a pas de prix de vente valide.");
-      return;
+      return false;
     }
 
     const existingItem = cart.find(
@@ -540,7 +609,7 @@ export default function SalesPage() {
       existingItem.quantity + 1 > existingItem.availableQuantity
     ) {
       setErrorMessage("Quantité demandée supérieure au stock disponible.");
-      return;
+      return false;
     }
 
     setCart((current) => {
@@ -571,6 +640,8 @@ export default function SalesPage() {
         },
       ];
     });
+
+    return true;
   }
 
   function updateCartQuantity(productId: string, quantity: number) {
@@ -999,6 +1070,17 @@ export default function SalesPage() {
 
               <button
                 type="button"
+                onClick={openCamera}
+                aria-label="Scanner avec la caméra"
+                title="Scanner avec la caméra"
+                className="inline-flex min-h-14 shrink-0 items-center justify-center gap-2 rounded-2xl border-2 border-slate-200 bg-white px-4 text-sm font-black text-blue-700 hover:bg-blue-50"
+              >
+                <ScanLine className="h-5 w-5" />
+                <span className="hidden sm:inline">Scanner</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setFiltersOpen((open) => !open)}
                 aria-expanded={filtersOpen}
                 className={`relative inline-flex min-h-14 shrink-0 items-center justify-center gap-2 rounded-2xl border-2 px-4 text-sm font-black ${
@@ -1017,6 +1099,40 @@ export default function SalesPage() {
                 )}
               </button>
             </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-bold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={scanToCart}
+                  onChange={(event) => setScanToCart(event.target.checked)}
+                  className="h-4 w-4"
+                />
+                Scan direct : un code-barres lu ajoute le produit au panier
+              </label>
+
+              {scanNotice && (
+                <p
+                  role="status"
+                  className={`rounded-xl px-3 py-1.5 text-xs font-black ${
+                    scanNotice.tone === "ok"
+                      ? "bg-emerald-50 text-emerald-800"
+                      : "bg-red-50 text-red-700"
+                  }`}
+                >
+                  {scanNotice.text}
+                </p>
+              )}
+            </div>
+
+            {isCameraOpen && (
+              <CameraScanner
+                continuous
+                onDetected={handleScan}
+                onClose={() => setIsCameraOpen(false)}
+                message={scanNotice?.text}
+              />
+            )}
 
             {filterOptions.categories.length > 0 && (
               <div
